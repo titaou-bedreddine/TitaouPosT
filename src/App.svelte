@@ -76,14 +76,14 @@
     <!-- SIDEBAR -->
     <aside class="w-64 bg-pos-card border-e border-pos-border flex flex-col justify-between shrink-0 select-none shadow-xs">
       <!-- Top Brand Header -->
-      <div class="p-4 border-b border-pos-border/60">
+      <div class="p-3.5 border-b border-pos-border/60">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white font-black shadow-md text-lg">
-            T
+          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-md shrink-0 bg-white flex items-center justify-center border border-pos-border/50">
+            <img src="/logo.png" alt="TitaouPOS" class="w-full h-full object-contain p-0.5" />
           </div>
-          <div>
-            <h1 class="font-black text-sm tracking-tight text-pos-text">TitaouPosT</h1>
-            <p class="text-[10px] text-sky-600 font-bold uppercase tracking-wider">Lumina Point of Sale</p>
+          <div class="min-w-0">
+            <h1 class="font-black text-sm tracking-tight text-pos-text">TitaouPOS</h1>
+            <p class="text-[9px] text-sky-600 font-bold truncate">Titaou Bedreddine 0553444057</p>
           </div>
         </div>
       </div>
@@ -234,7 +234,9 @@
             >
               <LogOut class="w-3.5 h-3.5" />
             </button>
-          </div>
+        <!-- Developer Credit Pill -->
+        <div class="px-2 py-1 bg-slate-100 dark:bg-slate-900 rounded-lg text-[9px] text-pos-muted text-center border border-pos-border/40">
+          Created by <span class="font-bold text-sky-600">Titaou Bedreddine</span> (0553444057)
         </div>
       </div>
     </aside>

@@ -6,7 +6,7 @@ categories = [
     (3, "منتجات الحليب والألبان", "Produits Laitiers", "Dairy Products", "#38bdf8"),
     (4, "البسكويت والحلويات", "Biscuiterie & Chocolat", "Snacks & Sweets", "#f59e0b"),
     (5, "الزيوت والمعلبات", "Huiles & Conserves", "Oils & Canned Goods", "#10b981"),
-    (6, "مواد التنظيف والغسيل", "Produits d'Entretien", "Cleaning Products", "#6366f1"),
+    (6, "مواد التنظيف والغسيل", "Produits d''Entretien", "Cleaning Products", "#6366f1"),
     (7, "العناية الشخصية والتجميل", "Hygiène & Beauté", "Personal Care & Beauty", "#ec4899"),
     (8, "البقوليات والتوابل", "Épices & Féculents", "Spices & Grains", "#84cc16"),
     (9, "المخبوزات والفرينة", "Boulangerie & Farines", "Bakery & Flours", "#d97706"),
@@ -25,7 +25,7 @@ products_templates = [
     (2, "ماء معدني إفرو 1.5 لتر", "Eau Minérale Ifri 1.5L", "Ifri Mineral Water 1.5L", 35, 45),
     (2, "عصير رامي برتقال 1 لتر", "Jus Ramy Orange 1L", "Ramy Orange Juice 1L", 120, 150),
     (2, "كوكاكولا قارورة 1 لتر", "Coca-Cola Bouteille 1L", "Coca-Cola Bottle 1L", 115, 140),
-    (2, "عصير نغاووس مشمش 1 لتر", "Jus N'Gaous Abricot 1L", "N'Gaous Apricot Juice 1L", 130, 165),
+    (2, "عصير نغاووس مشمش 1 لتر", "Jus N''Gaous Abricot 1L", "N''Gaous Apricot Juice 1L", 130, 165),
     (3, "حليب كانديا نصف دسم 1 لتر", "Lait Candia Silhouette 1L", "Candia Silhouette Milk 1L", 125, 150),
     (3, "جبن بريزيدون مثلثات 16 قطعة", "Fromage Président 16 Portions", "President Cheese 16 Portions", 260, 320),
     (3, "ياغورت صومام فواكه 100 غ", "Yaourt Soummam Fruits 100g", "Soummam Fruit Yogurt 100g", 30, 40),
@@ -37,12 +37,12 @@ products_templates = [
     (4, "حلوى كابريس بالكراميل 250 غ", "Bonbons Caprice Caramel 250g", "Caprice Caramel Candies 250g", 170, 220),
     (5, "زيت طهي إيليو سيفيتال 5 لتر", "Huile de Table Elio 5L", "Elio Cooking Oil 5L", 620, 750),
     (5, "طماطم مصبرة كاب 800 غ", "Concentré Tomate CAB 800g", "CAB Tomato Paste 800g", 210, 260),
-    (5, "تونة بالزيت النباتي ماريور 160 غ", "Thon MarYor à l'Huile 160g", "MarYor Tuna in Oil 160g", 190, 240),
+    (5, "تونة بالزيت النباتي ماريور 160 غ", "Thon MarYor à l''Huile 160g", "MarYor Tuna in Oil 160g", 190, 240),
     (5, "مايونيز ديورا 500 مل", "Mayonnaise Diura 500ml", "Diura Mayonnaise 500ml", 220, 280),
     (6, "سائل غسيل الأواني إيزيس 1 لتر", "Liquide Vaisselle ISIS 1L", "ISIS Dishwashing Liquid 1L", 160, 200),
     (6, "مسحوق غسيل أومو أوتوماتيك 3 كغ", "Lessive OMO Automatique 3kg", "OMO Auto Laundry Powder 3kg", 850, 1050),
     (6, "جافيل جودور 2 لتر", "Eau de Javel Javelot 2L", "Javelot Bleach 2L", 110, 140),
-    (7, "شامبو فينوس زيت الأرغان 400 مل", "Shampoing Vénus Huile d'Argan 400ml", "Venus Argan Shampoo 400ml", 240, 310),
+    (7, "شامبو فينوس زيت الأرغان 400 مل", "Shampoing Vénus Huile d''Argan 400ml", "Venus Argan Shampoo 400ml", 240, 310),
     (7, "صابون دوف مرطب 100 غ", "Savon Dove Hydratant 100g", "Dove Moisturizing Soap 100g", 130, 170),
     (7, "معجون أسنان سيجنال مكافحة التسوس", "Dentifrice Signal Anti-Caries 75ml", "Signal Toothpaste 75ml", 150, 195),
     (8, "حمص حب سفينة 1 كغ", "Pois Chiches Safina 1kg", "Safina Chickpeas 1kg", 280, 350),
@@ -130,7 +130,6 @@ for c in range(1, 101):
     
     phone = f"055{c:07d}" if c % 2 == 0 else f"066{c:07d}"
     debt = (c * 750) % 45000 if c % 4 != 0 else 0
-    limit = 50000 + (c * 1000)
     qr = f"CUST-QR-{c:03d}"
     rc = f"16/00-{c:07d}B22"
     nif = f"0016{c:011d}"
@@ -138,8 +137,8 @@ for c in range(1, 101):
     ai = f"16010{c:06d}"
     
     sql_statements.append(
-        f"INSERT INTO customers (id, name, phone, email, address, rc, nif, nis, ai, qr_code, credit_limit, balance_debt, is_active) "
-        f"VALUES ({c}, '{name}', '{phone}', 'client{c}@mail.dz', '{wilaya}, Algérie', '{rc}', '{nif}', '{nis}', '{ai}', '{qr}', {limit}, {debt}, 1);"
+        f"INSERT INTO customers (id, name, phone, email, address, rc, nif, nis, ai, qr_code, balance, initial_debt, is_active) "
+        f"VALUES ({c}, '{name}', '{phone}', 'client{c}@mail.dz', '{wilaya}, Algérie', '{rc}', '{nif}', '{nis}', '{ai}', '{qr}', {debt}, {debt}, 1);"
     )
 
 # 4. Suppliers (20 suppliers)
@@ -164,7 +163,7 @@ suppliers_list = [
     ("Ramy Boissons & Jus", "023776655", "ramy@ramy.dz", "Zone Industrielle Oued Smar, Alger", "Ali Ramy", 55000),
     ("Moulins Industriels Safina", "036998811", "safina@safina.dz", "Sétif, Algérie", "Hocine Safina", 75000),
     ("Hamoud Boualem SPA", "021665544", "hamoud@hamoud.dz", "Hassiba Ben Bouali, Alger", "Yacine Hamoud", 60000),
-    ("N'Gaous Conserves & Boissons", "033887766", "ngaous@ngaous.dz", "N'Gaous, Batna", "Messaoud Ngaous", 35000),
+    ("N''Gaous Conserves & Boissons", "033887766", "ngaous@ngaous.dz", "N''Gaous, Batna", "Messaoud Ngaous", 35000),
     ("Faderco Hygiène & Papier", "023554433", "faderco@faderco.dz", "Setif & Alger", "Amor Habes", 80000),
     ("Générale des Huiles Végétales", "041223344", "ghv@ghv.dz", "Oran Zone Portuaire", "Kamel Dahmani", 130000),
     ("Sim Agro-Alimentaire", "025778899", "sim@groupesim.com", "Ain Defla, Algérie", "Abdelkader Tayeb", 90000),
@@ -178,7 +177,7 @@ for s, (sname, sphone, semail, saddr, sperson, sdebt) in enumerate(suppliers_lis
     snis = f"197516{s:07d}"
     sai = f"16020{s:06d}"
     sql_statements.append(
-        f"INSERT INTO suppliers (id, name, phone, email, address, rc, nif, nis, ai, contact_person, balance_debt, is_active) "
+        f"INSERT INTO suppliers (id, name, phone, email, address, rc, nif, nis, ai, contact_person, balance, is_active) "
         f"VALUES ({s}, '{sname}', '{sphone}', '{semail}', '{saddr}', '{src}', '{snif}', '{snis}', '{sai}', '{sperson}', {sdebt}, 1);"
     )
 
@@ -206,4 +205,4 @@ sql_statements.append(
 with open("src-tauri/migrations/002_seed_data.sql", "w", encoding="utf-8") as f:
     f.write("\n".join(sql_statements))
 
-print("Successfully regenerated 002_seed_data.sql with valid Foreign Keys!")
+print("Successfully regenerated 002_seed_data.sql!")

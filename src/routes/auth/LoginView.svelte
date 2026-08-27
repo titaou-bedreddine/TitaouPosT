@@ -37,11 +37,11 @@
 <div class="h-screen w-screen bg-slate-950 flex items-center justify-center p-4 select-none">
   <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
     <div class="text-center space-y-2">
-      <div class="w-16 h-16 rounded-2xl bg-sky-600 flex items-center justify-center text-white font-black text-2xl mx-auto shadow-lg shadow-sky-600/20">
-        T
+      <div class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mx-auto shadow-lg shadow-sky-600/20 overflow-hidden p-1 border border-slate-700">
+        <img src="/logo.png" alt="TitaouPOS" class="w-full h-full object-contain" />
       </div>
-      <h1 class="text-2xl font-black text-white">TitaouPosT</h1>
-      <p class="text-xs text-slate-400">Enterprise High-Performance Point of Sale</p>
+      <h1 class="text-2xl font-black text-white tracking-tight">TitaouPOS</h1>
+      <p class="text-xs text-sky-400 font-bold">Created by Titaou Bedreddine 0553444057</p>
     </div>
 
     {#if errorMsg}
