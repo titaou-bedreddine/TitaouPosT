@@ -57,22 +57,20 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
 
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM products",
-            [],
-            |r| r.get(0),
-        ).unwrap_or(0);
-
-        if count < 50 {
-            let m2 = include_str!("../../migrations/002_seed_data.sql");
-            let _ = conn.execute_batch(m2);
-        }
+        let m2 = include_str!("../../migrations/002_seed_data.sql");
+        let _ = conn.execute_batch(m2);
 
         Ok(())
     }
 
     fn seed_default_admin(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (1, 'Administrator', 'Full system access', 1);",
+            [],
+        );
+
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM users WHERE username = 'admin'",
             [],
@@ -100,6 +98,12 @@ impl DbState {
 
     fn ensure_default_session(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (1, 'Main Register 01', 'REG-01', 1);",
+            [],
+        );
+
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM cash_sessions WHERE status = 'open'",
             [],

@@ -1,3 +1,20 @@
+-- Seed Roles
+INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (1, 'Administrator', 'Full system access', 1);
+INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (2, 'Cashier', 'POS and checkout access', 1);
+INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (3, 'Manager', 'Store operations and reports', 1);
+INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (4, 'Inventory Clerk', 'Stock and product management', 1);
+
+-- Seed Units
+INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (1, 'Piece / Pièce / قطعة', 'pcs', 0);
+INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (2, 'Kilogram / Kilogramme / كيلوغرام', 'kg', 1);
+INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (3, 'Liter / Litre / لتر', 'L', 1);
+INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (4, 'Pack / Paquet / علبة', 'pck', 0);
+INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (5, 'Box / Carton / كرتون', 'box', 0);
+
+-- Seed Registers
+INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (1, 'Main Register 01', 'REG-01', 1);
+INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (2, 'Secondary Register 02', 'REG-02', 1);
+
 -- Seed Categories
 DELETE FROM categories;
 INSERT INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (1, 'المواد الغذائية العامة', 'Alimentation Générale', 'General Groceries', '#0284c7', 1);
@@ -3146,8 +3163,7 @@ INSERT INTO suppliers (id, name, phone, email, address, rc, nif, nis, ai, contac
 INSERT INTO suppliers (id, name, phone, email, address, rc, nif, nis, ai, contact_person, balance_debt, is_active) VALUES (20, 'Extra Distribution Matériel', '021990011', 'contact@extradistrib.dz', 'Hydra, Alger', '16/00-0000020A20', '002000000000020', '1975160000020', '16020000020', 'Farid Extra', 45000, 1);
 
 -- Seed Employees & Users
-DELETE FROM users WHERE id > 1;
 INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (1, 'admin', 'Administrator', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '1234', 1, 100.0, 1);
-INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (2, 'kamel', 'Kamel Zerrouki', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '1111', 2, 10.0, 1);
-INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (3, 'amina', 'Amina Cherif', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '2222', 2, 15.0, 1);
-INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (4, 'samir', 'Samir Bouzid', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '9999', 3, 30.0, 1);
+INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (2, 'kamel', 'Kamel Zerrouki', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '1111', 2, 10.0, 1);
+INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (3, 'amina', 'Amina Cherif', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '2222', 2, 15.0, 1);
+INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) VALUES (4, 'samir', 'Samir Bouzid', '$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q', '9999', 3, 30.0, 1);

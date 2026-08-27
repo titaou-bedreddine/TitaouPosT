@@ -1,5 +1,4 @@
 import random
-import json
 
 categories = [
     (1, "المواد الغذائية العامة", "Alimentation Générale", "General Groceries", "#0284c7"),
@@ -15,7 +14,6 @@ categories = [
 ]
 
 products_templates = [
-    # (Category, Name AR, Name FR, Name EN, base_purchase, base_sale)
     (1, "سكر أبيض سيفيتال 1 كغ", "Sucre Blanc Cevital 1kg", "Cevital White Sugar 1kg", 85, 100),
     (1, "فرينة سيم فاخرة 1 كغ", "Farine Sim Extra 1kg", "Sim Extra Flour 1kg", 50, 65),
     (1, "قهوة فاميكو 250 غ", "Café Famico Moulu 250g", "Famico Ground Coffee 250g", 240, 290),
@@ -56,8 +54,26 @@ products_templates = [
 
 sql_statements = []
 
+# 0. Foundation Roles, Units, Registers
+sql_statements.append("-- Seed Roles")
+sql_statements.append("INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (1, 'Administrator', 'Full system access', 1);")
+sql_statements.append("INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (2, 'Cashier', 'POS and checkout access', 1);")
+sql_statements.append("INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (3, 'Manager', 'Store operations and reports', 1);")
+sql_statements.append("INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (4, 'Inventory Clerk', 'Stock and product management', 1);")
+
+sql_statements.append("\n-- Seed Units")
+sql_statements.append("INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (1, 'Piece / Pièce / قطعة', 'pcs', 0);")
+sql_statements.append("INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (2, 'Kilogram / Kilogramme / كيلوغرام', 'kg', 1);")
+sql_statements.append("INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (3, 'Liter / Litre / لتر', 'L', 1);")
+sql_statements.append("INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (4, 'Pack / Paquet / علبة', 'pck', 0);")
+sql_statements.append("INSERT OR IGNORE INTO units (id, name, short_name, allow_decimals) VALUES (5, 'Box / Carton / كرتون', 'box', 0);")
+
+sql_statements.append("\n-- Seed Registers")
+sql_statements.append("INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (1, 'Main Register 01', 'REG-01', 1);")
+sql_statements.append("INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (2, 'Secondary Register 02', 'REG-02', 1);")
+
 # 1. Categories
-sql_statements.append("-- Seed Categories")
+sql_statements.append("\n-- Seed Categories")
 sql_statements.append("DELETE FROM categories;")
 for cid, ar, fr, en, col in categories:
     sql_statements.append(f"INSERT INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES ({cid}, '{ar}', '{fr}', '{en}', '{col}', 1);")
@@ -67,7 +83,6 @@ sql_statements.append("\n-- Seed 1000 Products & Barcodes")
 sql_statements.append("DELETE FROM product_barcodes;")
 sql_statements.append("DELETE FROM products;")
 
-product_id = 1
 random.seed(42)
 
 for i in range(1, 1001):
@@ -91,7 +106,6 @@ for i in range(1, 1001):
         f"VALUES ({i}, '{sku}', '{ar_name}', '{fr_name}', '{en_name}', {cid}, 1, {purchase}, {sale}, {min_sale}, 19, {stock}, 5, 1);"
     )
     
-    # 2 barcodes per product: EAN-13 and short SKU code
     barcode_ean = f"613{i:09d}"
     barcode_alt = f"ALT{i:05d}"
     sql_statements.append(f"INSERT INTO product_barcodes (product_id, barcode, is_primary) VALUES ({i}, '{barcode_ean}', 1);")
@@ -168,30 +182,28 @@ for s, (sname, sphone, semail, saddr, sperson, sdebt) in enumerate(suppliers_lis
         f"VALUES ({s}, '{sname}', '{sphone}', '{semail}', '{saddr}', '{src}', '{snif}', '{snis}', '{sai}', '{sperson}', {sdebt}, 1);"
     )
 
-# 5. Employees & Users (Admin + 3 Cashiers / Managers)
+# 5. Employees & Users
 sql_statements.append("\n-- Seed Employees & Users")
-# argon2 hash of '1234'
 p_hash = "$argon2id$v=19$m=19456,t=2,p=1$ZGVmYXVsdHNhbHQxMjM0NQ$r8nZ9LhUqfUfH9C/N51j+V3QoQ1k6Lp4vX9rN7y8b4Q"
 
-sql_statements.append("DELETE FROM users WHERE id > 1;")
 sql_statements.append(
     f"INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
     f"VALUES (1, 'admin', 'Administrator', '{p_hash}', '1234', 1, 100.0, 1);"
 )
 sql_statements.append(
-    f"INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
+    f"INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
     f"VALUES (2, 'kamel', 'Kamel Zerrouki', '{p_hash}', '1111', 2, 10.0, 1);"
 )
 sql_statements.append(
-    f"INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
+    f"INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
     f"VALUES (3, 'amina', 'Amina Cherif', '{p_hash}', '2222', 2, 15.0, 1);"
 )
 sql_statements.append(
-    f"INSERT INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
+    f"INSERT OR REPLACE INTO users (id, username, display_name, password_hash, pin_hash, role_id, max_discount_percent, is_active) "
     f"VALUES (4, 'samir', 'Samir Bouzid', '{p_hash}', '9999', 3, 30.0, 1);"
 )
 
 with open("src-tauri/migrations/002_seed_data.sql", "w", encoding="utf-8") as f:
     f.write("\n".join(sql_statements))
 
-print("Successfully generated 002_seed_data.sql with 1000 products, 100 customers, 20 suppliers, 4 employees!")
+print("Successfully regenerated 002_seed_data.sql with valid Foreign Keys!")
