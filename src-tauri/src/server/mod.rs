@@ -1,27 +1,35 @@
-﻿use axum::{routing::get, Json, Router};
+use axum::{routing::get, Json, Router};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
 pub fn start_local_api_server() {
-    tokio::spawn(async {
-        let app = Router::new()
-            .route(
-                "/api/status",
-                get(|| async {
-                    Json(serde_json::json!({
-                        "status": "online",
-                        "server": "TitaouPosT Host",
-                        "version": "0.1.0"
-                    }))
-                }),
-            )
-            .layer(CorsLayer::permissive());
+    std::thread::spawn(|| {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build();
 
-        let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-        println!("[Local Server] Listening on http://{}", addr);
+        if let Ok(rt) = rt {
+            rt.block_on(async {
+                let app = Router::new()
+                    .route(
+                        "/api/status",
+                        get(|| async {
+                            Json(serde_json::json!({
+                                "status": "online",
+                                "server": "TitaouPosT Host",
+                                "version": "0.1.0"
+                            }))
+                        }),
+                    )
+                    .layer(CorsLayer::permissive());
 
-        if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
-            let _ = axum::serve(listener, app).await;
+                let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+                println!("[Local Server] Listening on http://{}", addr);
+
+                if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
+                    let _ = axum::serve(listener, app).await;
+                }
+            });
         }
     });
 }

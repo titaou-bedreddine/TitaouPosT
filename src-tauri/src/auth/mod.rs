@@ -1,7 +1,7 @@
-﻿use crate::database::DbState;
+use crate::database::DbState;
 use crate::models::User;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{PasswordHash, PasswordVerifier},
     Argon2,
 };
 use rusqlite::Result;
