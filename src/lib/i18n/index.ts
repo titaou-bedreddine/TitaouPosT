@@ -1,28 +1,41 @@
+import { writable, derived, get } from 'svelte/store';
 import ar from './ar.json';
 import fr from './fr.json';
 import en from './en.json';
 
 export type Language = 'ar' | 'fr' | 'en';
 
-const translations: Record<Language, Record<string, string>> = {
+const dictionaries: Record<Language, Record<string, string>> = {
   ar,
   fr,
   en,
 };
 
-let currentLang: Language = (localStorage.getItem('pos_lang') as Language) || 'ar';
+const initialLang = (localStorage.getItem('pos_lang') as Language) || 'ar';
+export const currentLocale = writable<Language>(initialLang);
+
+// Synchronize HTML attributes on change
+currentLocale.subscribe((lang) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+    localStorage.setItem('pos_lang', lang);
+  }
+});
+
+export function setLocale(lang: Language) {
+  currentLocale.set(lang);
+}
 
 export function getLanguage(): Language {
-  return currentLang;
+  return get(currentLocale);
 }
 
-export function setLanguage(lang: Language) {
-  currentLang = lang;
-  localStorage.setItem('pos_lang', lang);
-  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-  document.documentElement.lang = lang;
+export function t(key: string, lang?: Language): string {
+  const active = lang || get(currentLocale);
+  return dictionaries[active]?.[key] || dictionaries['en']?.[key] || key;
 }
 
-export function t(key: string): string {
-  return translations[currentLang]?.[key] || translations['en']?.[key] || key;
-}
+export const translationStore = derived(currentLocale, ($lang) => (key: string) => {
+  return dictionaries[$lang]?.[key] || dictionaries['en']?.[key] || key;
+});

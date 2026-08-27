@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from './lib/i18n';
+  import { t, currentLocale } from './lib/i18n';
   import { currentUser, isAuthenticated, logout } from './lib/stores/auth';
   import { activeSession } from './lib/stores/session';
   import { invoke } from '@tauri-apps/api/core';
@@ -96,7 +96,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'pos' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <ShoppingCart class="w-4 h-4" />
-          <span>Point of Sale (POS)</span>
+          <span>{t('nav_pos', $currentLocale)}</span>
         </button>
 
         <button
@@ -105,7 +105,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'sales' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Receipt class="w-4 h-4" />
-          <span>Sales History (المبيعات)</span>
+          <span>{t('nav_sales', $currentLocale)}</span>
         </button>
 
         <button
@@ -114,7 +114,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'cash' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <DollarSign class="w-4 h-4 text-emerald-500" />
-          <span>Cash Register (الصندوق)</span>
+          <span>{t('nav_cash', $currentLocale)}</span>
         </button>
 
         <button
@@ -123,7 +123,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'purchases' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <FileSpreadsheet class="w-4 h-4" />
-          <span>Purchases (المشتريات)</span>
+          <span>{t('nav_purchases', $currentLocale)}</span>
         </button>
 
         <button
@@ -132,7 +132,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'customers' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Users class="w-4 h-4" />
-          <span>Customers & Debt (الزبائن)</span>
+          <span>{t('nav_customers', $currentLocale)}</span>
         </button>
 
         <button
@@ -141,7 +141,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'suppliers' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Truck class="w-4 h-4" />
-          <span>Suppliers (الموردون)</span>
+          <span>{t('nav_suppliers', $currentLocale)}</span>
         </button>
 
         <button
@@ -150,7 +150,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'inventory' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Package class="w-4 h-4" />
-          <span>Products (المخزون)</span>
+          <span>{t('nav_inventory', $currentLocale)}</span>
         </button>
 
         <button
@@ -159,7 +159,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'expenses' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <TrendingDown class="w-4 h-4" />
-          <span>Expenses (المصاريف)</span>
+          <span>{t('nav_expenses', $currentLocale)}</span>
         </button>
 
         <button
@@ -168,7 +168,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'payroll' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <UserCheck class="w-4 h-4" />
-          <span>Employees (الموظفون)</span>
+          <span>{t('nav_payroll', $currentLocale)}</span>
         </button>
 
         <button
@@ -177,7 +177,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'dashboard' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <LayoutDashboard class="w-4 h-4" />
-          <span>Analytics (الإحصائيات)</span>
+          <span>{t('nav_dashboard', $currentLocale)}</span>
         </button>
 
         <button
@@ -186,22 +186,22 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'settings' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Settings class="w-4 h-4" />
-          <span>Settings (الإعدادات)</span>
+          <span>{t('nav_settings', $currentLocale)}</span>
         </button>
       </nav>
 
-      <!-- Bottom User Profile & Network Status (matching user request) -->
+      <!-- Bottom User Profile & Network Status -->
       <div class="p-3 border-t border-pos-border/60 bg-slate-50 dark:bg-slate-800/40 space-y-2.5">
         <!-- Local Network Online Badge -->
         <div class="flex items-center justify-between text-[11px] text-emerald-600 dark:text-emerald-400 font-bold px-1">
           <div class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Local Network Online</span>
+            <span>{t('online_status', $currentLocale)}</span>
           </div>
           <Wifi class="w-3.5 h-3.5 text-emerald-500" />
         </div>
 
-        <!-- Clean User Card (No double "admin (admin)") -->
+        <!-- Clean User Card -->
         <div class="flex items-center justify-between p-2 bg-pos-card rounded-xl border border-pos-border shadow-xs">
           <div class="flex items-center gap-2 min-w-0">
             <div class="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 flex items-center justify-center font-bold text-xs shrink-0">

@@ -44,8 +44,29 @@ impl DbState {
         let m1 = include_str!("../../migrations/001_initial_schema.sql");
         conn.execute_batch(m1)?;
 
-        let m2 = include_str!("../../migrations/002_seed_data.sql");
-        let _ = conn.execute_batch(m2);
+        // Ensure missing columns exist in existing user SQLite databases
+        let _ = conn.execute("ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#0284c7';", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN rc TEXT;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN nif TEXT;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN nis TEXT;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN ai TEXT;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN qr_code TEXT;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN rc TEXT;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN nif TEXT;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN nis TEXT;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
+
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM products",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+
+        if count < 50 {
+            let m2 = include_str!("../../migrations/002_seed_data.sql");
+            let _ = conn.execute_batch(m2);
+        }
 
         Ok(())
     }

@@ -48,7 +48,7 @@ pub fn search_products(
         }
     }
 
-    sql.push_str(" ORDER BY p.id DESC LIMIT 200");
+    sql.push_str(" ORDER BY p.id ASC LIMIT 1000");
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
@@ -79,15 +79,20 @@ pub fn search_products(
         })
         .map_err(|e| e.to_string())?;
 
-    let mut products: Vec<Product> = product_rows.filter_map(|r| r.ok()).collect();
-
-    // Fetch barcodes for each product
-    for p in &mut products {
-        let mut bstmt = conn
-            .prepare("SELECT barcode FROM product_barcodes WHERE product_id = ?1 ORDER BY is_primary DESC, id ASC")
-            .map_err(|e| e.to_string())?;
-        let brows = bstmt.query_map([p.id], |row| row.get(0)).map_err(|e| e.to_string())?;
-        p.barcodes = brows.filter_map(|r| r.ok()).collect();
+    let mut products = Vec::new();
+    for p_res in product_rows {
+        if let Ok(mut p) = p_res {
+            let mut b_stmt = conn
+                .prepare("SELECT barcode FROM product_barcodes WHERE product_id = ?1 ORDER BY is_primary DESC")
+                .map_err(|e| e.to_string())?;
+            let barcodes = b_stmt
+                .query_map([p.id], |r| r.get(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(|r| r.ok())
+                .collect();
+            p.barcodes = barcodes;
+            products.push(p);
+        }
     }
 
     Ok(products)
@@ -99,31 +104,62 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
 
     let id = if let Some(pid) = product_id {
         tx.execute(
-            "UPDATE products
-             SET sku = ?1, name_ar = ?2, name_fr = ?3, name_en = ?4, category_id = ?5, unit_id = ?6,
-                 purchase_price = ?7, sale_price = ?8, min_sale_price = ?9, tax_rate = ?10,
-                 current_stock = ?11, min_stock = ?12, image_path = ?13, is_bundle = ?14
+            "UPDATE products SET
+                sku = ?1, name_ar = ?2, name_fr = ?3, name_en = ?4,
+                category_id = ?5, unit_id = ?6, purchase_price = ?7,
+                sale_price = ?8, min_sale_price = ?9, tax_rate = ?10,
+                current_stock = ?11, min_stock = ?12, image_path = ?13,
+                is_bundle = ?14
              WHERE id = ?15",
             rusqlite::params![
-                input.sku, input.name_ar, input.name_fr, input.name_en, input.category_id,
-                input.unit_id, input.purchase_price, input.sale_price, input.min_sale_price,
-                input.tax_rate, input.current_stock, input.min_stock, input.image_path, input.is_bundle, pid
+                input.sku,
+                input.name_ar,
+                input.name_fr,
+                input.name_en,
+                input.category_id,
+                input.unit_id,
+                input.purchase_price,
+                input.sale_price,
+                input.min_sale_price,
+                input.tax_rate,
+                input.current_stock,
+                input.min_stock,
+                input.image_path,
+                input.is_bundle,
+                pid
             ],
         )
         .map_err(|e| e.to_string())?;
 
-        tx.execute("DELETE FROM product_barcodes WHERE product_id = ?1", [pid])
-            .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM product_barcodes WHERE product_id = ?1",
+            [pid],
+        )
+        .map_err(|e| e.to_string())?;
 
         pid
     } else {
         tx.execute(
-            "INSERT INTO products (sku, name_ar, name_fr, name_en, category_id, unit_id, purchase_price, sale_price, min_sale_price, tax_rate, current_stock, min_stock, image_path, is_bundle)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            "INSERT INTO products (
+                sku, name_ar, name_fr, name_en, category_id, unit_id,
+                purchase_price, sale_price, min_sale_price, tax_rate,
+                current_stock, min_stock, image_path, is_bundle, is_active
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1)",
             rusqlite::params![
-                input.sku, input.name_ar, input.name_fr, input.name_en, input.category_id,
-                input.unit_id, input.purchase_price, input.sale_price, input.min_sale_price,
-                input.tax_rate, input.current_stock, input.min_stock, input.image_path, input.is_bundle
+                input.sku,
+                input.name_ar,
+                input.name_fr,
+                input.name_en,
+                input.category_id,
+                input.unit_id,
+                input.purchase_price,
+                input.sale_price,
+                input.min_sale_price,
+                input.tax_rate,
+                input.current_stock,
+                input.min_stock,
+                input.image_path,
+                input.is_bundle
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -155,6 +191,8 @@ pub fn delete_product(db: &DbState, product_id: i64) -> Result<(), String> {
 
 pub fn get_categories(db: &DbState) -> Result<Vec<Category>, String> {
     let conn = db.conn.lock().unwrap();
+    let _ = conn.execute("ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#0284c7';", []);
+
     let mut stmt = conn
         .prepare("SELECT id, parent_id, name_ar, name_fr, name_en, COALESCE(color, '#0284c7'), is_active FROM categories WHERE is_active = 1 ORDER BY id ASC")
         .map_err(|e| e.to_string())?;
@@ -179,6 +217,8 @@ pub fn get_categories(db: &DbState) -> Result<Vec<Category>, String> {
 
 pub fn save_category(db: &DbState, name_ar: &str, name_fr: &str, name_en: &str, color: &str, category_id: Option<i64>) -> Result<i64, String> {
     let conn = db.conn.lock().unwrap();
+    let _ = conn.execute("ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#0284c7';", []);
+
     if let Some(cid) = category_id {
         conn.execute(
             "UPDATE categories SET name_ar = ?1, name_fr = ?2, name_en = ?3, color = ?4 WHERE id = ?5",
