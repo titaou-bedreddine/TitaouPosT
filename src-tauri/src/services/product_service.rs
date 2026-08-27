@@ -1,4 +1,4 @@
-﻿use crate::database::DbState;
+use crate::database::DbState;
 use crate::models::{Category, Product, ProductInput, Unit};
 use rusqlite::Result;
 
@@ -6,7 +6,7 @@ pub fn search_products(
     db: &DbState,
     query: &str,
     category_id: Option<i64>,
-    search_type: &str, // 'all', 'name', 'barcode', 'price'
+    search_type: &str,
 ) -> Result<Vec<Product>, String> {
     let conn = db.conn.lock().unwrap();
     let q = query.trim();
@@ -40,7 +40,6 @@ pub fn search_products(
                 }
             }
             _ => {
-                // 'all' omni-search
                 sql.push_str(&format!(
                     " AND (p.name_ar LIKE '%{0}%' OR p.name_fr LIKE '%{0}%' OR p.name_en LIKE '%{0}%' OR p.sku LIKE '%{0}%' OR pb.barcode LIKE '%{0}%')",
                     q
@@ -49,7 +48,7 @@ pub fn search_products(
         }
     }
 
-    sql.push_str(" ORDER BY p.id DESC LIMIT 100");
+    sql.push_str(" ORDER BY p.id DESC LIMIT 200");
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
@@ -113,10 +112,7 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         )
         .map_err(|e| e.to_string())?;
 
-        // Clear existing barcodes and bundle items
         tx.execute("DELETE FROM product_barcodes WHERE product_id = ?1", [pid])
-            .map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM product_bundle_items WHERE bundle_product_id = ?1", [pid])
             .map_err(|e| e.to_string())?;
 
         pid
@@ -135,7 +131,6 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         tx.last_insert_rowid()
     };
 
-    // Insert tokenized barcodes
     for (i, barcode) in input.barcodes.iter().enumerate() {
         let b = barcode.trim();
         if !b.is_empty() {
@@ -147,27 +142,21 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         }
     }
 
-    // Insert bundle items if bundle
-    if input.is_bundle {
-        if let Some(items) = input.bundle_items {
-            for item in items {
-                tx.execute(
-                    "INSERT INTO product_bundle_items (bundle_product_id, component_product_id, quantity) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![id, item.component_product_id, item.quantity],
-                )
-                .map_err(|e| e.to_string())?;
-            }
-        }
-    }
-
     tx.commit().map_err(|e| e.to_string())?;
     Ok(id)
+}
+
+pub fn delete_product(db: &DbState, product_id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute("UPDATE products SET is_active = 0 WHERE id = ?1", [product_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn get_categories(db: &DbState) -> Result<Vec<Category>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn
-        .prepare("SELECT id, parent_id, name_ar, name_fr, name_en, is_active FROM categories WHERE is_active = 1 ORDER BY name_ar ASC")
+        .prepare("SELECT id, parent_id, name_ar, name_fr, name_en, COALESCE(color, '#0284c7'), is_active FROM categories WHERE is_active = 1 ORDER BY id ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -178,13 +167,38 @@ pub fn get_categories(db: &DbState) -> Result<Vec<Category>, String> {
                 name_ar: row.get(2)?,
                 name_fr: row.get(3)?,
                 name_en: row.get(4)?,
-                is_active: row.get(5)?,
+                color: row.get(5)?,
+                is_active: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;
 
     let list: Vec<Category> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+
+pub fn save_category(db: &DbState, name_ar: &str, name_fr: &str, name_en: &str, color: &str, category_id: Option<i64>) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    if let Some(cid) = category_id {
+        conn.execute(
+            "UPDATE categories SET name_ar = ?1, name_fr = ?2, name_en = ?3, color = ?4 WHERE id = ?5",
+            rusqlite::params![name_ar, name_fr, name_en, color, cid],
+        ).map_err(|e| e.to_string())?;
+        Ok(cid)
+    } else {
+        conn.execute(
+            "INSERT INTO categories (name_ar, name_fr, name_en, color, is_active) VALUES (?1, ?2, ?3, ?4, 1)",
+            rusqlite::params![name_ar, name_fr, name_en, color],
+        ).map_err(|e| e.to_string())?;
+        Ok(conn.last_insert_rowid())
+    }
+}
+
+pub fn delete_category(db: &DbState, category_id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute("UPDATE categories SET is_active = 0 WHERE id = ?1", [category_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn get_units(db: &DbState) -> Result<Vec<Unit>, String> {

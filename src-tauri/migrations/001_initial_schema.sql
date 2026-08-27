@@ -1,4 +1,7 @@
-﻿-- TitaouPosT Database Schema Migration 001
+-- TitaouPosT Database Schema Migration 001
+
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
 
 -- 1. Security, Users, Roles & Permissions
 CREATE TABLE IF NOT EXISTS roles (
@@ -28,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     pin_hash TEXT,
     role_id INTEGER REFERENCES roles(id),
-    max_discount_percent REAL DEFAULT 5.0,
+    max_discount_percent REAL DEFAULT 100.0,
     is_active BOOLEAN DEFAULT 1,
     last_login DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -59,7 +62,7 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
     user_id INTEGER REFERENCES users(id),
     opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     closed_at DATETIME,
-    opening_amount INTEGER NOT NULL DEFAULT 0, -- Minor units (cents/millimes)
+    opening_amount INTEGER NOT NULL DEFAULT 0,
     expected_cash INTEGER DEFAULT 0,
     actual_cash INTEGER,
     difference INTEGER,
@@ -71,7 +74,7 @@ CREATE TABLE IF NOT EXISTS cash_movements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id INTEGER REFERENCES cash_sessions(id),
     user_id INTEGER REFERENCES users(id),
-    type TEXT CHECK(type IN ('opening_balance', 'cash_sale', 'cash_refund', 'cash_in', 'cash_out', 'expense_payment', 'salary_payment', 'closing_adjustment')) NOT NULL,
+    type TEXT CHECK(type IN ('opening_balance', 'cash_sale', 'cash_refund', 'cash_in', 'cash_out', 'expense_payment', 'salary_payment', 'customer_debt_payment', 'supplier_debt_payment', 'closing_adjustment')) NOT NULL,
     amount INTEGER NOT NULL,
     reason TEXT,
     reference_type TEXT,
@@ -80,13 +83,14 @@ CREATE TABLE IF NOT EXISTS cash_movements (
     notes TEXT
 );
 
--- 3. Product Catalog, Multi-Barcodes & Bundles
+-- 3. Product Catalog, Categories, Multi-Barcodes & Bundles
 CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     parent_id INTEGER REFERENCES categories(id),
     name_ar TEXT NOT NULL,
     name_fr TEXT NOT NULL,
     name_en TEXT NOT NULL,
+    color TEXT DEFAULT '#0284c7',
     is_active BOOLEAN DEFAULT 1
 );
 
@@ -103,8 +107,8 @@ CREATE TABLE IF NOT EXISTS products (
     name_ar TEXT NOT NULL,
     name_fr TEXT NOT NULL,
     name_en TEXT NOT NULL,
-    category_id INTEGER REFERENCES categories(id),
-    unit_id INTEGER REFERENCES units(id),
+    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    unit_id INTEGER REFERENCES units(id) ON DELETE SET NULL,
     purchase_price INTEGER NOT NULL DEFAULT 0,
     sale_price INTEGER NOT NULL DEFAULT 0,
     min_sale_price INTEGER NOT NULL DEFAULT 0,
@@ -153,11 +157,28 @@ CREATE TABLE IF NOT EXISTS customers (
     phone TEXT,
     email TEXT,
     address TEXT,
-    tax_number TEXT,
+    rc TEXT,
+    nif TEXT,
+    nis TEXT,
+    ai TEXT,
+    qr_code TEXT,
     balance INTEGER DEFAULT 0,
-    max_credit INTEGER DEFAULT 0,
+    initial_debt INTEGER DEFAULT 0,
     notes TEXT,
-    is_active BOOLEAN DEFAULT 1
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_debt_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    payment_method TEXT CHECK(payment_method IN ('cash', 'bank_transfer', 'cheque')) DEFAULT 'cash',
+    reference TEXT,
+    session_id INTEGER REFERENCES cash_sessions(id),
+    user_id INTEGER REFERENCES users(id),
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -167,10 +188,27 @@ CREATE TABLE IF NOT EXISTS suppliers (
     phone TEXT,
     email TEXT,
     address TEXT,
-    tax_number TEXT,
+    rc TEXT,
+    nif TEXT,
+    nis TEXT,
+    ai TEXT,
+    qr_code TEXT,
     balance INTEGER DEFAULT 0,
     notes TEXT,
-    is_active BOOLEAN DEFAULT 1
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS supplier_debt_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    payment_method TEXT CHECK(payment_method IN ('cash', 'bank_transfer', 'cheque')) DEFAULT 'cash',
+    reference TEXT,
+    session_id INTEGER REFERENCES cash_sessions(id),
+    user_id INTEGER REFERENCES users(id),
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 5. Purchasing & Purchase Invoices
@@ -202,7 +240,7 @@ CREATE TABLE IF NOT EXISTS purchase_items (
     total INTEGER NOT NULL
 );
 
--- 6. Sales, POS & Held Orders
+-- 6. Sales, POS, Held Orders & Refunds
 CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sale_number TEXT NOT NULL UNIQUE,
@@ -291,7 +329,10 @@ CREATE TABLE IF NOT EXISTS employees (
     job_title TEXT NOT NULL,
     base_salary INTEGER NOT NULL,
     salary_type TEXT CHECK(salary_type IN ('monthly', 'daily', 'hourly')) DEFAULT 'monthly',
+    salary_start_date DATE,
     hire_date DATE NOT NULL,
+    user_account_id INTEGER REFERENCES users(id),
+    qr_code TEXT,
     is_active BOOLEAN DEFAULT 1,
     notes TEXT
 );

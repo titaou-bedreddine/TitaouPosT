@@ -1,8 +1,7 @@
 <script lang="ts">
   import { t } from '../i18n';
-  import { clearCart, isRefundMode, cartItems } from '../stores/cart';
-  import { currentUser } from '../stores/auth';
-  import { PlusCircle, Trash2, Undo2, Percent, CreditCard, PauseCircle, Printer, DollarSign, RefreshCw } from 'lucide-svelte';
+  import { clearCart, isRefundMode, toggleAllCartRefund, cartItems, globalDiscountMode, heldSalesList } from '../stores/cart';
+  import { PlusCircle, Trash2, Undo2, Percent, CreditCard, PauseCircle, Printer, DollarSign } from 'lucide-svelte';
 
   export let onOpenPayment: () => void;
   export let onOpenCashDrawer: () => void;
@@ -10,58 +9,71 @@
   export let onOpenHeldSales: () => void;
   export let onPrintReceipt: () => void;
 
-  function toggleRefund() {
+  function handleRefundToggle() {
     $isRefundMode = !$isRefundMode;
+    toggleAllCartRefund();
+  }
+
+  function handleRemiseToggle() {
+    onOpenRemise();
   }
 </script>
 
-<header class="bg-pos-card border-b border-pos-border px-4 py-2 flex items-center justify-between shadow-sm select-none">
-  <!-- Left Side: Top Action Buttons in ONE Single Row -->
-  <div class="flex items-center gap-2 flex-wrap">
+<header class="bg-pos-card border-b border-pos-border px-3 py-2 flex items-center justify-between shadow-xs select-none">
+  <!-- Top Action Buttons in ONE Single Row -->
+  <div class="flex items-center gap-1.5 flex-wrap">
     <button
+      type="button"
       on:click={clearCart}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-sm font-semibold transition shadow-xs"
+      class="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
       title="F1 - New Sale"
     >
-      <PlusCircle class="w-4 h-4" />
+      <PlusCircle class="w-3.5 h-3.5" />
       <span>{t('btn_new_sale')}</span>
     </button>
 
     <button
+      type="button"
       on:click={clearCart}
       disabled={$cartItems.length === 0}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white rounded text-sm font-semibold transition shadow-xs"
+      class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
       title="Del - Clear Cart"
     >
-      <Trash2 class="w-4 h-4" />
+      <Trash2 class="w-3.5 h-3.5" />
       <span>{t('btn_delete_cart')}</span>
     </button>
 
     <button
-      on:click={toggleRefund}
-      class="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition shadow-xs {$isRefundMode ? 'bg-amber-600 text-white ring-2 ring-amber-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300'}"
-      title="F3 - Toggle Refund Mode"
+      type="button"
+      on:click={handleRefundToggle}
+      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer {$isRefundMode ? 'bg-amber-600 text-white ring-2 ring-amber-300' : 'bg-slate-100 dark:bg-slate-800 text-pos-text hover:bg-slate-200'}"
+      title="F3 - Toggle Refund on Cart"
     >
-      <Undo2 class="w-4 h-4" />
+      <Undo2 class="w-3.5 h-3.5" />
       <span>{t('btn_refund')}</span>
       {#if $isRefundMode}
-        <span class="text-xs bg-black/30 px-1.5 py-0.5 rounded">ON</span>
+        <span class="text-[10px] bg-black/30 px-1 py-0.2 rounded font-mono">ALL</span>
       {/if}
     </button>
 
     <button
-      on:click={onOpenRemise}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded text-sm font-semibold transition shadow-xs"
-      title="F6 - Apply Remise"
+      type="button"
+      on:click={handleRemiseToggle}
+      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer {$globalDiscountMode !== 'none' ? 'bg-indigo-600 text-white ring-2 ring-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-pos-text hover:bg-slate-200'}"
+      title="F6 - Apply Remise (% / DZD)"
     >
-      <Percent class="w-4 h-4" />
+      <Percent class="w-3.5 h-3.5" />
       <span>{t('btn_remise')}</span>
+      {#if $globalDiscountMode !== 'none'}
+        <span class="text-[10px] bg-black/30 px-1 py-0.2 rounded font-mono">{$globalDiscountMode === 'percent' ? '%' : 'DZD'}</span>
+      {/if}
     </button>
 
     <button
+      type="button"
       on:click={onOpenPayment}
       disabled={$cartItems.length === 0}
-      class="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded text-sm font-bold transition shadow-xs"
+      class="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-xs font-black transition shadow-xs cursor-pointer"
       title="F7 / F10 - Payment Checkout"
     >
       <CreditCard class="w-4 h-4" />
@@ -69,45 +81,38 @@
     </button>
 
     <button
+      type="button"
       on:click={onOpenHeldSales}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded text-sm font-semibold transition shadow-xs"
+      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-pos-text rounded-lg text-xs font-bold transition shadow-xs cursor-pointer relative"
       title="F9 - Held Sales"
     >
-      <PauseCircle class="w-4 h-4" />
+      <PauseCircle class="w-3.5 h-3.5" />
       <span>{t('btn_held_sales')}</span>
+      {#if $heldSalesList.length > 0}
+        <span class="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded-full font-mono">
+          {$heldSalesList.length}
+        </span>
+      {/if}
     </button>
 
     <button
+      type="button"
       on:click={onPrintReceipt}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded text-sm font-semibold transition shadow-xs"
+      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-pos-text rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
       title="F11 - Print Receipt"
     >
-      <Printer class="w-4 h-4" />
+      <Printer class="w-3.5 h-3.5" />
       <span>{t('btn_print')}</span>
     </button>
 
     <button
+      type="button"
       on:click={onOpenCashDrawer}
-      class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded text-sm font-semibold transition shadow-xs"
-      title="F12 - Cash Drawer (الصندوق)"
+      class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-extrabold transition shadow-xs cursor-pointer"
+      title="F12 - Fast Cash Options"
     >
-      <DollarSign class="w-4 h-4" />
+      <DollarSign class="w-3.5 h-3.5" />
       <span>{t('btn_drawer')}</span>
     </button>
-  </div>
-
-  <!-- Right Side: User Status & Connection Status -->
-  <div class="flex items-center gap-4 text-xs">
-    <div class="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-      <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-      <span>{t('online_status')}</span>
-    </div>
-
-    {#if $currentUser}
-      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded border border-pos-border">
-        <span class="font-semibold text-pos-text">{$currentUser.display_name}</span>
-        <span class="text-pos-muted">({$currentUser.role_name || 'Cashier'})</span>
-      </div>
-    {/if}
   </div>
 </header>

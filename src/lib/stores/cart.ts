@@ -1,11 +1,15 @@
 import { writable, derived } from 'svelte/store';
-import type { CartItem, Product } from '../types';
+import type { CartItem, Product, HeldSale } from '../types';
+import { invoke } from '@tauri-apps/api/core';
 
 export const cartItems = writable<CartItem[]>([]);
-export const globalDiscountPercent = writable<number>(0);
+export const globalDiscountMode = writable<'none' | 'percent' | 'amount'>('none');
+export const globalDiscountValue = writable<number>(0);
 export const globalDiscountAmount = writable<number>(0);
+export const globalDiscountPercent = writable<number>(0);
 export const selectedCustomerId = writable<number | null>(null);
 export const isRefundMode = writable<boolean>(false);
+export const heldSalesList = writable<HeldSale[]>([]);
 
 export function addToCart(product: Product, quantity = 1, asRefund = false) {
   cartItems.update((items) => {
@@ -16,8 +20,8 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
     if (existingIndex > -1) {
       const updated = [...items];
       updated[existingIndex].quantity += quantity;
-      updated[existingIndex].total_price =
-        updated[existingIndex].quantity * (updated[existingIndex].unit_price - updated[existingIndex].discount_amount);
+      const unitNet = Math.max(0, updated[existingIndex].unit_price - updated[existingIndex].discount_amount);
+      updated[existingIndex].total_price = Math.round(updated[existingIndex].quantity * unitNet);
       return updated;
     } else {
       const newItem: CartItem = {
@@ -48,7 +52,8 @@ export function updateItemQuantity(productId: number, isRefund: boolean, newQty:
   cartItems.update((items) =>
     items.map((item) => {
       if (item.product_id === productId && item.is_refund === isRefund) {
-        const total = newQty * (item.unit_price - item.discount_amount);
+        const unitNet = Math.max(0, item.unit_price - item.discount_amount);
+        const total = Math.round(newQty * unitNet);
         return { ...item, quantity: newQty, total_price: total };
       }
       return item;
@@ -60,13 +65,31 @@ export function applyItemDiscount(productId: number, isRefund: boolean, discount
   cartItems.update((items) =>
     items.map((item) => {
       if (item.product_id === productId && item.is_refund === isRefund) {
-        const disc = Math.min(discountPerUnit, item.unit_price);
-        const total = item.quantity * (item.unit_price - disc);
+        const disc = Math.min(Math.max(0, discountPerUnit), item.unit_price);
+        const total = Math.round(item.quantity * (item.unit_price - disc));
         return { ...item, discount_amount: disc, total_price: total };
       }
       return item;
     })
   );
+}
+
+export function toggleItemRefund(productId: number, currentRefundState: boolean) {
+  cartItems.update((items) =>
+    items.map((item) => {
+      if (item.product_id === productId && item.is_refund === currentRefundState) {
+        return { ...item, is_refund: !currentRefundState };
+      }
+      return item;
+    })
+  );
+}
+
+export function toggleAllCartRefund() {
+  cartItems.update((items) => {
+    const anyNormal = items.some(i => !i.is_refund);
+    return items.map(i => ({ ...i, is_refund: anyNormal }));
+  });
 }
 
 export function removeFromCart(productId: number, isRefund: boolean) {
@@ -77,25 +100,45 @@ export function removeFromCart(productId: number, isRefund: boolean) {
 
 export function clearCart() {
   cartItems.set([]);
-  globalDiscountPercent.set(0);
+  globalDiscountMode.set('none');
+  globalDiscountValue.set(0);
   globalDiscountAmount.set(0);
+  globalDiscountPercent.set(0);
   selectedCustomerId.set(null);
   isRefundMode.set(false);
 }
 
-export const cartSubtotal = derived(cartItems, ($items) =>
-  $items.reduce((sum, item) => (item.is_refund ? sum - item.total_price : sum + item.total_price), 0)
-);
+export async function refreshHeldSales() {
+  try {
+    const list = await invoke<HeldSale[]>('list_held_sales');
+    heldSalesList.set(list);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export const cartSubtotal = derived(cartItems, ($items) => {
+  return $items.reduce((sum, item) => {
+    const lineVal = item.total_price;
+    return item.is_refund ? sum - lineVal : sum + lineVal;
+  }, 0);
+});
 
 export const cartGrandTotal = derived(
-  [cartSubtotal, globalDiscountAmount, globalDiscountPercent],
-  ([$subtotal, $discAmount, $discPercent]) => {
-    let total = $subtotal;
-    if ($discAmount > 0) {
-      total -= $discAmount;
-    } else if ($discPercent > 0) {
-      total -= Math.round((total * $discPercent) / 100);
+  [cartItems, globalDiscountMode, globalDiscountValue],
+  ([$items, $mode, $val]) => {
+    let subtotal = $items.reduce((sum, item) => {
+      const lineVal = item.total_price;
+      return item.is_refund ? sum - lineVal : sum + lineVal;
+    }, 0);
+
+    if ($mode === 'percent' && $val > 0) {
+      const discount = Math.round((subtotal * Math.min(100, $val)) / 100);
+      subtotal -= discount;
+    } else if ($mode === 'amount' && $val > 0) {
+      subtotal -= $val;
     }
-    return Math.max(0, total);
+
+    return subtotal;
   }
 );

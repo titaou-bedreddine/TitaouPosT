@@ -1,4 +1,4 @@
-﻿use rusqlite::{Connection, Result};
+use rusqlite::{Connection, Result};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use argon2::{
@@ -33,20 +33,19 @@ impl DbState {
 
         state.run_migrations()?;
         state.seed_default_admin()?;
+        state.ensure_default_session()?;
 
         Ok(state)
     }
 
-    fn run_migrations(&self) -> Result<()> {
+    pub fn run_migrations(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         
-        // Execute migration 001
         let m1 = include_str!("../../migrations/001_initial_schema.sql");
         conn.execute_batch(m1)?;
 
-        // Execute migration 002
         let m2 = include_str!("../../migrations/002_seed_data.sql");
-        conn.execute_batch(m2)?;
+        let _ = conn.execute_batch(m2);
 
         Ok(())
     }
@@ -57,7 +56,7 @@ impl DbState {
             "SELECT COUNT(*) FROM users WHERE username = 'admin'",
             [],
             |row| row.get(0),
-        )?;
+        ).unwrap_or(0);
 
         if count == 0 {
             let password = "admin";
@@ -73,6 +72,31 @@ impl DbState {
                  VALUES ('admin', 'Administrator', ?1, 1, 100.0, 1)",
                 [&password_hash],
             )?;
+        }
+
+        Ok(())
+    }
+
+    fn ensure_default_session(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM cash_sessions WHERE status = 'open'",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+
+        if count == 0 {
+            let _ = conn.execute(
+                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, notes)
+                 VALUES (1, 1, 10000, 10000, 'open', 'Default Auto-Opened Session')",
+                [],
+            );
+            let session_id = conn.last_insert_rowid();
+            let _ = conn.execute(
+                "INSERT INTO cash_movements (session_id, user_id, type, amount, reason)
+                 VALUES (?1, 1, 'opening_balance', 10000, 'Startup Cash / رصيد افتتاحي')",
+                [session_id],
+            );
         }
 
         Ok(())

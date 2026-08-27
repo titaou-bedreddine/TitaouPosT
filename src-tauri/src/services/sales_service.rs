@@ -1,15 +1,13 @@
-﻿use crate::database::DbState;
-use crate::models::{CreateSaleInput, Sale};
+use crate::database::DbState;
+use crate::models::{CartItem, CreateSaleInput, HeldSale, Sale};
 use rusqlite::Result;
 
 pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, String> {
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    // Generate unique sale number: e.g. SALE-20260827-XXXX
     let now = chrono::Local::now();
-    let timestamp_str = now.format("%Y%m%d%H%M%S").to_string();
-    let sale_number = format!("POS-{}", timestamp_str);
+    let sale_number = format!("POS-{}", now.format("%Y%m%d%H%M%S"));
 
     let payment_status = if input.paid_amount >= input.total_amount {
         "paid"
@@ -33,71 +31,34 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
     let sale_id = tx.last_insert_rowid();
 
-    // Process each cart item & update inventory
+    // Process each cart item & update stock
     for item in &input.items {
         tx.execute(
-            "INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount_amount, tax_amount, total_price, is_refunded)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount_amount, tax_amount, total_price, is_refunded, refunded_quantity)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             rusqlite::params![
                 sale_id, item.product_id, item.quantity, item.unit_price,
-                item.discount_amount, item.tax_amount, item.total_price, item.is_refund
+                item.discount_amount, item.tax_amount, item.total_price,
+                item.is_refund, if item.is_refund { item.quantity } else { 0.0 }
             ],
         )
         .map_err(|e| e.to_string())?;
 
-        // Check if product is bundle
-        let is_bundle: bool = tx
-            .query_row("SELECT is_bundle FROM products WHERE id = ?1", [item.product_id], |r| r.get(0))
-            .unwrap_or(false);
+        let movement_type = if item.is_refund { "sale_refund" } else { "sale" };
+        let stock_change = if item.is_refund { item.quantity } else { -item.quantity };
 
-        if is_bundle {
-            // Deduct component products
-            let mut b_stmt = tx
-                .prepare("SELECT component_product_id, quantity FROM product_bundle_items WHERE bundle_product_id = ?1")
-                .map_err(|e| e.to_string())?;
+        tx.execute(
+            "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
+            rusqlite::params![stock_change, item.product_id],
+        )
+        .map_err(|e| e.to_string())?;
 
-            let bundle_components: Vec<(i64, f64)> = b_stmt
-                .query_map([item.product_id], |r| Ok((r.get(0)?, r.get(1)?)))
-                .map_err(|e| e.to_string())?
-                .filter_map(|r| r.ok())
-                .collect();
-
-            for (comp_id, comp_qty) in bundle_components {
-                let total_comp_qty = comp_qty * item.quantity;
-                let movement_type = if item.is_refund { "bundle_refund" } else { "bundle_sale" };
-                let stock_change = if item.is_refund { total_comp_qty } else { -total_comp_qty };
-
-                tx.execute(
-                    "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
-                    rusqlite::params![stock_change, comp_id],
-                )
-                .map_err(|e| e.to_string())?;
-
-                tx.execute(
-                    "INSERT INTO inventory_movements (product_id, quantity, type, reference_type, reference_id, user_id)
-                     VALUES (?1, ?2, ?3, 'sale', ?4, ?5)",
-                    rusqlite::params![comp_id, stock_change, movement_type, sale_id, input.user_id],
-                )
-                .map_err(|e| e.to_string())?;
-            }
-        } else {
-            // Standard product stock deduction
-            let movement_type = if item.is_refund { "sale_refund" } else { "sale" };
-            let stock_change = if item.is_refund { item.quantity } else { -item.quantity };
-
-            tx.execute(
-                "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
-                rusqlite::params![stock_change, item.product_id],
-            )
-            .map_err(|e| e.to_string())?;
-
-            tx.execute(
-                "INSERT INTO inventory_movements (product_id, quantity, type, reference_type, reference_id, user_id)
-                 VALUES (?1, ?2, ?3, 'sale', ?4, ?5)",
-                rusqlite::params![item.product_id, stock_change, movement_type, sale_id, input.user_id],
-            )
-            .map_err(|e| e.to_string())?;
-        }
+        tx.execute(
+            "INSERT INTO inventory_movements (product_id, quantity, type, reference_type, reference_id, user_id)
+             VALUES (?1, ?2, ?3, 'sale', ?4, ?5)",
+            rusqlite::params![item.product_id, stock_change, movement_type, sale_id, input.user_id],
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     // Process payment breakdown
@@ -119,10 +80,8 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
         }
     }
 
-    // Subtract change from cash
     let net_cash_change = total_cash_paid - input.change_amount;
     if net_cash_change != 0 {
-        // Record in cash session movements
         tx.execute(
             "INSERT INTO cash_movements (session_id, user_id, type, amount, reason, reference_type, reference_id)
              VALUES (?1, ?2, 'cash_sale', ?3, ?4, 'sale', ?5)",
@@ -140,7 +99,6 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
         .map_err(|e| e.to_string())?;
     }
 
-    // Update customer debt if credit payment
     if total_credit_amount > 0 {
         if let Some(cust_id) = input.customer_id {
             tx.execute(
@@ -151,39 +109,50 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
         }
     }
 
-    // Queue notification if needed
-    let payload = serde_json::json!({
-        "sale_number": sale_number,
-        "total_amount": input.total_amount,
-        "user_id": input.user_id,
-        "items_count": input.items.len()
-    });
-
-    let _ = tx.execute(
-        "INSERT INTO notification_queue (channel, event_type, payload_json) VALUES ('telegram', 'sale_alert', ?1)",
-        [payload.to_string()],
-    );
-
     tx.commit().map_err(|e| e.to_string())?;
     Ok(sale_number)
 }
 
-pub fn list_sales(db: &DbState, limit: i64) -> Result<Vec<Sale>, String> {
+pub fn list_sales(
+    db: &DbState,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    user_id: Option<i64>,
+    limit: i64,
+) -> Result<Vec<Sale>, String> {
     let conn = db.conn.lock().unwrap();
-    let mut stmt = conn
-        .prepare(
-            "SELECT s.id, s.sale_number, s.session_id, s.user_id, u.display_name,
-                    s.customer_id, c.name, s.subtotal, s.discount_amount, s.tax_amount,
-                    s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at
-             FROM sales s
-             LEFT JOIN users u ON s.user_id = u.id
-             LEFT JOIN customers c ON s.customer_id = c.id
-             ORDER BY s.id DESC LIMIT ?1",
-        )
-        .map_err(|e| e.to_string())?;
+    let mut sql = String::from(
+        "SELECT s.id, s.sale_number, s.session_id, s.user_id, u.display_name,
+                s.customer_id, c.name, s.subtotal, s.discount_amount, s.tax_amount,
+                s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at
+         FROM sales s
+         LEFT JOIN users u ON s.user_id = u.id
+         LEFT JOIN customers c ON s.customer_id = c.id
+         WHERE 1=1"
+    );
+
+    if let Some(ref sd) = start_date {
+        if !sd.is_empty() {
+            sql.push_str(&format!(" AND DATE(s.created_at) >= '{}'", sd));
+        }
+    }
+
+    if let Some(ref ed) = end_date {
+        if !ed.is_empty() {
+            sql.push_str(&format!(" AND DATE(s.created_at) <= '{}'", ed));
+        }
+    }
+
+    if let Some(uid) = user_id {
+        sql.push_str(&format!(" AND s.user_id = {}", uid));
+    }
+
+    sql.push_str(&format!(" ORDER BY s.id DESC LIMIT {}", limit));
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
     let rows = stmt
-        .query_map([limit], |row| {
+        .query_map([], |row| {
             Ok(Sale {
                 id: row.get(0)?,
                 sale_number: row.get(1)?,
@@ -201,10 +170,93 @@ pub fn list_sales(db: &DbState, limit: i64) -> Result<Vec<Sale>, String> {
                 payment_status: row.get(13)?,
                 status: row.get(14)?,
                 created_at: row.get(15)?,
+                items: None,
             })
         })
         .map_err(|e| e.to_string())?;
 
     let list: Vec<Sale> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+
+pub fn get_sale_items(db: &DbState, sale_id: i64) -> Result<Vec<CartItem>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT si.product_id, p.sku, '', p.name_ar, p.name_fr, p.name_en, p.image_path,
+                    si.unit_price, si.quantity, si.discount_amount, si.tax_amount, si.total_price, si.is_refunded
+             FROM sale_items si
+             JOIN products p ON si.product_id = p.id
+             WHERE si.sale_id = ?1",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([sale_id], |row| {
+            Ok(CartItem {
+                product_id: row.get(0)?,
+                sku: row.get(1)?,
+                barcode: None,
+                name_ar: row.get(3)?,
+                name_fr: row.get(4)?,
+                name_en: row.get(5)?,
+                image_path: row.get(6)?,
+                unit_price: row.get(7)?,
+                quantity: row.get(8)?,
+                discount_amount: row.get(9)?,
+                tax_amount: row.get(10)?,
+                total_price: row.get(11)?,
+                is_refund: row.get(12)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let list: Vec<CartItem> = rows.filter_map(|r| r.ok()).collect();
+    Ok(list)
+}
+
+pub fn hold_sale(db: &DbState, user_id: i64, customer_id: Option<i64>, cart_json: &str, note: Option<String>) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    let now = chrono::Local::now();
+    let sale_reference = format!("HELD-{}", now.format("%H%M%S"));
+
+    conn.execute(
+        "INSERT INTO held_sales (sale_reference, user_id, customer_id, cart_json, note)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![sale_reference, user_id, customer_id, cart_json, note],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn list_held_sales(db: &DbState) -> Result<Vec<HeldSale>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, sale_reference, user_id, customer_id, cart_json, note, created_at FROM held_sales ORDER BY id DESC")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(HeldSale {
+                id: row.get(0)?,
+                sale_reference: row.get(1)?,
+                user_id: row.get(2)?,
+                customer_id: row.get(3)?,
+                cart_json: row.get(4)?,
+                note: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let list: Vec<HeldSale> = rows.filter_map(|r| r.ok()).collect();
+    Ok(list)
+}
+
+pub fn delete_held_sale(db: &DbState, held_id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute("DELETE FROM held_sales WHERE id = ?1", [held_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "titaou-post"
 version = "0.1.0"
 description = "Windows Offline-First Point of Sale Application"

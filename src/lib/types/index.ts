@@ -15,6 +15,7 @@ export interface Category {
   name_ar: string;
   name_fr: string;
   name_en: string;
+  color: string;
   is_active: boolean;
 }
 
@@ -68,12 +69,16 @@ export interface CashSession {
   id: number;
   register_id: number;
   user_id: number;
+  user_name?: string;
   opened_at: string;
   closed_at?: string;
   opening_amount: number;
   expected_cash: number;
   actual_cash?: number;
   difference?: number;
+  total_sales?: number;
+  total_expenses?: number;
+  current_balance?: number;
   status: 'open' | 'closed';
   notes?: string;
 }
@@ -82,6 +87,7 @@ export interface CashMovement {
   id: number;
   session_id: number;
   user_id: number;
+  user_name?: string;
   type_name: string;
   amount: number;
   reason?: string;
@@ -105,6 +111,62 @@ export interface Sale {
   change_amount: number;
   payment_status: string;
   status: string;
+  created_at: string;
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  rc?: string;
+  nif?: string;
+  nis?: string;
+  ai?: string;
+  qr_code?: string;
+  balance: number;
+  initial_debt: number;
+  total_purchases?: number;
+  notes?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  rc?: string;
+  nif?: string;
+  nis?: string;
+  ai?: string;
+  qr_code?: string;
+  balance: number;
+  notes?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Purchase {
+  id: number;
+  invoice_number: string;
+  supplier_id: number;
+  supplier_name?: string;
+  user_id: number;
+  user_name?: string;
+  date: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  paid_amount: number;
+  payment_method: string;
+  status: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -134,28 +196,21 @@ export interface Employee {
   job_title: string;
   base_salary: number;
   salary_type: string;
+  salary_start_date?: string;
   hire_date: string;
+  qr_code?: string;
   is_active: boolean;
   notes?: string;
 }
 
-export interface Payroll {
+export interface HeldSale {
   id: number;
-  payroll_number: string;
-  employee_id: number;
-  employee_name?: string;
-  period_month: number;
-  period_year: number;
-  base_salary: number;
-  bonuses: number;
-  allowances: number;
-  deductions: number;
-  advances_deducted: number;
-  net_salary: number;
-  payment_status: string;
-  payment_method?: string;
-  paid_at?: string;
-  notes?: string;
+  sale_reference: string;
+  user_id: number;
+  customer_id?: number;
+  cart_json: string;
+  note?: string;
+  created_at: string;
 }
 
 export interface DashboardStats {
@@ -166,4 +221,17 @@ export interface DashboardStats {
   out_of_stock_count: number;
   active_cash_expected: number;
   today_expenses: number;
+  returns_amount: number;
+  net_revenue: number;
+  cost_of_goods: number;
+  gross_profit: number;
+  average_basket: number;
+  top_products: Array<{
+    product_name: string;
+    category_name: string;
+    sold_qty: number;
+    revenue: number;
+    cost: number;
+    profit: number;
+  }>;
 }

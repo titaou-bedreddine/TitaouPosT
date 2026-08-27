@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
@@ -19,6 +19,7 @@ pub struct Category {
     pub name_ar: String,
     pub name_fr: String,
     pub name_en: String,
+    pub color: String,
     pub is_active: bool,
 }
 
@@ -28,13 +29,6 @@ pub struct Unit {
     pub name: String,
     pub short_name: String,
     pub allow_decimals: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ProductBarcode {
-    pub id: Option<i64>,
-    pub barcode: String,
-    pub is_primary: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,12 +56,6 @@ pub struct Product {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ProductBundleItemInput {
-    pub component_product_id: i64,
-    pub quantity: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProductInput {
     pub sku: Option<String>,
     pub name_ar: String,
@@ -84,7 +72,6 @@ pub struct ProductInput {
     pub image_path: Option<String>,
     pub is_bundle: bool,
     pub barcodes: Vec<String>,
-    pub bundle_items: Option<Vec<ProductBundleItemInput>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -92,12 +79,16 @@ pub struct CashSession {
     pub id: i64,
     pub register_id: i64,
     pub user_id: i64,
+    pub user_name: Option<String>,
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub opening_amount: i64,
     pub expected_cash: i64,
     pub actual_cash: Option<i64>,
     pub difference: Option<i64>,
+    pub total_sales: Option<i64>,
+    pub total_expenses: Option<i64>,
+    pub current_balance: Option<i64>,
     pub status: String,
     pub notes: Option<String>,
 }
@@ -107,6 +98,7 @@ pub struct CashMovement {
     pub id: i64,
     pub session_id: i64,
     pub user_id: i64,
+    pub user_name: Option<String>,
     pub type_name: String,
     pub amount: i64,
     pub reason: Option<String>,
@@ -133,7 +125,7 @@ pub struct CartItem {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SalePaymentInput {
-    pub payment_method: String, // 'cash', 'tpe', 'credit'
+    pub payment_method: String,
     pub amount: i64,
     pub reference_code: Option<String>,
 }
@@ -174,6 +166,7 @@ pub struct Sale {
     pub payment_status: String,
     pub status: String,
     pub created_at: String,
+    pub items: Option<Vec<CartItem>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -183,11 +176,93 @@ pub struct Customer {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub address: Option<String>,
-    pub tax_number: Option<String>,
+    pub rc: Option<String>,
+    pub nif: Option<String>,
+    pub nis: Option<String>,
+    pub ai: Option<String>,
+    pub qr_code: Option<String>,
     pub balance: i64,
-    pub max_credit: i64,
+    pub initial_debt: i64,
+    pub total_purchases: Option<i64>,
     pub notes: Option<String>,
     pub is_active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomerPaymentInput {
+    pub customer_id: i64,
+    pub amount: i64,
+    pub payment_method: String,
+    pub reference: Option<String>,
+    pub session_id: Option<i64>,
+    pub user_id: i64,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Supplier {
+    pub id: i64,
+    pub name: String,
+    pub contact_person: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub address: Option<String>,
+    pub rc: Option<String>,
+    pub nif: Option<String>,
+    pub nis: Option<String>,
+    pub ai: Option<String>,
+    pub qr_code: Option<String>,
+    pub balance: i64,
+    pub notes: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PurchaseItemInput {
+    pub product_id: i64,
+    pub quantity: f64,
+    pub unit_cost: i64,
+    pub discount: i64,
+    pub tax: i64,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreatePurchaseInput {
+    pub invoice_number: String,
+    pub supplier_id: i64,
+    pub user_id: i64,
+    pub date: String,
+    pub subtotal: i64,
+    pub discount: i64,
+    pub tax: i64,
+    pub total: i64,
+    pub paid_amount: i64,
+    pub payment_method: String,
+    pub items: Vec<PurchaseItemInput>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Purchase {
+    pub id: i64,
+    pub invoice_number: String,
+    pub supplier_id: i64,
+    pub supplier_name: Option<String>,
+    pub user_id: i64,
+    pub user_name: Option<String>,
+    pub date: String,
+    pub subtotal: i64,
+    pub discount: i64,
+    pub tax: i64,
+    pub total: i64,
+    pub paid_amount: i64,
+    pub payment_method: String,
+    pub status: String,
+    pub notes: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -218,7 +293,9 @@ pub struct Employee {
     pub job_title: String,
     pub base_salary: i64,
     pub salary_type: String,
+    pub salary_start_date: Option<String>,
     pub hire_date: String,
+    pub qr_code: Option<String>,
     pub is_active: bool,
     pub notes: Option<String>,
 }
@@ -244,6 +321,17 @@ pub struct Payroll {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HeldSale {
+    pub id: i64,
+    pub sale_reference: String,
+    pub user_id: i64,
+    pub customer_id: Option<i64>,
+    pub cart_json: String,
+    pub note: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DashboardStats {
     pub today_sales: i64,
     pub today_transactions_count: i64,
@@ -252,4 +340,20 @@ pub struct DashboardStats {
     pub out_of_stock_count: i64,
     pub active_cash_expected: i64,
     pub today_expenses: i64,
+    pub returns_amount: i64,
+    pub net_revenue: i64,
+    pub cost_of_goods: i64,
+    pub gross_profit: i64,
+    pub average_basket: i64,
+    pub top_products: Vec<TopProductStat>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TopProductStat {
+    pub product_name: String,
+    pub category_name: String,
+    pub sold_qty: f64,
+    pub revenue: i64,
+    pub cost: i64,
+    pub profit: i64,
 }
