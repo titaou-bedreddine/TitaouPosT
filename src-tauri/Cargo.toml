@@ -28,3 +28,10 @@ axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.5", features = ["cors"] }
 parking_lot = "0.12"
 thiserror = "1.0"
+
+[profile.dev]
+debug = 1
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+debug = false

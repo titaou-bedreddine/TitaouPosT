@@ -2,7 +2,7 @@ use crate::database::DbState;
 use crate::models::{CashMovement, CashSession};
 use rusqlite::Result;
 
-pub fn get_active_session(db: &DbState, user_id: i64) -> Result<Option<CashSession>, String> {
+pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSession>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn
         .prepare(
