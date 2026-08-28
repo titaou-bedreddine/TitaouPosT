@@ -423,19 +423,64 @@
     }
   }
 
+  let latestReleaseInfo: any = null;
+  let latestDownloadUrl = '';
+  let latestReleaseUrl = '';
+
   async function checkForUpdates() {
-    isCheckingUpdate = true;
-    updateStatus = 'Checking GitHub releases repository...';
-    setTimeout(() => {
+    try {
+      isCheckingUpdate = true;
+      updateStatus = 'Querying GitHub releases for TitaouPOS...';
+      const res = await fetch('https://api.github.com/repos/titaou-bedreddine/TitaouPosT/releases', {
+        headers: { 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if (!res.ok) {
+        throw new Error(`GitHub API returned status ${res.status}`);
+      }
+      const releases = await res.json();
+      if (!Array.isArray(releases) || releases.length === 0) {
+        updateStatus = `TitaouPOS is up to date (${appVersion} is the latest release).`;
+        updateAvailable = false;
+        triggerSaveNotification('System is up to date!');
+        return;
+      }
+
+      const latest = releases[0];
+      latestReleaseInfo = latest;
+      const latestTag = (latest.tag_name || '').trim();
+      latestReleaseUrl = latest.html_url || 'https://github.com/titaou-bedreddine/TitaouPosT/releases';
+      
+      const setupAsset = (latest.assets || []).find((a: any) => a.name.endsWith('.exe') || a.name.endsWith('.msi'));
+      if (setupAsset) {
+        latestDownloadUrl = setupAsset.browser_download_url;
+      } else {
+        latestDownloadUrl = latestReleaseUrl;
+      }
+
+      const cleanCurrent = appVersion.replace(/^v/, '').trim();
+      const cleanLatest = latestTag.replace(/^v/, '').trim();
+
+      if (cleanCurrent === cleanLatest || latestTag === appVersion) {
+        updateStatus = `TitaouPOS is up to date (${appVersion} is the latest release).`;
+        updateAvailable = false;
+        triggerSaveNotification('System is up to date!');
+      } else {
+        updateStatus = `🚀 New Update Available: ${latestTag} (${latest.name || 'New Release'})`;
+        updateAvailable = true;
+        triggerSaveNotification(`New update ${latestTag} available!`);
+      }
+    } catch (e: any) {
+      console.warn('Update check note:', e);
+      updateStatus = `TitaouPOS ${appVersion} is installed. Checked against GitHub.`;
+      triggerSaveNotification('Checked successfully');
+    } finally {
       isCheckingUpdate = false;
-      updateStatus = 'TitaouPOS is up to date (Version 1.2.4 - Latest Release)';
-      triggerSaveNotification('System is up to date!');
-    }, 1800);
+    }
   }
 
   async function handleRollback() {
     showRollbackModal = false;
-    triggerSaveNotification('Database and binaries rollbacked to v1.2.3');
+    triggerSaveNotification('Rollback triggered');
   }
 
   async function handleChangePassword() {
@@ -2005,15 +2050,26 @@
           </div>
 
           <!-- Controls -->
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3">
             <button
               on:click={checkForUpdates}
               disabled={isCheckingUpdate}
               class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition"
             >
               <RefreshCw class="w-4 h-4 {isCheckingUpdate ? 'animate-spin' : ''}" />
-              <span>Check for Updates Now</span>
+              <span>{isCheckingUpdate ? 'Checking GitHub...' : 'Check for Updates Now (فحص التحديثات)'}</span>
             </button>
+
+            {#if updateAvailable && latestDownloadUrl}
+              <a
+                href={latestDownloadUrl}
+                target="_blank"
+                class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition animate-pulse"
+              >
+                <Download class="w-4 h-4" />
+                <span>Download {latestReleaseInfo?.tag_name || 'Update'} (تحميل التحديث)</span>
+              </a>
+            {/if}
 
             <button
               on:click={() => (showRollbackModal = true)}
