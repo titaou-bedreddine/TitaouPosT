@@ -18,13 +18,16 @@
   import PayrollView from './routes/payroll/PayrollView.svelte';
   import DashboardView from './routes/dashboard/DashboardView.svelte';
   import SettingsView from './routes/settings/SettingsView.svelte';
+  import NotificationsView from './routes/notifications/NotificationsView.svelte';
   import LoginView from './routes/auth/LoginView.svelte';
+
+  import { printHtmlDirectly } from './lib/utils/printer';
 
   // Icons
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -182,6 +185,15 @@
 
         <button
           type="button"
+          on:click={() => currentRoute = 'notifications'}
+          class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'notifications' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
+        >
+          <Bell class="w-4 h-4" />
+          <span>Notifications & Alerts</span>
+        </button>
+
+        <button
+          type="button"
           on:click={() => currentRoute = 'settings'}
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'settings' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
@@ -191,17 +203,21 @@
       </nav>
 
       <!-- Bottom User Profile & Network Status -->
-      <div class="p-3 border-t border-pos-border/60 bg-slate-50 dark:bg-slate-800/40 space-y-2.5">
-        <!-- Local Network Online Badge -->
-        <div class="flex items-center justify-between text-[11px] text-emerald-600 dark:text-emerald-400 font-bold px-1">
-          <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>{t('online_status', $currentLocale)}</span>
-          </div>
-          <Wifi class="w-3.5 h-3.5 text-emerald-500" />
-        </div>
+      <div class="p-3 border-t border-pos-border/60 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+        <!-- Quick Open Cash Drawer Button -->
+        <button
+          type="button"
+          on:click={() => {
+            printHtmlDirectly('<div style="display:none"></div>', 'Kick Drawer');
+          }}
+          class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition"
+          title="Open Cash Drawer (F10)"
+        >
+          <CreditCard class="w-4 h-4" />
+          <span>Open Cash Drawer / درج النقود</span>
+        </button>
 
-        <!-- Clean User Card -->
+        <!-- Clean User Card Horizontal -->
         <div class="flex items-center justify-between p-2 bg-pos-card rounded-xl border border-pos-border shadow-xs">
           <div class="flex items-center gap-2 min-w-0">
             <div class="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 flex items-center justify-center font-bold text-xs shrink-0">
@@ -213,29 +229,32 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-1">
+          <div class="flex items-center gap-1 shrink-0">
             <button
               type="button"
               on:click={toggleTheme}
-              class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer"
+              class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer transition"
               title="Toggle Theme"
             >
               {#if isDarkMode}
-                <Sun class="w-3.5 h-3.5 text-amber-400" />
+                <Sun class="w-4 h-4 text-amber-400" />
               {:else}
-                <Moon class="w-3.5 h-3.5" />
+                <Moon class="w-4 h-4" />
               {/if}
             </button>
             <button
               type="button"
               on:click={handleLogout}
-              class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+              class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer transition"
               title="Sign Out"
             >
-              <LogOut class="w-3.5 h-3.5" />
+              <LogOut class="w-4 h-4" />
             </button>
-        <!-- Developer Credit Pill -->
-        <div class="px-2 py-1 bg-slate-100 dark:bg-slate-900 rounded-lg text-[9px] text-pos-muted text-center border border-pos-border/40">
+          </div>
+        </div>
+
+        <!-- Developer Credit Horizontal Bar -->
+        <div class="px-2 py-1 bg-white dark:bg-slate-900 rounded-lg text-[9px] text-pos-muted text-center border border-pos-border/40 truncate">
           Created by <span class="font-bold text-sky-600">Titaou Bedreddine</span> (0553444057)
         </div>
       </div>
@@ -263,6 +282,8 @@
         <PayrollView />
       {:else if currentRoute === 'dashboard'}
         <DashboardView />
+      {:else if currentRoute === 'notifications'}
+        <NotificationsView />
       {:else if currentRoute === 'settings'}
         <SettingsView />
       {/if}

@@ -1,24 +1,47 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { currentUser } from '../../lib/stores/auth';
   import type { User } from '../../lib/types';
-  import { Lock, UserCheck, QrCode } from 'lucide-svelte';
+  import { Lock, UserCheck, Shield, ChevronDown } from 'lucide-svelte';
 
-  let username = 'admin';
-  let password = 'admin';
+  let usersList: User[] = [];
+  let selectedUsername = 'admin';
+  let password = '';
   let errorMsg = '';
   let isLoading = false;
 
+  onMount(async () => {
+    try {
+      usersList = await invoke<User[]>('get_active_users');
+      if (usersList.length > 0) {
+        selectedUsername = usersList[0].username;
+      }
+    } catch (e) {
+      console.error(e);
+      // Fallback
+      usersList = [
+        { id: 1, username: 'admin', display_name: 'Administrator', role_id: 1, role_name: 'Administrator', max_discount_percent: 100, is_active: true, permissions: [] },
+        { id: 2, username: 'kamel', display_name: 'Kamel Zerrouki', role_id: 2, role_name: 'Cashier', max_discount_percent: 10, is_active: true, permissions: [] },
+        { id: 3, username: 'amina', display_name: 'Amina Cherif', role_id: 2, role_name: 'Cashier', max_discount_percent: 15, is_active: true, permissions: [] },
+        { id: 4, username: 'samir', display_name: 'Samir Bouzid', role_id: 3, role_name: 'Manager', max_discount_percent: 30, is_active: true, permissions: [] },
+      ];
+    }
+  });
+
   async function handleLogin() {
-    if (!username || !password) return;
+    if (!selectedUsername || !password) {
+      errorMsg = 'Please enter password / الرجاء إدخال كلمة المرور';
+      return;
+    }
     try {
       isLoading = true;
       errorMsg = '';
-      const user = await invoke<User | null>('login', { username, password });
+      const user = await invoke<User | null>('login', { username: selectedUsername, password });
       if (user) {
         $currentUser = user;
       } else {
-        errorMsg = 'Invalid username or password';
+        errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
       }
     } catch (err: any) {
       errorMsg = typeof err === 'string' ? err : err.message || 'Login failed';
@@ -51,21 +74,33 @@
     {/if}
 
     <div class="space-y-4">
+      <!-- User Selection Dropdown -->
       <div>
-        <label class="block text-xs font-bold text-slate-400 mb-1">Username / اسم المستخدم</label>
-        <input
-          type="text"
-          bind:value={username}
-          on:keydown={handleKeyDown}
-          class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition"
-        />
+        <label class="block text-xs font-bold text-slate-400 mb-1">Select User / اختر المستخدم</label>
+        <div class="relative">
+          <select
+            bind:value={selectedUsername}
+            class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition appearance-none cursor-pointer"
+          >
+            {#each usersList as u}
+              <option value={u.username}>
+                {u.display_name} ({u.role_name || u.username})
+              </option>
+            {/each}
+          </select>
+          <div class="absolute inset-y-0 end-0 flex items-center px-3 pointer-events-none text-slate-400">
+            <ChevronDown class="w-4 h-4" />
+          </div>
+        </div>
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-slate-400 mb-1">Password / كلمة المرور</label>
+        <label class="block text-xs font-bold text-slate-400 mb-1">Password or PIN / كلمة المرور أو الرمز</label>
         <input
           type="password"
           bind:value={password}
+          placeholder="••••••••"
+          autofocus
           on:keydown={handleKeyDown}
           class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition"
         />
@@ -80,10 +115,6 @@
         <Lock class="w-4 h-4" />
         <span>{isLoading ? 'Signing In...' : 'Sign In to POS'}</span>
       </button>
-    </div>
-
-    <div class="text-center pt-2">
-      <p class="text-[11px] text-slate-500 font-mono">Default credentials: admin / admin</p>
     </div>
   </div>
 </div>

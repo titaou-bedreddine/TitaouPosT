@@ -56,6 +56,7 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN nis TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT;", []);
 
         let m2 = include_str!("../../migrations/002_seed_data.sql");
         let _ = conn.execute_batch(m2);

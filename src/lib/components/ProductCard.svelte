@@ -2,9 +2,12 @@
   import type { Product } from '../types';
   import { t, currentLocale } from '../i18n';
   import { addToCart, isRefundMode } from '../stores/cart';
-  import { Package, Plus } from 'lucide-svelte';
+  import { Package, Plus, Edit2, AlertTriangle, AlertOctagon } from 'lucide-svelte';
 
   export let product: Product;
+  export let categoryColor: string = '#0284c7';
+  export let onEditProduct: ((p: Product) => void) | undefined = undefined;
+
   let isClicked = false;
 
   function handleClick() {
@@ -13,21 +16,85 @@
     addToCart(product, 1, $isRefundMode);
   }
 
+  function handleEditClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (onEditProduct) {
+      onEditProduct(product);
+    }
+  }
+
   $: displayName =
     $currentLocale === 'ar'
       ? product.name_ar || product.name_fr
       : $currentLocale === 'fr'
       ? product.name_fr || product.name_en
       : product.name_en || product.name_fr || product.name_ar;
+
+  // Clean localized unit
+  $: displayUnit = (() => {
+    const raw = (product.unit_name || '').toLowerCase();
+    if (raw.includes('kg') || raw.includes('kilo') || raw.includes('كغ')) {
+      return $currentLocale === 'ar' ? 'كيلوغرام' : $currentLocale === 'fr' ? 'kg' : 'kg';
+    }
+    if (raw.includes('l') || raw.includes('litre') || raw.includes('لتر')) {
+      return $currentLocale === 'ar' ? 'لتر' : $currentLocale === 'fr' ? 'Litre' : 'Liter';
+    }
+    if (raw.includes('pack') || raw.includes('paquet') || raw.includes('علبة')) {
+      return $currentLocale === 'ar' ? 'علبة' : $currentLocale === 'fr' ? 'Paquet' : 'Pack';
+    }
+    if (raw.includes('box') || raw.includes('carton') || raw.includes('كرتون')) {
+      return $currentLocale === 'ar' ? 'كرتون' : $currentLocale === 'fr' ? 'Carton' : 'Box';
+    }
+    return $currentLocale === 'ar' ? 'قطعة' : $currentLocale === 'fr' ? 'Pièce' : 'Piece';
+  })();
+
+  // Expiry check
+  $: expiryStatus = (() => {
+    if (!product.expiry_date) return 'none';
+    const exp = new Date(product.expiry_date).getTime();
+    if (isNaN(exp)) return 'none';
+    const now = new Date().getTime();
+    const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 'expired';
+    if (diffDays <= 30) return 'near';
+    return 'valid';
+  })();
 </script>
 
-<button
-  type="button"
+<div
+  role="button"
+  tabindex="0"
   on:click={handleClick}
-  class="flex flex-col text-start bg-pos-card border border-pos-border hover:border-sky-500 rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''}"
+  on:keydown={(e) => { if (e.key === 'Enter') handleClick(); }}
+  style="border-color: {expiryStatus === 'expired' ? '#ef4444' : categoryColor || '#0284c7'}"
+  class="flex flex-col text-start bg-pos-card border-2 rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''} {expiryStatus === 'expired' ? 'bg-rose-500/10' : expiryStatus === 'near' ? 'bg-amber-500/5' : ''}"
 >
-  <!-- Stock Status Pill -->
-  <div class="absolute top-2 end-2 z-10">
+  <!-- Edit Pen Icon (Top Start) -->
+  <button
+    type="button"
+    on:click={handleEditClick}
+    class="absolute top-2 start-2 z-20 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-pos-muted hover:text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+    title="Edit Product Details"
+  >
+    <Edit2 class="w-3.5 h-3.5" />
+  </button>
+
+  <!-- Stock & Expiry Status Badges (Top End) -->
+  <div class="absolute top-2 end-2 z-10 flex flex-col items-end gap-1">
+    <!-- Expiry Pill -->
+    {#if expiryStatus === 'expired'}
+      <span class="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-mono shadow-xs animate-pulse">
+        <AlertOctagon class="w-2.5 h-2.5" />
+        EXPIRED
+      </span>
+    {:else if expiryStatus === 'near'}
+      <span class="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-mono shadow-xs">
+        <AlertTriangle class="w-2.5 h-2.5" />
+        NEAR EXP
+      </span>
+    {/if}
+
+    <!-- Stock Status Pill -->
     {#if product.current_stock > product.min_stock}
       <span class="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -76,9 +143,9 @@
 
   <!-- Price Footer -->
   <div class="mt-2 pt-1 border-t border-pos-border/60 flex items-center justify-between w-full">
-    <span class="text-[10px] text-pos-muted font-bold">{product.unit_name || 'Unit'}</span>
+    <span class="text-[10px] text-pos-muted font-bold">{displayUnit}</span>
     <span class="text-sm font-black text-sky-600 dark:text-sky-400 font-mono">
       {product.sale_price.toLocaleString()} DZD
     </span>
   </div>
-</button>
+</div>

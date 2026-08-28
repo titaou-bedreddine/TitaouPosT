@@ -36,11 +36,14 @@
     }
   }
 
-  function handleResume(sale: HeldSale) {
+  async function handleResume(sale: HeldSale) {
     try {
       const items = JSON.parse(sale.cart_json);
+      if ($cartItems.length > 0) {
+        await holdCurrentSale('Auto-held before resuming held sale #' + sale.id);
+      }
       $cartItems = items;
-      handleDelete(sale.id);
+      await handleDelete(sale.id);
       onClose();
     } catch (e) {
       console.error(e);

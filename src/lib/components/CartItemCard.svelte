@@ -73,11 +73,6 @@
         <h4 class="font-black text-xs text-pos-text truncate">
           {displayName}
         </h4>
-        {#if item.is_refund}
-          <span class="inline-flex items-center gap-0.5 text-[9px] font-black bg-amber-500 text-white px-1.5 py-0.2 rounded font-mono">
-            REFUND
-          </span>
-        {/if}
       </div>
 
       <div class="flex items-center gap-2 text-[10px] text-pos-muted mt-0.5 font-mono">

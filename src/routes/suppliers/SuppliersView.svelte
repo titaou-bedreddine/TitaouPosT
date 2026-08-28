@@ -2,10 +2,15 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Supplier } from '../../lib/types';
-  import { Truck, Plus, QrCode, Edit2, Trash2 } from 'lucide-svelte';
+  import {
+    Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check,
+    Phone, Mail, MapPin, Building, FileSpreadsheet
+  } from 'lucide-svelte';
 
   let suppliers: Supplier[] = [];
-  let isAddOpen = false;
+  let searchQuery = '';
+  let isModalOpen = false;
+  let previewSupplier: Supplier | null = null;
 
   let name = '';
   let contactPerson = '';
@@ -18,6 +23,8 @@
   let ai = '';
   let notes = '';
   let editingId: number | null = null;
+  let isSaving = false;
+  let errorMsg = '';
 
   onMount(async () => {
     await loadSuppliers();
@@ -31,9 +38,52 @@
     }
   }
 
+  $: filteredSuppliers = suppliers.filter(s =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.contact_person && s.contact_person.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (s.phone && s.phone.includes(searchQuery))
+  );
+
+  function openAddModal() {
+    editingId = null;
+    name = '';
+    contactPerson = '';
+    phone = '';
+    email = '';
+    address = '';
+    rc = '';
+    nif = '';
+    nis = '';
+    ai = '';
+    notes = '';
+    errorMsg = '';
+    isModalOpen = true;
+  }
+
+  function openEditModal(s: Supplier) {
+    editingId = s.id;
+    name = s.name;
+    contactPerson = s.contact_person || '';
+    phone = s.phone || '';
+    email = s.email || '';
+    address = s.address || '';
+    rc = s.rc || '';
+    nif = s.nif || '';
+    nis = s.nis || '';
+    ai = s.ai || '';
+    notes = s.notes || '';
+    errorMsg = '';
+    isModalOpen = true;
+  }
+
   async function handleSave() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      errorMsg = 'Supplier name is required / اسم المورد مطلوب';
+      return;
+    }
     try {
+      isSaving = true;
+      errorMsg = '';
       await invoke('save_supplier', {
         name,
         contactPerson: contactPerson || null,
@@ -47,167 +97,231 @@
         notes: notes || null,
         supplierId: editingId,
       });
-      isAddOpen = false;
-      resetForm();
+      isModalOpen = false;
       await loadSuppliers();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  function startEdit(s: Supplier) {
-    editingId = s.id;
-    name = s.name;
-    contactPerson = s.contact_person || '';
-    phone = s.phone || '';
-    email = s.email || '';
-    address = s.address || '';
-    rc = s.rc || '';
-    nif = s.nif || '';
-    nis = s.nis || '';
-    ai = s.ai || '';
-    notes = s.notes || '';
-    isAddOpen = true;
-  }
-
-  function resetForm() {
-    editingId = null;
-    name = '';
-    contactPerson = '';
-    phone = '';
-    email = '';
-    address = '';
-    rc = '';
-    nif = '';
-    nis = '';
-    ai = '';
-    notes = '';
-  }
-
-  async function handleDelete(id: number) {
-    try {
-      await invoke('delete_supplier', { supplierId: id });
-      await loadSuppliers();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      errorMsg = typeof e === 'string' ? e : e.message || 'Failed to save supplier';
+    } finally {
+      isSaving = false;
     }
   }
 </script>
 
-<div class="p-6 space-y-4 overflow-y-auto h-full select-none">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-black text-pos-text">Suppliers Directory (الموردون)</h1>
-      <p class="text-xs text-pos-muted mt-1">Manage vendor profiles, RC, NIF, and purchase balances</p>
+<div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none">
+  <!-- Header -->
+  <div class="flex items-center justify-between pb-4 border-b border-pos-border shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
+        <Truck class="w-5 h-5" />
+      </div>
+      <div>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">Suppliers / الموردون والشركات</h1>
+        <p class="text-xs text-pos-muted">Manage supplier contacts, purchases history, and company details</p>
+      </div>
     </div>
-    <button
-      on:click={() => { resetForm(); isAddOpen = true; }}
-      class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-    >
-      <Plus class="w-4 h-4" />
-      <span>New Supplier</span>
-    </button>
+
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        on:click={openAddModal}
+        class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+      >
+        <Plus class="w-4 h-4" />
+        <span>Add Supplier (إضافة مورد جديد)</span>
+      </button>
+    </div>
   </div>
 
-  {#if isAddOpen}
-    <div class="bg-pos-card border border-pos-border rounded-2xl p-5 shadow-sm space-y-4 animate-in fade-in duration-150">
-      <h3 class="font-extrabold text-sm text-pos-text">{editingId ? 'Edit Supplier' : 'Add New Supplier'}</h3>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Company / Supplier Name</label>
-          <input type="text" bind:value={name} placeholder="e.g. Candia Algérie" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-bold text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Contact Person</label>
-          <input type="text" bind:value={contactPerson} placeholder="Karim Mehdi" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Phone Number</label>
-          <input type="text" bind:value={phone} placeholder="021 XX XX XX" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Address</label>
-          <input type="text" bind:value={address} placeholder="Zone Industrielle Rouiba" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text" />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">RC (السجل التجاري)</label>
-          <input type="text" bind:value={rc} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">NIF</label>
-          <input type="text" bind:value={nif} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">NIS</label>
-          <input type="text" bind:value={nis} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono text-pos-text" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">AI</label>
-          <input type="text" bind:value={ai} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono text-pos-text" />
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border/60">
-        <button on:click={() => isAddOpen = false} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-lg">Cancel</button>
-        <button on:click={handleSave} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-xs">Save Supplier</button>
-      </div>
+  <!-- Search Filter -->
+  <div class="mt-4 mb-2">
+    <div class="relative">
+      <Search class="w-4 h-4 text-pos-muted absolute start-3 top-2.5" />
+      <input
+        type="text"
+        bind:value={searchQuery}
+        placeholder="Search by supplier name, contact person, or phone..."
+        class="w-full ps-9 pe-3 py-2 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none focus:border-sky-500 shadow-xs"
+      />
     </div>
-  {/if}
+  </div>
 
-  <!-- Suppliers Table -->
-  <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
+  <!-- Table -->
+  <div class="flex-1 overflow-y-auto bg-pos-card border border-pos-border rounded-2xl shadow-xs">
     <table class="w-full text-start text-xs border-collapse">
-      <thead>
-        <tr class="border-b border-pos-border bg-slate-50 dark:bg-slate-800/40 text-pos-muted font-bold">
-          <th class="p-3 text-start">QR Code</th>
-          <th class="p-3 text-start">Supplier Name</th>
+      <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
+        <tr>
+          <th class="p-3 text-start">Supplier Name / الشركة</th>
           <th class="p-3 text-start">Contact Person</th>
           <th class="p-3 text-start">Phone</th>
-          <th class="p-3 text-start">RC / NIF</th>
-          <th class="p-3 text-end">Our Debt Balance</th>
-          <th class="p-3 text-center">Actions</th>
+          <th class="p-3 text-start">Address</th>
+          <th class="p-3 text-end">Actions</th>
         </tr>
       </thead>
-      <tbody>
-        {#each suppliers as s}
-          <tr class="border-b border-pos-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-            <td class="p-3">
-              <span class="inline-flex items-center gap-1 font-mono font-bold text-[11px] text-sky-600 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded">
-                <QrCode class="w-3.5 h-3.5" />
-                <span>{s.qr_code || 'SUPP'}</span>
-              </span>
-            </td>
-            <td class="p-3 font-bold text-pos-text text-sm">{s.name}</td>
-            <td class="p-3 text-pos-muted">{s.contact_person || '-'}</td>
-            <td class="p-3 text-pos-muted font-mono">{s.phone || '-'}</td>
-            <td class="p-3 text-pos-muted font-mono">{s.rc || s.nif || '-'}</td>
-            <td class="p-3 text-end font-mono font-black text-sm {s.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}">
-              {s.balance.toLocaleString()} DZD
-            </td>
-            <td class="p-3 text-center">
-              <div class="flex items-center justify-center gap-1.5">
-                <button
-                  type="button"
-                  on:click={() => startEdit(s)}
-                  class="p-1.5 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 rounded-lg cursor-pointer"
-                >
-                  <Edit2 class="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  on:click={() => handleDelete(s.id)}
-                  class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg cursor-pointer"
-                >
-                  <Trash2 class="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </td>
+      <tbody class="divide-y divide-pos-border/40">
+        {#if filteredSuppliers.length === 0}
+          <tr>
+            <td colspan="5" class="p-8 text-center text-pos-muted">No suppliers found.</td>
           </tr>
-        {/each}
+        {:else}
+          {#each filteredSuppliers as s}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+              <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => (previewSupplier = s)}>
+                {s.name}
+              </td>
+              <td class="p-3 text-pos-muted">{s.contact_person || '—'}</td>
+              <td class="p-3 font-mono text-pos-muted">{s.phone || '—'}</td>
+              <td class="p-3 text-pos-muted">{s.address || '—'}</td>
+              <td class="p-3 text-end">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    on:click={() => openEditModal(s)}
+                    class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
+                    title="Edit"
+                  >
+                    <Edit2 class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        {/if}
       </tbody>
     </table>
   </div>
 </div>
+
+<!-- Modal: Add / Edit Supplier -->
+{#if isModalOpen}
+  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
+            <Truck class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-base text-pos-text">
+              {editingId ? 'Edit Supplier / تعديل مورد' : 'New Supplier / إضافة مورد جديد'}
+            </h3>
+            <p class="text-xs text-pos-muted">Enter contact and commercial registry details</p>
+          </div>
+        </div>
+        <button on:click={() => (isModalOpen = false)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      {#if errorMsg}
+        <div class="mx-6 mt-4 p-3 bg-rose-100 text-rose-800 text-xs font-bold rounded-xl">{errorMsg}</div>
+      {/if}
+
+      <div class="p-6 space-y-3 overflow-y-auto max-h-[70vh]">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Company / Supplier Name *</label>
+            <input type="text" bind:value={name} placeholder="Ex: Sarl Agro Food" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Contact Person / المسؤول</label>
+            <input type="text" bind:value={contactPerson} placeholder="Ex: Karim Benali" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Phone / الهاتف</label>
+            <input type="text" bind:value={phone} placeholder="Ex: 0550 99 88 77" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Email / البريد</label>
+            <input type="email" bind:value={email} placeholder="Ex: contact@agrofood.dz" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Address / العنوان</label>
+          <input type="text" bind:value={address} placeholder="Ex: Zone Industrielle Rouiba, Alger" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none" />
+        </div>
+
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-2">
+          <span class="text-xs font-black text-pos-text block">Legal & Fiscal Details (السجل التجاري والجبائي)</span>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-0.5">RC</label>
+              <input type="text" bind:value={rc} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-0.5">NIF</label>
+              <input type="text" bind:value={nif} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-0.5">NIS</label>
+              <input type="text" bind:value={nis} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-0.5">AI</label>
+              <input type="text" bind:value={ai} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end gap-2">
+        <button on:click={() => (isModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={handleSave} disabled={isSaving} class="px-6 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+          <Check class="w-4 h-4" />
+          <span>{isSaving ? 'Saving...' : 'Save Supplier (حفظ)'}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal: Supplier Profile Details Popup -->
+{#if previewSupplier}
+  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
+            <Truck class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-base text-pos-text">{previewSupplier.name}</h3>
+            <p class="text-xs text-pos-muted">{previewSupplier.contact_person || 'Contact Principal'}</p>
+          </div>
+        </div>
+        <button on:click={() => (previewSupplier = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      <div class="p-6 space-y-3 text-xs">
+        <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl space-y-2">
+          <div class="flex items-center gap-2">
+            <Phone class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span class="font-mono font-bold text-pos-text">{previewSupplier.phone || 'No phone'}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <Mail class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span class="text-pos-text">{previewSupplier.email || 'No email'}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <MapPin class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span class="text-pos-text">{previewSupplier.address || 'Alger'}</span>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-1">
+          <span class="font-black text-pos-text block mb-1">Fiscal Registry</span>
+          <div class="flex justify-between"><span class="text-pos-muted">RC:</span><span class="font-mono font-bold">{previewSupplier.rc || '—'}</span></div>
+          <div class="flex justify-between"><span class="text-pos-muted">NIF:</span><span class="font-mono font-bold">{previewSupplier.nif || '—'}</span></div>
+          <div class="flex justify-between"><span class="text-pos-muted">NIS:</span><span class="font-mono font-bold">{previewSupplier.nis || '—'}</span></div>
+          <div class="flex justify-between"><span class="text-pos-muted">AI:</span><span class="font-mono font-bold">{previewSupplier.ai || '—'}</span></div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end">
+        <button on:click={() => (previewSupplier = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
+      </div>
+    </div>
+  </div>
+{/if}

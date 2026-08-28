@@ -14,7 +14,7 @@ pub fn search_products(
     let mut sql = String::from(
         "SELECT DISTINCT p.id, p.sku, p.name_ar, p.name_fr, p.name_en, p.category_id, c.name_ar,
                 p.unit_id, u.name, p.purchase_price, p.sale_price, p.min_sale_price, p.tax_rate,
-                p.current_stock, p.min_stock, p.max_stock, p.image_path, p.is_bundle, p.is_active
+                p.current_stock, p.min_stock, p.max_stock, p.image_path, p.expiry_date, p.is_bundle, p.is_active
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
          LEFT JOIN units u ON p.unit_id = u.id
@@ -72,8 +72,9 @@ pub fn search_products(
                 min_stock: row.get(14)?,
                 max_stock: row.get(15)?,
                 image_path: row.get(16)?,
-                is_bundle: row.get(17)?,
-                is_active: row.get(18)?,
+                expiry_date: row.get(17)?,
+                is_bundle: row.get(18)?,
+                is_active: row.get(19)?,
                 barcodes: Vec::new(),
             })
         })
@@ -109,8 +110,8 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
                 category_id = ?5, unit_id = ?6, purchase_price = ?7,
                 sale_price = ?8, min_sale_price = ?9, tax_rate = ?10,
                 current_stock = ?11, min_stock = ?12, image_path = ?13,
-                is_bundle = ?14
-             WHERE id = ?15",
+                expiry_date = ?14, is_bundle = ?15
+             WHERE id = ?16",
             rusqlite::params![
                 input.sku,
                 input.name_ar,
@@ -125,6 +126,7 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
                 input.current_stock,
                 input.min_stock,
                 input.image_path,
+                input.expiry_date,
                 input.is_bundle,
                 pid
             ],
@@ -143,8 +145,8 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
             "INSERT INTO products (
                 sku, name_ar, name_fr, name_en, category_id, unit_id,
                 purchase_price, sale_price, min_sale_price, tax_rate,
-                current_stock, min_stock, image_path, is_bundle, is_active
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1)",
+                current_stock, min_stock, image_path, expiry_date, is_bundle, is_active
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1)",
             rusqlite::params![
                 input.sku,
                 input.name_ar,
@@ -159,6 +161,7 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
                 input.current_stock,
                 input.min_stock,
                 input.image_path,
+                input.expiry_date,
                 input.is_bundle
             ],
         )

@@ -1,4 +1,4 @@
-﻿use crate::database::DbState;
+use crate::database::DbState;
 use crate::models::Expense;
 use rusqlite::Result;
 
@@ -93,3 +93,11 @@ pub fn list_expenses(db: &DbState) -> Result<Vec<Expense>, String> {
     let list: Vec<Expense> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
 }
+
+pub fn delete_expense(db: &DbState, expense_id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute("DELETE FROM expenses WHERE id = ?1", [expense_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+

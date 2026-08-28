@@ -50,6 +50,7 @@ pub struct Product {
     pub min_stock: f64,
     pub max_stock: Option<f64>,
     pub image_path: Option<String>,
+    pub expiry_date: Option<String>,
     pub is_bundle: bool,
     pub is_active: bool,
     pub barcodes: Vec<String>,
@@ -70,6 +71,7 @@ pub struct ProductInput {
     pub current_stock: f64,
     pub min_stock: f64,
     pub image_path: Option<String>,
+    pub expiry_date: Option<String>,
     pub is_bundle: bool,
     pub barcodes: Vec<String>,
 }

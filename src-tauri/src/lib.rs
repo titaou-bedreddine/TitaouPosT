@@ -20,6 +20,7 @@ pub fn run() {
         .manage(db_state)
         .invoke_handler(tauri::generate_handler![
             commands::login,
+            commands::get_active_users,
             commands::change_user_password,
             commands::get_user_by_qr,
             commands::get_dashboard_stats,
@@ -53,6 +54,7 @@ pub fn run() {
             commands::list_purchases,
             commands::add_expense,
             commands::list_expenses,
+            commands::delete_expense,
             commands::list_employees,
             commands::save_employee,
             commands::delete_employee,

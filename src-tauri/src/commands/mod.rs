@@ -19,6 +19,11 @@ pub fn login(db: State<'_, DbState>, username: String, password: String) -> Resu
 }
 
 #[tauri::command]
+pub fn get_active_users(db: State<'_, DbState>) -> Result<Vec<User>, String> {
+    crate::auth::list_active_users(&db)
+}
+
+#[tauri::command]
 pub fn change_user_password(db: State<'_, DbState>, user_id: i64, new_password: String) -> Result<(), String> {
     employee_service::change_user_password(&db, user_id, &new_password)
 }
@@ -275,6 +280,11 @@ pub fn add_expense(
 #[tauri::command]
 pub fn list_expenses(db: State<'_, DbState>) -> Result<Vec<Expense>, String> {
     expense_service::list_expenses(&db)
+}
+
+#[tauri::command]
+pub fn delete_expense(db: State<'_, DbState>, expense_id: i64) -> Result<(), String> {
+    expense_service::delete_expense(&db, expense_id)
 }
 
 // Employees & Payroll
