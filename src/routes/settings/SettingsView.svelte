@@ -107,8 +107,9 @@
   let telegramStatusMsg = '';
 
   // Updates
+  let appVersion = 'v0.2.0';
   let isCheckingUpdate = false;
-  let updateStatus = 'You are running the latest version: v1.2.4';
+  let updateStatus = 'You are running the latest version: v0.2.0';
   let updateAvailable = false;
   let showRollbackModal = false;
 
@@ -129,6 +130,15 @@
   let resetConfirm = '';
 
   onMount(async () => {
+    try {
+      const v = await invoke<string>('get_app_version');
+      if (v) {
+        appVersion = `v${v}`;
+        updateStatus = `TitaouPOS is up to date (Version ${v} - Latest Release)`;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
     await loadSettings();
     await loadScaleLogs();
   });
@@ -1553,7 +1563,7 @@
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
               <p class="text-xs font-bold text-pos-muted">Current Installed Version:</p>
-              <p class="text-base font-black text-pos-text">TitaouPOS v1.2.4 (Windows x64)</p>
+              <p class="text-base font-black text-pos-text">TitaouPOS {appVersion} (Windows x64)</p>
             </div>
             <span class="px-3 py-1 bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-mono text-xs font-black rounded-full">
               Stable Channel
@@ -1678,7 +1688,7 @@
       <span>•</span>
       <span>Created & Developed by <strong class="text-sky-600">Titaou Bedreddine (0553444057)</strong></span>
     </div>
-    <span class="font-mono text-[11px]">v1.2.4 (PRO)</span>
+    <span class="font-mono text-[11px]">{appVersion} (PRO)</span>
   </div>
 
   <!-- Rollback Confirmation Modal -->

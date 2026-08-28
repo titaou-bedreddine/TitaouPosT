@@ -77,6 +77,7 @@ pub fn run() {
             commands::save_unit,
             commands::backup_database,
             commands::restore_database,
+            commands::get_app_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

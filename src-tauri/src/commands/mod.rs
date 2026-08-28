@@ -467,3 +467,8 @@ pub fn backup_database(destination_path: String) -> Result<String, String> {
 pub fn restore_database(source_backup_path: String) -> Result<String, String> {
     settings_service::restore_database(&source_backup_path)
 }
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
