@@ -3,12 +3,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Category, Product, Unit } from '../../lib/types';
   import ProductEditModal from '../../lib/components/ProductEditModal.svelte';
+  import PrintLabelModal from '../../lib/components/PrintLabelModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
-  import { printHtmlDirectly } from '../../lib/utils/printer';
   import {
-    Package, Plus, Search, Edit2, Trash2, QrCode, Printer,
-    ArrowUpDown, AlertTriangle, AlertOctagon, Tag, LayoutGrid,
-    List, DollarSign, TrendingUp, Boxes, Clock, Check, X
+    Package, Plus, Edit2, Trash2, QrCode,
+    ArrowUpDown, AlertTriangle, Tag, LayoutGrid,
+    List, DollarSign, TrendingUp, Boxes, Check, X
   } from 'lucide-svelte';
 
   let products: Product[] = [];
@@ -23,6 +23,12 @@
 
   let isProductEditOpen = false;
   let editingProduct: Product | null = null;
+
+  // Print Label Modal
+  let isPrintLabelOpen = false;
+  let printLabelProduct: Product | null = null;
+  let printLabelInitialType: 'barcode' | 'etiquette' = 'barcode';
+  let printLabelInitialQty = 1;
 
   // Custom Delete Confirmation Modal
   let isDeleteModalOpen = false;
@@ -154,17 +160,20 @@
     }
   }
 
-  function printShelfTag(p: Product, e?: Event) {
+  function openPrintSticker(p: Product, e?: Event) {
     if (e) e.stopPropagation();
-    const barcode = (p.barcodes && p.barcodes[0]) || p.sku || '12345678';
-    const html = `
-      <div style="width: 40mm; height: 20mm; padding: 2mm; border: 1px solid #000; text-align: center; display: flex; flex-direction: column; justify-content: space-between;">
-        <p style="font-size: 8px; font-weight: bold; margin: 0; overflow: hidden; white-space: nowrap;">${p.name_fr || p.name_ar}</p>
-        <p style="font-size: 11px; font-weight: 900; margin: 0;">${p.sale_price.toLocaleString()} DZD</p>
-        <p style="font-size: 7px; font-family: monospace; margin: 0;">${barcode}</p>
-      </div>
-    `;
-    printHtmlDirectly(html, `Shelf Tag - ${p.sku}`);
+    printLabelProduct = p;
+    printLabelInitialType = 'barcode';
+    printLabelInitialQty = p.current_stock > 0 ? p.current_stock : 1;
+    isPrintLabelOpen = true;
+  }
+
+  function openPrintShelf(p: Product, e?: Event) {
+    if (e) e.stopPropagation();
+    printLabelProduct = p;
+    printLabelInitialType = 'etiquette';
+    printLabelInitialQty = 1;
+    isPrintLabelOpen = true;
   }
 </script>
 
@@ -375,11 +384,19 @@
                   <div class="flex items-center justify-end gap-1">
                     <button
                       type="button"
-                      on:click={(e) => printShelfTag(p, e)}
+                      on:click={(e) => openPrintSticker(p, e)}
                       class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer transition"
-                      title="Print Shelf Tag"
+                      title="Print Product Sticker (ملصق باركود)"
                     >
-                      <Printer class="w-4 h-4" />
+                      <QrCode class="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      on:click={(e) => openPrintShelf(p, e)}
+                      class="p-1.5 text-pos-muted hover:text-emerald-600 rounded-lg cursor-pointer transition"
+                      title="Print Shelf Tag (بطاقة رف)"
+                    >
+                      <Tag class="w-4 h-4" />
                     </button>
                     <button
                       type="button"
@@ -395,7 +412,7 @@
                       class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer transition"
                       title="Delete Product"
                     >
-                      <Trash2 class="w-4 h-4" />
+                      <X class="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -448,11 +465,19 @@
                   </button>
                   <button
                     type="button"
-                    on:click={(e) => printShelfTag(p, e)}
+                    on:click={(e) => openPrintSticker(p, e)}
                     class="p-1.5 rounded-lg bg-slate-100 hover:bg-sky-100 dark:bg-slate-800 dark:hover:bg-sky-950 text-pos-muted hover:text-sky-600 transition cursor-pointer"
+                    title="Print Product Sticker"
+                  >
+                    <QrCode class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    on:click={(e) => openPrintShelf(p, e)}
+                    class="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950 text-pos-muted hover:text-emerald-600 transition cursor-pointer"
                     title="Print Shelf Tag"
                   >
-                    <Printer class="w-3.5 h-3.5" />
+                    <Tag class="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -522,6 +547,15 @@
   units={units}
   onClose={() => (isProductEditOpen = false)}
   onSaved={loadProducts}
+/>
+
+<!-- Print Label Modal -->
+<PrintLabelModal
+  isOpen={isPrintLabelOpen}
+  product={printLabelProduct}
+  initialType={printLabelInitialType}
+  initialQty={printLabelInitialQty}
+  onClose={() => (isPrintLabelOpen = false)}
 />
 
 <!-- Delete Confirmation Modal (Replaces Native confirm) -->

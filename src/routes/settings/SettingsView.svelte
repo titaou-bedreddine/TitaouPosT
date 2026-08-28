@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import JsBarcode from 'jsbarcode';
   import {
     Sliders, User, Building, Printer, Smartphone, Download,
     ShieldCheck, RefreshCw, AlertOctagon, Check, Copy, Key,
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
-    Scale, Bell, Send, CreditCard, Keyboard
+    Scale, Bell, Send, CreditCard, Keyboard, Type, Bold, Eye
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -81,10 +82,53 @@
     shortcut_f10: 'Kick Cash Drawer',
     shortcut_f11: 'Split / TPE Payment',
     shortcut_f12: 'Clear Active Cart',
+
+    // Barcode Labels & Presets
     barcode_label_width: '50',
     barcode_label_height: '30',
+    sticker_show_shop_name: 'true',
+    sticker_show_product_name: 'true',
+    sticker_show_barcode: 'true',
+    sticker_show_price: 'true',
+    sticker_name_font_size: '9',
+    sticker_name_bold: 'true',
+    sticker_price_font_size: '12',
+    sticker_price_bold: 'true',
+    sticker_barcode_font_size: '10',
     shelf_tag_width: '60',
     shelf_tag_height: '40',
+    shelf_show_shop_name: 'true',
+    shelf_show_product_name: 'true',
+    shelf_show_price: 'true',
+    shelf_show_ref: 'true',
+    shelf_name_font_size: '11',
+    shelf_name_bold: 'true',
+    shelf_price_font_size: '18',
+    shelf_price_bold: 'true',
+    shelf_ref_font_size: '8',
+
+    // Thermal Receipt Style & Content
+    receipt_font_family: 'monospace',
+    receipt_header: 'مرحباً بكم في سوبرماركت تيتاو',
+    receipt_footer: 'Les articles retournés doivent être présentés sous 48h',
+    receipt_show_shop_name: 'true',
+    receipt_show_address: 'true',
+    receipt_show_phone: 'true',
+    receipt_show_rc_nif: 'true',
+    receipt_show_header_note: 'true',
+    receipt_show_cashier: 'true',
+    receipt_show_date: 'true',
+    receipt_show_tax: 'true',
+    receipt_show_footer: 'true',
+    receipt_show_qr: 'true',
+    receipt_header_font_size: '14',
+    receipt_header_bold: 'true',
+    receipt_body_font_size: '10',
+    receipt_body_bold: 'false',
+    receipt_total_font_size: '13',
+    receipt_total_bold: 'true',
+    receipt_footer_font_size: '8',
+    receipt_footer_bold: 'false',
   };
 
   let hwid = 'TIT-POS-DZ-9842-AF81';
@@ -124,6 +168,36 @@
   let previewBarcodeNumber = '613000000001';
   let previewProductName = 'Lait Candia 1L Entier';
   let previewPrice = 120;
+  let settingsBarcodeSvgEl: SVGSVGElement;
+
+  function renderSettingsBarcode() {
+    if (!settingsBarcodeSvgEl) return;
+    try {
+      JsBarcode(settingsBarcodeSvgEl, previewBarcodeNumber, {
+        format: previewBarcodeNumber.length === 13 ? 'EAN13' : 'CODE128',
+        width: 1.5,
+        height: 35,
+        displayValue: true,
+        fontSize: parseInt(settings.sticker_barcode_font_size || '10'),
+        margin: 0,
+        background: '#ffffff',
+        lineColor: '#000000',
+      });
+    } catch (e) {
+      try {
+        JsBarcode(settingsBarcodeSvgEl, previewBarcodeNumber, {
+          format: 'CODE128',
+          width: 1.5, height: 35, displayValue: true,
+          fontSize: parseInt(settings.sticker_barcode_font_size || '10'), margin: 0,
+          background: '#ffffff', lineColor: '#000000',
+        });
+      } catch {}
+    }
+  }
+
+  $: if (settingsBarcodeSvgEl && currentTab === 'barcodes') {
+    tick().then(renderSettingsBarcode);
+  }
 
   // Factory Reset
   let resetType = 'transactions_only';
@@ -149,6 +223,8 @@
       settings = { ...settings, ...fetched };
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
+      await tick();
+      renderSettingsBarcode();
     } catch (e) {
       console.error(e);
     }
@@ -171,11 +247,15 @@
 
   async function saveAllSettings() {
     try {
-      await invoke('set_multiple_settings', { settings });
+      const stringSettings: Record<string, string> = {};
+      for (const [k, v] of Object.entries(settings)) {
+        stringSettings[k] = v === null || v === undefined ? '' : String(v);
+      }
+      await invoke('set_multiple_settings', { settings: stringSettings });
       triggerSaveNotification();
-    } catch (e) {
-      console.error(e);
-      triggerSaveNotification('Saved locally');
+    } catch (e: any) {
+      console.error('Save settings error:', e);
+      triggerSaveNotification('Error saving: ' + (e?.message || e));
     }
   }
 
@@ -392,66 +472,122 @@
   }
 
   function testPrintReceipt() {
+    const fontFamily = settings.receipt_font_family || 'monospace';
+    const showShop = settings.receipt_show_shop_name !== 'false';
+    const showAddress = settings.receipt_show_address !== 'false';
+    const showPhone = settings.receipt_show_phone !== 'false';
+    const showRcNif = settings.receipt_show_rc_nif !== 'false';
+    const showCashier = settings.receipt_show_cashier !== 'false';
+    const showDate = settings.receipt_show_date !== 'false';
+    const showTax = settings.receipt_show_tax !== 'false';
+    const showFooter = settings.receipt_show_footer !== 'false';
+    const showQr = settings.receipt_show_qr !== 'false';
+
+    const headerSize = settings.receipt_header_font_size || '14';
+    const headerBold = settings.receipt_header_bold !== 'false';
+    const bodySize = settings.receipt_body_font_size || '10';
+    const bodyBold = settings.receipt_body_bold === 'true';
+    const totalSize = settings.receipt_total_font_size || '13';
+    const totalBold = settings.receipt_total_bold !== 'false';
+    const footerSize = settings.receipt_footer_font_size || '8';
+    const footerBold = settings.receipt_footer_bold === 'true';
+
     const html = `
-      <div class="text-center pb-2 border-b-dashed">
-        <h2 class="font-black text-base">${settings.shop_name_fr || 'TitaouPOS'}</h2>
-        <p class="text-xxs text-gray-700">${settings.shop_address || 'Alger, Algérie'}</p>
-        <p class="text-xxs text-gray-700">Tél: ${settings.shop_phone || '0553444057'}</p>
-        <p class="text-xxs text-gray-700">RC: ${settings.shop_rc || '16/00-123456B22'} | NIF: ${settings.shop_nif || '0016160123456'}</p>
-        <p class="text-xxs text-gray-700 mt-1">${new Date().toLocaleString()}</p>
-      </div>
-      <div class="py-1 border-b-dashed text-xxs flex justify-between">
-        <span>TEST RECEIPT #0001</span>
-        <span>Caisse: Admin</span>
-      </div>
-      <div class="py-2 border-b-dashed">
-        <table class="w-full">
-          <tr><td class="font-bold">Article Démo Test</td><td class="text-center">1</td><td class="text-end">100</td><td class="text-end font-bold">100 DZD</td></tr>
-        </table>
-      </div>
-      <div class="py-2 text-xs font-black flex justify-between border-t-dashed">
-        <span>TOTAL:</span>
-        <span>100 DZD</span>
-      </div>
-      <div class="text-center pt-2 text-xxs text-gray-700 border-t-dashed">
-        *** Test Print - Created by Titaou Bedreddine 0553444057 ***
+      <div style="font-family: ${fontFamily}; font-size: ${bodySize}px; font-weight: ${bodyBold ? 'bold' : 'normal'}; width: ${settings.receipt_paper_width === '58mm' ? '230px' : '300px'}; padding: 10px; background: #fff; color: #000; box-sizing: border-box;">
+        <div style="text-align: center; padding-bottom: 8px; border-bottom: 1px dashed #000;">
+          ${showShop ? `<h2 style="font-size: ${headerSize}px; font-weight: ${headerBold ? '900' : 'normal'}; margin: 0 0 2px 0;">${settings.shop_name_fr || 'TitaouPOS'}</h2>` : ''}
+          ${showShop && settings.shop_name_ar ? `<p style="font-size: 11px; font-weight: bold; margin: 0;">${settings.shop_name_ar}</p>` : ''}
+          ${showAddress ? `<p style="font-size: 9px; color: #444; margin: 1px 0;">${settings.shop_address || 'Alger, Algérie'}</p>` : ''}
+          ${showPhone ? `<p style="font-size: 9px; color: #444; margin: 1px 0;">Tél: ${settings.shop_phone || '0553444057'}</p>` : ''}
+          ${showRcNif ? `<p style="font-size: 8px; color: #444; margin: 1px 0;">RC: ${settings.shop_rc || '16/00-123456B22'} | NIF: ${settings.shop_nif || '0016160123456'}</p>` : ''}
+          ${settings.receipt_header ? `<p style="font-size: 9px; font-weight: bold; margin: 2px 0; font-style: italic;">${settings.receipt_header}</p>` : ''}
+          ${showDate ? `<p style="font-size: 8px; color: #666; margin-top: 4px;">${new Date().toLocaleString()}</p>` : ''}
+        </div>
+        <div style="padding: 4px 0; border-bottom: 1px dashed #000; font-size: 9px; display: flex; justify-content: space-between;">
+          <span>TEST RECEIPT #0001</span>
+          ${showCashier ? `<span>Caisse: ${$currentUser?.display_name || 'Admin'}</span>` : ''}
+        </div>
+        <div style="padding: 6px 0; border-bottom: 1px dashed #000;">
+          <table style="width: 100%; font-size: 9px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #ccc;"><th style="text-align: left;">Article</th><th style="text-align: center;">Qté</th><th style="text-align: right;">P.U</th><th style="text-align: right;">Total</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="font-weight: bold;">Article Démo Test 1</td><td style="text-align: center;">1</td><td style="text-align: right;">100</td><td style="text-align: right; font-weight: bold;">100 DZD</td></tr>
+              <tr><td style="font-weight: bold;">Article Démo Test 2</td><td style="text-align: center;">2</td><td style="text-align: right;">75</td><td style="text-align: right; font-weight: bold;">150 DZD</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding: 6px 0; font-size: ${totalSize}px; font-weight: ${totalBold ? '900' : 'normal'}; display: flex; justify-content: space-between; border-top: 1px dashed #000;">
+          <span>TOTAL:</span>
+          <span>250 DZD</span>
+        </div>
+        ${showTax ? `<div style="font-size: 8px; color: #555; display: flex; justify-content: space-between; padding-bottom: 4px;"><span>Dont TVA (19%):</span><span>40 DZD</span></div>` : ''}
+        ${showFooter ? `
+          <div style="text-align: center; padding-top: 6px; font-size: ${footerSize}px; font-weight: ${footerBold ? 'bold' : 'normal'}; border-top: 1px dashed #000; color: #444;">
+            ${settings.receipt_footer || '*** Merci de votre visite - شكراً لزيارتكم ***'}
+          </div>
+        ` : ''}
+        ${showQr ? `
+          <div style="text-align: center; padding-top: 6px;">
+            <div style="display: inline-block; padding: 2px 6px; background: #eee; border: 1px solid #ccc; font-family: monospace; font-size: 7px; border-radius: 3px;">
+              [QR: TITAOU-VTE-0001]
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
     printHtmlDirectly(html, 'Test Receipt');
   }
 
   function testPrintBarcode() {
+    const w = parseInt(settings.barcode_label_width || '50');
+    const h = parseInt(settings.barcode_label_height || '30');
+    const showShop = settings.sticker_show_shop_name !== 'false';
+    const showName = settings.sticker_show_product_name !== 'false';
+    const showBarcode = settings.sticker_show_barcode !== 'false';
+    const showPrice = settings.sticker_show_price !== 'false';
+    const nameSize = parseInt(settings.sticker_name_font_size || '9');
+    const nameBold = settings.sticker_name_bold !== 'false';
+    const priceSize = parseInt(settings.sticker_price_font_size || '12');
+    const priceBold = settings.sticker_price_bold !== 'false';
+    const barcodeSvgHtml = settingsBarcodeSvgEl ? settingsBarcodeSvgEl.outerHTML : `<p style="font-family:monospace;font-size:10px;">${previewBarcodeNumber}</p>`;
+
     const html = `
-      <div style="width: 48mm; height: 28mm; text-align: center; font-family: monospace; font-size: 10px; padding: 2mm;">
-        <p style="font-weight: bold; font-size: 9px; text-transform: uppercase;">${settings.shop_name_fr || 'TitaouPOS'}</p>
-        <p style="font-weight: 900; font-size: 11px; margin: 2px 0;">${previewProductName}</p>
-        <div style="letter-spacing: 4px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 0;">||| | |||| | |||</div>
-        <p style="font-size: 10px; font-weight: bold;">${previewBarcodeNumber}</p>
-        <p style="font-weight: 900; font-size: 13px; margin-top: 2px;">${previewPrice} DZD</p>
+      <div style="width: ${w}mm; height: ${h}mm; text-align: center; font-family: sans-serif; padding: 2mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff;">
+        ${showShop ? `<p style="font-weight: bold; font-size: 8px; text-transform: uppercase; color: #555; margin: 0;">${settings.shop_name_fr || 'TitaouPOS'}</p>` : ''}
+        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 2px 0; overflow: hidden; white-space: nowrap; max-width: 100%;">${previewProductName}</p>` : ''}
+        ${showBarcode ? `<div style="max-width: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; margin: 1px 0;">${barcodeSvgHtml}</div>` : ''}
+        ${showPrice ? `<p style="font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; font-family: monospace; margin: 2px 0;">${previewPrice} DZD</p>` : ''}
       </div>
     `;
-    printHtmlDirectly(html, 'Test Barcode');
+    printHtmlDirectly(html, 'Test Barcode Sticker');
   }
 
   function testPrintShelfTag() {
+    const w = parseInt(settings.shelf_tag_width || '60');
+    const h = parseInt(settings.shelf_tag_height || '40');
+    const showShop = settings.shelf_show_shop_name !== 'false';
+    const showName = settings.shelf_show_product_name !== 'false';
+    const showPrice = settings.shelf_show_price !== 'false';
+    const showRef = settings.shelf_show_ref !== 'false';
+    const nameSize = parseInt(settings.shelf_name_font_size || '11');
+    const nameBold = settings.shelf_name_bold !== 'false';
+    const priceSize = parseInt(settings.shelf_price_font_size || '18');
+    const priceBold = settings.shelf_price_bold !== 'false';
+    const refSize = parseInt(settings.shelf_ref_font_size || '8');
+
     const html = `
-      <div style="width: 58mm; height: 38mm; border: 1.5px solid #000; padding: 3mm; font-family: sans-serif; text-align: center;">
-        <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px;">
-          <span>${settings.shop_name_fr || 'TitaouPOS'}</span>
-          <span>DISPO</span>
-        </div>
-        <p style="font-size: 13px; font-weight: 900; margin: 4px 0; line-height: 1.2;">${previewProductName}</p>
-        <div style="background: #000; color: #fff; padding: 4px; font-size: 18px; font-weight: 900; margin: 4px 0; font-family: monospace;">
-          ${previewPrice} DZD
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold;">
-          <span>Ref: ${previewBarcodeNumber}</span>
-          <span>TVA 19% Incl.</span>
-        </div>
+      <div style="width: ${w}mm; height: ${h}mm; border: 1.5px solid #000; padding: 3mm; font-family: sans-serif; text-align: center; box-sizing: border-box; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+        ${showShop ? `<div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px;"><span>${settings.shop_name_fr || 'TitaouPOS'}</span><span style="color: green;">DISPO</span></div>` : ''}
+        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 4px 0; line-height: 1.2;">${previewProductName}</p>` : ''}
+        ${showPrice ? `<div style="background: #000; color: #fff; padding: 4px; font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; margin: 4px 0; font-family: monospace;">${previewPrice} DZD</div>` : ''}
+        ${showRef ? `<div style="display: flex; justify-content: space-between; font-size: ${refSize}px; font-weight: bold;"><span>Ref: ${previewBarcodeNumber}</span><span>TVA 19% Incl.</span></div>` : ''}
       </div>
     `;
     printHtmlDirectly(html, 'Test Shelf Tag');
   }
+
 </script>
 
 <div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none relative">
@@ -668,132 +804,274 @@
       <div class="max-w-5xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-base font-black text-pos-text">Thermal Receipts & Invoice Printing</h2>
-            <p class="text-xs text-pos-muted">Configure hardware printers, receipt layout, and test print output</p>
+            <h2 class="text-base font-black text-pos-text">Thermal Receipts & Invoice Printing / إعدادات طباعة الوصولات</h2>
+            <p class="text-xs text-pos-muted">Configure printer hardware, receipt layout, font sizes, bold weights, and what fields to show</p>
           </div>
-          <button on:click={testPrintReceipt} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
-            <Printer class="w-4 h-4" />
-            <span>Test Print Receipt</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <button on:click={testPrintReceipt} class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition">
+              <Printer class="w-4 h-4 text-sky-500" />
+              <span>Test Print Receipt</span>
+            </button>
+            <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
+              <Check class="w-4 h-4" />
+              <span>Save Print Settings</span>
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Printer Options -->
+          <!-- Left 2 Cols: Form Controls -->
           <div class="lg:col-span-2 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Thermal Printer</label>
-                <select bind:value={settings.receipt_printer} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold">
-                  <option value="Xprinter XP-DT427B">Xprinter XP-DT427B (Default)</option>
-                  <option value="Epson TM-T20III">Epson TM-T20III</option>
-                  <option value="Bixolon SRP-350">Bixolon SRP-350</option>
-                  <option value="Generic 80mm">Generic Thermal 80mm</option>
-                  <option value="Generic 58mm">Generic Thermal 58mm</option>
-                </select>
-              </div>
+            <!-- Hardware / Paper / Font Family -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+              <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
+                <Printer class="w-4 h-4 text-sky-500" />
+                <span>Printer & Page Sizing (إعدادات الطابعة والورق)</span>
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Printer</label>
+                  <select bind:value={settings.receipt_printer} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text font-bold">
+                    <option value="Xprinter XP-DT427B">Xprinter XP-DT427B</option>
+                    <option value="Epson TM-T20III">Epson TM-T20III</option>
+                    <option value="Bixolon SRP-350">Bixolon SRP-350</option>
+                    <option value="Generic 80mm">Generic Thermal 80mm</option>
+                    <option value="Generic 58mm">Generic Thermal 58mm</option>
+                  </select>
+                </div>
 
-              <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Paper Roll Width</label>
-                <select bind:value={settings.receipt_paper_width} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold">
-                  <option value="80mm">80 mm (Standard POS)</option>
-                  <option value="58mm">58 mm (Compact Mini)</option>
-                  <option value="A4">A4 Full Sheet Invoice</option>
-                </select>
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Paper Roll Width</label>
+                  <select bind:value={settings.receipt_paper_width} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text font-bold">
+                    <option value="80mm">80 mm (Standard POS)</option>
+                    <option value="58mm">58 mm (Compact Mini)</option>
+                    <option value="A4">A4 Full Sheet Invoice</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Font Family</label>
+                  <select bind:value={settings.receipt_font_family} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text font-bold">
+                    <option value="monospace">Monospace (Terminal)</option>
+                    <option value="sans-serif">Sans-Serif (Modern)</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="serif">Serif (Traditional)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div class="space-y-3">
+            <!-- Greeting and Policy Notes -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Header Greeting (Arabe / Français)</label>
-                <input type="text" bind:value={settings.receipt_header} placeholder="مرحباً بكم في سوبرماركت تيتاو" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text" />
+                <input type="text" bind:value={settings.receipt_header} placeholder="مرحباً بكم في سوبرماركت تيتاو" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
               </div>
 
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Footer Note / Return Policy</label>
-                <input type="text" bind:value={settings.receipt_footer} placeholder="Les articles retournés doivent être présentés sous 48h" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text" />
+                <input type="text" bind:value={settings.receipt_footer} placeholder="Les articles retournés doivent être présentés sous 48h" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
               </div>
             </div>
 
-            <!-- Advanced Receipt Content Options -->
-            <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2.5 border border-pos-border">
-              <span class="text-xs font-black text-pos-text block mb-1">Receipt Content & Layout Options</span>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
-                  <input type="checkbox" bind:checked={settings.receipt_show_cashier} class="rounded text-sky-600 focus:ring-0" />
-                  <span>Display Cashier Name</span>
+            <!-- Section Content Visibility Toggles -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+              <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
+                <Eye class="w-4 h-4 text-sky-500" />
+                <span>Fields to Show on Receipt (العناصر المراد إظهارها)</span>
+              </h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_shop_name} class="rounded text-sky-600" />
+                  <span>Shop Name & Header</span>
                 </label>
 
-                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
-                  <input type="checkbox" bind:checked={settings.receipt_show_qr} class="rounded text-sky-600 focus:ring-0" />
-                  <span>Print Receipt QR Verification Code</span>
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_address} class="rounded text-sky-600" />
+                  <span>Store Address</span>
                 </label>
 
-                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
-                  <input type="checkbox" bind:checked={settings.receipt_show_tax} class="rounded text-sky-600 focus:ring-0" />
-                  <span>Print Tax / TVA Breakdown</span>
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_phone} class="rounded text-sky-600" />
+                  <span>Phone Number</span>
                 </label>
 
-                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
-                  <input type="checkbox" checked class="rounded text-sky-600 focus:ring-0" />
-                  <span>Auto-cut receipt paper after printing</span>
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_rc_nif} class="rounded text-sky-600" />
+                  <span>RC & NIF Info</span>
                 </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_cashier} class="rounded text-sky-600" />
+                  <span>Cashier Name</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_date} class="rounded text-sky-600" />
+                  <span>Date & Timestamp</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_tax} class="rounded text-sky-600" />
+                  <span>Tax / TVA Breakdown</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_footer} class="rounded text-sky-600" />
+                  <span>Footer Note / Policy</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_qr} class="rounded text-sky-600" />
+                  <span>QR Code Verification</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Typography, Font Sizing & Bold Options -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+              <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
+                <Type class="w-4 h-4 text-sky-500" />
+                <span>Font Sizing & Bold Formatting (حجم الخط والسمك)</span>
+              </h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <!-- Header Font Size & Bold -->
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
+                  <span class="text-[11px] font-bold text-pos-muted block">Shop Header</span>
+                  <div class="flex items-center gap-1.5">
+                    <input type="number" min="8" max="24" bind:value={settings.receipt_header_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <span class="text-[10px] text-pos-muted">px</span>
+                  </div>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
+                    <input type="checkbox" bind:checked={settings.receipt_header_bold} class="rounded text-sky-600" />
+                    <span>Bold (عريض)</span>
+                  </label>
+                </div>
+
+                <!-- Body / Items Font Size & Bold -->
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
+                  <span class="text-[11px] font-bold text-pos-muted block">Items & Rows</span>
+                  <div class="flex items-center gap-1.5">
+                    <input type="number" min="8" max="18" bind:value={settings.receipt_body_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <span class="text-[10px] text-pos-muted">px</span>
+                  </div>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
+                    <input type="checkbox" bind:checked={settings.receipt_body_bold} class="rounded text-sky-600" />
+                    <span>Bold (عريض)</span>
+                  </label>
+                </div>
+
+                <!-- Total Amount Font Size & Bold -->
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
+                  <span class="text-[11px] font-bold text-pos-muted block">Total Amount</span>
+                  <div class="flex items-center gap-1.5">
+                    <input type="number" min="10" max="24" bind:value={settings.receipt_total_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <span class="text-[10px] text-pos-muted">px</span>
+                  </div>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
+                    <input type="checkbox" bind:checked={settings.receipt_total_bold} class="rounded text-sky-600" />
+                    <span>Bold (عريض)</span>
+                  </label>
+                </div>
+
+                <!-- Footer Font Size & Bold -->
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
+                  <span class="text-[11px] font-bold text-pos-muted block">Footer Policy</span>
+                  <div class="flex items-center gap-1.5">
+                    <input type="number" min="6" max="16" bind:value={settings.receipt_footer_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <span class="text-[10px] text-pos-muted">px</span>
+                  </div>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
+                    <input type="checkbox" bind:checked={settings.receipt_footer_bold} class="rounded text-sky-600" />
+                    <span>Bold (عريض)</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Live Receipt Preview Box -->
-          <div class="bg-slate-100 dark:bg-slate-900/60 p-4 rounded-2xl flex flex-col items-center justify-start border border-pos-border">
-            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider mb-2">Live Dynamic Preview ({settings.receipt_paper_width || '80mm'})</span>
-            <div class="{settings.receipt_paper_width === '58mm' ? 'w-48' : 'w-64'} bg-white text-black p-3.5 shadow-md font-mono text-[10px] space-y-2 border border-slate-300 transition-all rounded-sm">
-              <div class="text-center pb-1 border-b-dashed">
-                <p class="font-black text-xs">{settings.shop_name_fr || 'TitaouPOS'}</p>
-                {#if settings.shop_name_ar}
-                  <p class="font-bold text-[10px]">{settings.shop_name_ar}</p>
+          <!-- Right Col: Live Dynamic Receipt Preview -->
+          <div class="bg-slate-100 dark:bg-slate-900/60 p-4 rounded-2xl flex flex-col items-center justify-start border border-pos-border space-y-2">
+            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider">Live Receipt Preview ({settings.receipt_paper_width || '80mm'})</span>
+            <div
+              style="font-family: {settings.receipt_font_family || 'monospace'}; font-size: {settings.receipt_body_font_size || '10'}px; font-weight: {settings.receipt_body_bold === 'true' || settings.receipt_body_bold === true ? 'bold' : 'normal'}; width: {settings.receipt_paper_width === '58mm' ? '200px' : '260px'};"
+              class="bg-white text-black p-3.5 shadow-md space-y-2 border border-slate-300 transition-all rounded-sm leading-tight"
+            >
+              <!-- Header -->
+              <div class="text-center pb-1 border-b border-dashed border-slate-400">
+                {#if (settings.receipt_show_shop_name ?? 'true') !== 'false' && (settings.receipt_show_shop_name ?? true) !== false}
+                  <p style="font-size: {settings.receipt_header_font_size || '14'}px; font-weight: {(settings.receipt_header_bold ?? 'true') !== 'false' && (settings.receipt_header_bold ?? true) !== false ? '900' : 'normal'};" class="leading-tight">
+                    {settings.shop_name_fr || 'TitaouPOS'}
+                  </p>
+                  {#if settings.shop_name_ar}
+                    <p class="font-bold text-[10px]">{settings.shop_name_ar}</p>
+                  {/if}
                 {/if}
-                <p class="text-[8px] text-gray-600">{settings.shop_address || 'Alger, Algérie'}</p>
-                <p class="text-[8px] text-gray-600">Tél: {settings.shop_phone || '0553444057'}</p>
+                {#if (settings.receipt_show_address ?? 'true') !== 'false' && (settings.receipt_show_address ?? true) !== false}
+                  <p class="text-[8px] text-gray-600">{settings.shop_address || 'Alger Centre, Algérie'}</p>
+                {/if}
+                {#if (settings.receipt_show_phone ?? 'true') !== 'false' && (settings.receipt_show_phone ?? true) !== false}
+                  <p class="text-[8px] text-gray-600">Tél: {settings.shop_phone || '0553444057'}</p>
+                {/if}
+                {#if (settings.receipt_show_rc_nif ?? 'true') !== 'false' && (settings.receipt_show_rc_nif ?? true) !== false}
+                  <p class="text-[7px] text-gray-500">RC: {settings.shop_rc || '16/00-0123456B22'} | NIF: {settings.shop_nif || '0016160123456'}</p>
+                {/if}
                 {#if settings.receipt_header}
-                  <p class="text-[8px] font-bold text-sky-800 mt-1 italic">{settings.receipt_header}</p>
+                  <p class="text-[8px] font-bold text-sky-800 mt-0.5 italic">{settings.receipt_header}</p>
                 {/if}
               </div>
-              <div class="py-1 border-b-dashed flex justify-between text-[8px]">
+
+              <!-- Ticket info -->
+              <div class="py-0.5 border-b border-dashed border-slate-400 flex justify-between text-[8px]">
                 <span>TICKET #9842</span>
-                {#if settings.receipt_show_cashier !== false}
+                {#if (settings.receipt_show_cashier ?? 'true') !== 'false' && (settings.receipt_show_cashier ?? true) !== false}
                   <span>Caisse: Admin</span>
                 {/if}
               </div>
-              <div class="space-y-0.5 py-1 border-b-dashed">
+
+              <!-- Items list -->
+              <div class="space-y-0.5 py-1 border-b border-dashed border-slate-400 text-[9px]">
                 <div class="flex justify-between font-bold">
                   <span>1x Sucre Cevital 1kg</span>
                   <span>100 DZD</span>
                 </div>
                 <div class="flex justify-between font-bold">
-                  <span>1x Lait Candia 1L</span>
-                  <span>150 DZD</span>
+                  <span>2x Lait Candia 1L</span>
+                  <span>240 DZD</span>
                 </div>
               </div>
-              {#if settings.receipt_show_tax}
-                <div class="text-[8px] text-gray-600 py-0.5 border-b-dashed flex justify-between">
-                  <span>Total HT: 210 DZD</span>
-                  <span>TVA (19%): 40 DZD</span>
+
+              <!-- Taxes -->
+              {#if (settings.receipt_show_tax ?? 'true') !== 'false' && (settings.receipt_show_tax ?? true) !== false}
+                <div class="text-[8px] text-gray-600 py-0.5 border-b border-dashed border-slate-400 flex justify-between">
+                  <span>Total HT: 285 DZD</span>
+                  <span>TVA (19%): 55 DZD</span>
                 </div>
               {/if}
-              <div class="font-black flex justify-between text-xs pt-1">
-                <span>TOTAL PAYÉ:</span>
-                <span>250 DZD</span>
+
+              <!-- Total -->
+              <div
+                style="font-size: {settings.receipt_total_font_size || '13'}px; font-weight: {(settings.receipt_total_bold ?? 'true') !== 'false' && (settings.receipt_total_bold ?? true) !== false ? '900' : 'normal'};"
+                class="flex justify-between pt-1"
+              >
+                <span>TOTAL:</span>
+                <span>340 DZD</span>
               </div>
-              {#if settings.receipt_footer}
-                <div class="text-center text-[8px] pt-1 text-gray-500 border-t-dashed">
-                  {settings.receipt_footer}
-                </div>
-              {:else}
-                <div class="text-center text-[8px] pt-1 text-gray-500 border-t-dashed">
-                  *** Merci de votre visite ***
+
+              <!-- Footer -->
+              {#if (settings.receipt_show_footer ?? 'true') !== 'false' && (settings.receipt_show_footer ?? true) !== false}
+                <div
+                  style="font-size: {settings.receipt_footer_font_size || '8'}px; font-weight: {settings.receipt_footer_bold === 'true' || settings.receipt_footer_bold === true ? 'bold' : 'normal'};"
+                  class="text-center pt-1 text-gray-600 border-t border-dashed border-slate-400"
+                >
+                  {settings.receipt_footer || '*** Merci de votre visite ***'}
                 </div>
               {/if}
-              {#if settings.receipt_show_qr !== false}
-                <div class="text-center pt-1">
-                  <div class="inline-block px-3 py-1 bg-slate-100 border border-slate-300 font-mono text-[7px] text-gray-600 rounded">
+
+              <!-- QR Code -->
+              {#if (settings.receipt_show_qr ?? 'true') !== 'false' && (settings.receipt_show_qr ?? true) !== false}
+                <div class="text-center pt-0.5">
+                  <div class="inline-block px-2 py-0.5 bg-slate-100 border border-slate-300 font-mono text-[7px] text-gray-600 rounded">
                     [QR: TITAOU-VTE-9842]
                   </div>
                 </div>
@@ -806,7 +1084,7 @@
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
           <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
             <CreditCard class="w-4 h-4 text-emerald-600" />
-            <span>Serial Cash Drawer (COM Port)</span>
+            <span>Serial Cash Drawer (COM Port) / درج النقود</span>
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
@@ -838,11 +1116,13 @@
         </div>
 
         <div class="pt-4 border-t border-pos-border flex justify-end">
-          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">
-            Save Print & Drawer Settings
+          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Print & Drawer Settings</span>
           </button>
         </div>
       </div>
+
 
     <!-- SCALE TAB (ACLAS Real SDK) -->
     {:else if currentTab === 'scale'}
@@ -1062,12 +1342,18 @@
         </div>
       </div>
 
-    <!-- 3. BARCODE LABELS TAB (Two Distinct Sections with Live Previews) -->
+    <!-- 3. BARCODE LABELS TAB (Two Distinct Sections with Live Previews & Full Customization) -->
     {:else if currentTab === 'barcodes'}
       <div class="max-w-5xl space-y-6">
-        <div>
-          <h2 class="text-base font-black text-pos-text">Barcode & Shelf Label Generator</h2>
-          <p class="text-xs text-pos-muted">Custom thermal sticker rolls (50x30mm) and gondola shelf price tags</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text">Barcode & Shelf Label Generator / ملصقات الباركود وبطاقات الرف</h2>
+            <p class="text-xs text-pos-muted">Custom thermal sticker rolls (50x30mm) and shelf price tags with live presets, fonts, and dimensions</p>
+          </div>
+          <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Label Settings</span>
+          </button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1077,39 +1363,107 @@
               <div class="flex items-center justify-between">
                 <h3 class="text-sm font-black text-pos-text flex items-center gap-2">
                   <Tag class="w-4 h-4 text-sky-500" />
-                  <span>1. Product Sticker (50x30mm)</span>
+                  <span>1. Product Sticker Preset (ملصق باركود)</span>
                 </h3>
-                <span class="text-[10px] font-mono bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">Thermal Roll</span>
+                <span class="text-[10px] font-mono bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2 py-0.5 rounded-full font-bold">Thermal Roll</span>
               </div>
 
-              <!-- Live Sticker Preview -->
-              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-center space-y-1 shadow-inner">
-                <span class="text-[9px] text-slate-500 font-bold uppercase">{settings.shop_name_fr || 'TitaouPOS Supermarché'}</span>
-                <h4 class="font-black text-xs text-slate-900 line-clamp-1">{previewProductName}</h4>
-                <div class="w-full text-center py-0.5">
-                  <div class="font-mono text-sm tracking-[0.25em] font-black border-y border-slate-900 py-0.5 inline-block px-3">
-                    ||| | |||| | |||
+              <!-- Live Real Sticker Preview -->
+              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-center space-y-1 shadow-inner min-h-[140px]">
+                {#if (settings.sticker_show_shop_name ?? 'true') !== 'false' && (settings.sticker_show_shop_name ?? true) !== false}
+                  <span class="text-[8px] text-slate-500 font-bold uppercase">{settings.shop_name_fr || 'TitaouPOS Supermarché'}</span>
+                {/if}
+                {#if (settings.sticker_show_product_name ?? 'true') !== 'false' && (settings.sticker_show_product_name ?? true) !== false}
+                  <p
+                    style="font-size: {settings.sticker_name_font_size || '9'}px; font-weight: {(settings.sticker_name_bold ?? 'true') !== 'false' && (settings.sticker_name_bold ?? true) !== false ? '900' : 'normal'};"
+                    class="text-slate-900 line-clamp-1 leading-tight"
+                  >
+                    {previewProductName}
+                  </p>
+                {/if}
+                {#if (settings.sticker_show_barcode ?? 'true') !== 'false' && (settings.sticker_show_barcode ?? true) !== false}
+                  <div class="w-full flex justify-center py-0.5 overflow-hidden">
+                    <svg bind:this={settingsBarcodeSvgEl} class="max-w-full"></svg>
                   </div>
-                  <p class="text-[10px] font-mono font-bold text-slate-800">{previewBarcodeNumber}</p>
-                </div>
-                <span class="text-sm font-black text-slate-900 font-mono">{previewPrice} DZD</span>
+                {/if}
+                {#if (settings.sticker_show_price ?? 'true') !== 'false' && (settings.sticker_show_price ?? true) !== false}
+                  <span
+                    style="font-size: {settings.sticker_price_font_size || '12'}px; font-weight: {(settings.sticker_price_bold ?? 'true') !== 'false' && (settings.sticker_price_bold ?? true) !== false ? '900' : 'normal'};"
+                    class="text-slate-900 font-mono leading-none"
+                  >
+                    {previewPrice} DZD
+                  </span>
+                {/if}
               </div>
 
+              <!-- Dimensions -->
               <div class="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Width (mm)</label>
-                  <input type="number" bind:value={settings.barcode_label_width} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-pos-text font-bold font-mono" />
+                  <input type="number" bind:value={settings.barcode_label_width} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Height (mm)</label>
-                  <input type="number" bind:value={settings.barcode_label_height} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-pos-text font-bold font-mono" />
+                  <input type="number" bind:value={settings.barcode_label_height} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
+                </div>
+              </div>
+
+              <!-- Display Fields Checkboxes -->
+              <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Fields to Show (العناصر الظاهرة)</span>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.sticker_show_shop_name} class="rounded text-sky-600" />
+                    <span>Shop Name</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.sticker_show_product_name} class="rounded text-sky-600" />
+                    <span>Product Name</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.sticker_show_barcode} class="rounded text-sky-600" />
+                    <span>Real Barcode</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.sticker_show_price} class="rounded text-sky-600" />
+                    <span>Sale Price</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Sizing & Formatting -->
+              <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Font Sizes & Bold Styling (الأحجام والخط)</span>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Name Size</span>
+                    <input type="number" min="6" max="18" bind:value={settings.sticker_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
+                      <input type="checkbox" bind:checked={settings.sticker_name_bold} class="rounded text-sky-600" />
+                      <span>Bold</span>
+                    </label>
+                  </div>
+
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Price Size</span>
+                    <input type="number" min="8" max="22" bind:value={settings.sticker_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
+                      <input type="checkbox" bind:checked={settings.sticker_price_bold} class="rounded text-sky-600" />
+                      <span>Bold</span>
+                    </label>
+                  </div>
+
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Code Size</span>
+                    <input type="number" min="6" max="16" bind:value={settings.sticker_barcode_font_size} on:input={renderSettingsBarcode} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button on:click={testPrintBarcode} class="w-full py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition">
+            <button on:click={testPrintBarcode} class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition mt-3">
               <Printer class="w-3.5 h-3.5" />
-              <span>Test Print Barcode Sticker</span>
+              <span>Test Print Barcode Sticker ({settings.barcode_label_width || 50}x{settings.barcode_label_height || 30}mm)</span>
             </button>
           </div>
 
@@ -1119,52 +1473,123 @@
               <div class="flex items-center justify-between">
                 <h3 class="text-sm font-black text-pos-text flex items-center gap-2">
                   <Tag class="w-4 h-4 text-emerald-500" />
-                  <span>2. Shelf Etiquette (بطاقة رف وسعر)</span>
+                  <span>2. Shelf Etiquette Preset (بطاقة رف وسعر)</span>
                 </h3>
-                <span class="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Gondola Tag</span>
+                <span class="text-[10px] font-mono bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">Gondola Tag</span>
               </div>
 
               <!-- Live Shelf Tag Preview -->
-              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col items-center justify-center text-center space-y-1 shadow-inner">
-                <div class="w-full flex justify-between text-[9px] font-bold text-slate-500 border-b pb-0.5">
-                  <span>{settings.shop_name_fr || 'TitaouPOS'}</span>
-                  <span class="text-emerald-600">DISPO EN RAYON</span>
-                </div>
-                <h4 class="font-black text-sm text-slate-900 leading-tight py-1">{previewProductName}</h4>
-                <div class="w-full bg-slate-900 text-white font-mono font-black text-lg py-1 rounded">
-                  {previewPrice} DZD
-                </div>
-                <div class="w-full flex justify-between text-[9px] font-bold text-slate-500 pt-0.5">
-                  <span>Ref: {previewBarcodeNumber}</span>
-                  <span>TVA 19% Incl.</span>
-                </div>
+              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col items-center justify-between text-center space-y-1 shadow-inner min-h-[140px]">
+                {#if (settings.shelf_show_shop_name ?? 'true') !== 'false' && (settings.shelf_show_shop_name ?? true) !== false}
+                  <div class="w-full flex justify-between text-[9px] font-bold text-slate-500 border-b pb-0.5">
+                    <span>{settings.shop_name_fr || 'TitaouPOS'}</span>
+                    <span class="text-emerald-600 font-bold">DISPO EN RAYON</span>
+                  </div>
+                {/if}
+                {#if (settings.shelf_show_product_name ?? 'true') !== 'false' && (settings.shelf_show_product_name ?? true) !== false}
+                  <h4
+                    style="font-size: {settings.shelf_name_font_size || '11'}px; font-weight: {(settings.shelf_name_bold ?? 'true') !== 'false' && (settings.shelf_name_bold ?? true) !== false ? '900' : 'normal'};"
+                    class="text-slate-900 leading-tight py-0.5"
+                  >
+                    {previewProductName}
+                  </h4>
+                {/if}
+                {#if (settings.shelf_show_price ?? 'true') !== 'false' && (settings.shelf_show_price ?? true) !== false}
+                  <div
+                    style="font-size: {settings.shelf_price_font_size || '18'}px; font-weight: {(settings.shelf_price_bold ?? 'true') !== 'false' && (settings.shelf_price_bold ?? true) !== false ? '900' : 'normal'};"
+                    class="w-full bg-slate-900 text-white font-mono rounded py-0.5"
+                  >
+                    {previewPrice} DZD
+                  </div>
+                {/if}
+                {#if (settings.shelf_show_ref ?? 'true') !== 'false' && (settings.shelf_show_ref ?? true) !== false}
+                  <div class="w-full flex justify-between font-bold text-slate-500 pt-0.5" style="font-size: {settings.shelf_ref_font_size || '8'}px;">
+                    <span>Ref: {previewBarcodeNumber}</span>
+                    <span>TVA 19% Incl.</span>
+                  </div>
+                {/if}
               </div>
 
+              <!-- Dimensions -->
               <div class="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Width (mm)</label>
-                  <input type="number" bind:value={settings.shelf_tag_width} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-pos-text font-bold font-mono" />
+                  <input type="number" bind:value={settings.shelf_tag_width} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Height (mm)</label>
-                  <input type="number" bind:value={settings.shelf_tag_height} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-pos-text font-bold font-mono" />
+                  <input type="number" bind:value={settings.shelf_tag_height} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
+                </div>
+              </div>
+
+              <!-- Display Fields Checkboxes -->
+              <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Fields to Show (العناصر الظاهرة)</span>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.shelf_show_shop_name} class="rounded text-emerald-600" />
+                    <span>Shop Header</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.shelf_show_product_name} class="rounded text-emerald-600" />
+                    <span>Product Name</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.shelf_show_price} class="rounded text-emerald-600" />
+                    <span>Sale Price</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-pos-border">
+                    <input type="checkbox" bind:checked={settings.shelf_show_ref} class="rounded text-emerald-600" />
+                    <span>Ref / Barcode</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Sizing & Formatting -->
+              <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Font Sizes & Bold Styling (الأحجام والخط)</span>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Name Size</span>
+                    <input type="number" min="8" max="22" bind:value={settings.shelf_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
+                      <input type="checkbox" bind:checked={settings.shelf_name_bold} class="rounded text-emerald-600" />
+                      <span>Bold</span>
+                    </label>
+                  </div>
+
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Price Size</span>
+                    <input type="number" min="10" max="32" bind:value={settings.shelf_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
+                      <input type="checkbox" bind:checked={settings.shelf_price_bold} class="rounded text-emerald-600" />
+                      <span>Bold</span>
+                    </label>
+                  </div>
+
+                  <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
+                    <span class="text-[9px] font-bold text-pos-muted block">Ref Size</span>
+                    <input type="number" min="6" max="16" bind:value={settings.shelf_ref_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button on:click={testPrintShelfTag} class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition">
+            <button on:click={testPrintShelfTag} class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition mt-3">
               <Printer class="w-3.5 h-3.5" />
-              <span>Test Print Shelf Tag</span>
+              <span>Test Print Shelf Tag ({settings.shelf_tag_width || 60}x{settings.shelf_tag_height || 40}mm)</span>
             </button>
           </div>
         </div>
 
         <div class="pt-4 border-t border-pos-border flex justify-end">
-          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">
-            Save Label Settings
+          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Label Settings</span>
           </button>
         </div>
       </div>
+
 
     <!-- POS RULES TAB -->
     {:else if currentTab === 'pos'}

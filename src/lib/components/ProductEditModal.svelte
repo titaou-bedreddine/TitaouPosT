@@ -3,10 +3,11 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../i18n';
   import type { Category, Product, ProductInput, Unit } from '../types';
+  import PrintLabelModal from './PrintLabelModal.svelte';
   import {
     X, Check, Plus, Trash2, Edit2, Tag, Upload, Calendar,
     DollarSign, Package, History, Layers, AlertTriangle, Scale, RefreshCw, Send,
-    Copy, Percent, Sparkles, FolderPlus
+    Copy, Percent, Sparkles, FolderPlus, QrCode, Printer
   } from 'lucide-svelte';
 
   export let isOpen = false;
@@ -66,6 +67,60 @@
   let quickUnitName = '';
   let quickUnitShort = '';
   let isSavingUnit = false;
+
+  // Print Label Modal Integration
+  let isPrintLabelOpen = false;
+  let printLabelInitialType: 'barcode' | 'etiquette' = 'barcode';
+  let printLabelInitialQty = 1;
+  let printProductObj: Product | null = null;
+
+  function getTransientProduct(): Product {
+    const bCodes = [...barcodeTokens];
+    if (currentBarcodeTyped.trim() && !bCodes.includes(currentBarcodeTyped.trim())) {
+      bCodes.push(currentBarcodeTyped.trim());
+    }
+    return {
+      id: product ? product.id : 0,
+      sku: sku || undefined,
+      name_ar: nameAr.trim() || nameFr.trim() || 'Produit',
+      name_fr: nameFr.trim() || nameAr.trim() || 'Produit',
+      name_en: nameEn.trim() || nameFr.trim() || 'Product',
+      category_id: categoryId,
+      category_name: categories.find(c => c.id === categoryId)?.name_fr || '',
+      unit_id: unitId,
+      unit_name: units.find(u => u.id === unitId)?.name || '',
+      purchase_price: Number(purchasePrice) || 0,
+      sale_price: Number(salePrice) || 0,
+      min_sale_price: Number(minSalePrice) || 0,
+      tax_rate: Number(taxRate) || 19,
+      current_stock: Number(currentStock) || 0,
+      min_stock: Number(minStock) || 5,
+      image_path: imagePath || undefined,
+      expiry_date: expiryDate || undefined,
+      is_scalable: isScalable,
+      scale_code: scaleCode || undefined,
+      scale_plu: isScalable ? scalePlu : undefined,
+      scale_barcode_type: isScalable ? scaleBarcodeType : undefined,
+      scale_department_id: isScalable ? scaleDepartmentId : undefined,
+      scale_sync_status: scaleSyncStatus,
+      is_bundle: isBundle,
+      barcodes: bCodes,
+    };
+  }
+
+  function openPrintSticker() {
+    printProductObj = getTransientProduct();
+    printLabelInitialType = 'barcode';
+    printLabelInitialQty = Number(currentStock) > 0 ? Number(currentStock) : 1;
+    isPrintLabelOpen = true;
+  }
+
+  function openPrintShelf() {
+    printProductObj = getTransientProduct();
+    printLabelInitialType = 'etiquette';
+    printLabelInitialQty = 1;
+    isPrintLabelOpen = true;
+  }
 
   let isSaving = false;
   let errorMsg = '';
@@ -725,9 +780,31 @@
 
       <!-- Modal Footer (Fixed Height) -->
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between shrink-0">
-        <button on:click={onClose} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text font-bold text-xs rounded-xl transition cursor-pointer">
-          Cancel (إلغاء)
-        </button>
+        <div class="flex items-center gap-2">
+          <button on:click={onClose} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text font-bold text-xs rounded-xl transition cursor-pointer">
+            Cancel (إلغاء)
+          </button>
+
+          <button
+            type="button"
+            on:click={openPrintSticker}
+            class="px-3 py-2 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            title="Print Product Sticker"
+          >
+            <QrCode class="w-3.5 h-3.5" />
+            <span>Print Sticker ({Number(currentStock) > 0 ? currentStock : 1})</span>
+          </button>
+
+          <button
+            type="button"
+            on:click={openPrintShelf}
+            class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            title="Print Shelf Tag"
+          >
+            <Tag class="w-3.5 h-3.5" />
+            <span>Shelf Tag (1)</span>
+          </button>
+        </div>
 
         <button on:click={handleSave} disabled={isSaving} class="px-6 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
           <Check class="w-4 h-4" />
@@ -737,6 +814,15 @@
     </div>
   </div>
 {/if}
+
+<!-- Embedded Print Label Modal -->
+<PrintLabelModal
+  isOpen={isPrintLabelOpen}
+  product={printProductObj}
+  initialType={printLabelInitialType}
+  initialQty={printLabelInitialQty}
+  onClose={() => (isPrintLabelOpen = false)}
+/>
 
 <!-- Sub-Modal: Quick Add Family -->
 {#if isQuickFamilyOpen}
