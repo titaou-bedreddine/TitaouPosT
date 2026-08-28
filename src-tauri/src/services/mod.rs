@@ -9,3 +9,5 @@ pub mod purchase_service;
 pub mod sales_service;
 pub mod settings_service;
 pub mod supplier_service;
+pub mod scale_service;
+pub mod drawer_service;

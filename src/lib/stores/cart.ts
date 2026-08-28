@@ -12,6 +12,7 @@ export const isRefundMode = writable<boolean>(false);
 export const heldSalesList = writable<HeldSale[]>([]);
 export const lastAddedProductId = writable<number | null>(null);
 export const heldNotification = writable<string | null>(null);
+export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
 
 export function addToCart(product: Product, quantity = 1, asRefund = false) {
   lastAddedProductId.set(product.id);
@@ -44,7 +45,13 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
         total_price: product.sale_price * quantity,
         is_refund: asRefund,
       };
-      return [...items, newItem];
+      
+      const order = get(cartItemOrder);
+      if (order === 'top') {
+        return [newItem, ...items];
+      } else {
+        return [...items, newItem];
+      }
     }
   });
 }

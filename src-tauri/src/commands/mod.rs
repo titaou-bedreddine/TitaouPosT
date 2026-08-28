@@ -8,7 +8,7 @@ use crate::models::{
 use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
     payroll_service, product_service, purchase_service, sales_service, settings_service,
-    supplier_service,
+    supplier_service, scale_service, drawer_service,
 };
 use std::collections::HashMap;
 use tauri::State;
@@ -146,6 +146,11 @@ pub fn process_sale(db: State<'_, DbState>, input: CreateSaleInput) -> Result<St
 }
 
 #[tauri::command]
+pub fn create_sale(db: State<'_, DbState>, input: CreateSaleInput) -> Result<String, String> {
+    sales_service::process_sale(&db, input)
+}
+
+#[tauri::command]
 pub fn list_sales(
     db: State<'_, DbState>,
     start_date: Option<String>,
@@ -164,12 +169,18 @@ pub fn get_sale_items(db: State<'_, DbState>, sale_id: i64) -> Result<Vec<CartIt
 #[tauri::command]
 pub fn hold_sale(
     db: State<'_, DbState>,
-    user_id: i64,
+    user_id: Option<i64>,
     customer_id: Option<i64>,
-    cart_json: String,
+    cart_json: Option<String>,
+    cart_data_json: Option<String>,
+    total_amount: Option<i64>,
     note: Option<String>,
+    notes: Option<String>,
 ) -> Result<i64, String> {
-    sales_service::hold_sale(&db, user_id, customer_id, &cart_json, note)
+    let uid = user_id.unwrap_or(1);
+    let raw_json = cart_json.or(cart_data_json).unwrap_or_else(|| "[]".to_string());
+    let final_note = note.or(notes);
+    sales_service::hold_sale(&db, uid, customer_id, &raw_json, final_note)
 }
 
 #[tauri::command]
@@ -353,4 +364,106 @@ pub fn verify_license(db: State<'_, DbState>, code: String) -> Result<bool, Stri
 #[tauri::command]
 pub fn factory_reset(db: State<'_, DbState>, reset_type: String) -> Result<(), String> {
     settings_service::factory_reset(&db, &reset_type)
+}
+
+// Scale Integration (ACLAS Native SDK)
+#[tauri::command]
+pub fn test_scale_connection(ip: String, port: u32, protocol_type: u32) -> Result<String, String> {
+    scale_service::test_scale_connection(&ip, port, protocol_type)
+}
+
+#[tauri::command]
+pub fn upload_product_to_scale(
+    db: State<'_, DbState>,
+    product_id: i64,
+    ip: String,
+    port: u32,
+    protocol_type: u32,
+    default_dept: i64,
+    default_barcode_type: i64,
+    user_name: Option<String>,
+) -> Result<usize, String> {
+    let products = product_service::search_products(&db, "", None, "all")?;
+    let target: Vec<Product> = products.into_iter().filter(|p| p.id == product_id).collect();
+    if target.is_empty() {
+        return Err("Product not found".to_string());
+    }
+    scale_service::upload_products_to_scale(
+        &db, &target, &ip, port, protocol_type, default_dept, default_barcode_type, user_name,
+    )
+}
+
+#[tauri::command]
+pub fn upload_all_scalable_to_scale(
+    db: State<'_, DbState>,
+    ip: String,
+    port: u32,
+    protocol_type: u32,
+    default_dept: i64,
+    default_barcode_type: i64,
+    user_name: Option<String>,
+) -> Result<usize, String> {
+    let products = product_service::search_products(&db, "", None, "all")?;
+    let target: Vec<Product> = products.into_iter().filter(|p| p.is_scalable).collect();
+    if target.is_empty() {
+        return Err("No scalable products found to synchronize".to_string());
+    }
+    scale_service::upload_products_to_scale(
+        &db, &target, &ip, port, protocol_type, default_dept, default_barcode_type, user_name,
+    )
+}
+
+#[tauri::command]
+pub fn fetch_products_from_scale(
+    db: State<'_, DbState>,
+    ip: String,
+    port: u32,
+    protocol_type: u32,
+    user_name: Option<String>,
+) -> Result<usize, String> {
+    scale_service::fetch_products_from_scale(&db, &ip, port, protocol_type, user_name)
+}
+
+#[tauri::command]
+pub fn get_scale_sync_logs(db: State<'_, DbState>) -> Result<Vec<crate::models::ScaleSyncLog>, String> {
+    scale_service::get_sync_logs(&db)
+}
+
+// Direct Serial Cash Drawer
+#[tauri::command]
+pub fn open_serial_cash_drawer(com_port: u32, baud_rate: u32) -> Result<String, String> {
+    drawer_service::open_serial_cash_drawer(com_port, baud_rate)
+}
+
+// Additional commands
+
+#[tauri::command]
+pub fn delete_sale(db: State<'_, DbState>, sale_id: i64) -> Result<(), String> {
+    sales_service::delete_sale(&db, sale_id)
+}
+
+#[tauri::command]
+pub fn verify_admin_password(db: State<'_, DbState>, password: String) -> Result<bool, String> {
+    crate::auth::verify_admin_password(&db, &password)
+}
+
+#[tauri::command]
+pub fn save_unit(
+    db: State<'_, DbState>,
+    name: String,
+    short_name: String,
+    allow_decimals: bool,
+    unit_id: Option<i64>,
+) -> Result<i64, String> {
+    product_service::save_unit(&db, &name, &short_name, allow_decimals, unit_id)
+}
+
+#[tauri::command]
+pub fn backup_database(destination_path: String) -> Result<String, String> {
+    settings_service::backup_database(&destination_path)
+}
+
+#[tauri::command]
+pub fn restore_database(source_backup_path: String) -> Result<String, String> {
+    settings_service::restore_database(&source_backup_path)
 }

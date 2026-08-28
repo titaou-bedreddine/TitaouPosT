@@ -66,8 +66,7 @@
   tabindex="0"
   on:click={handleClick}
   on:keydown={(e) => { if (e.key === 'Enter') handleClick(); }}
-  style="border-color: {expiryStatus === 'expired' ? '#ef4444' : categoryColor || '#0284c7'}"
-  class="flex flex-col text-start bg-pos-card border-2 rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''} {expiryStatus === 'expired' ? 'bg-rose-500/10' : expiryStatus === 'near' ? 'bg-amber-500/5' : ''}"
+  class="flex flex-col text-start bg-pos-card border border-pos-border hover:border-slate-400 dark:hover:border-slate-600 rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''} {expiryStatus === 'expired' ? 'bg-rose-500/10' : expiryStatus === 'near' ? 'bg-amber-500/5' : ''}"
 >
   <!-- Edit Pen Icon (Top Start) -->
   <button

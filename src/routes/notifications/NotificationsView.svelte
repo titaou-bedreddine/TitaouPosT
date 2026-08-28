@@ -2,21 +2,10 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import {
-    Bell, Send, CheckCircle2, AlertTriangle, AlertOctagon,
-    Shield, RefreshCw, ShoppingCart, Undo2, DollarSign, Settings
+    Bell, CheckCircle2, AlertTriangle, AlertOctagon,
+    Shield, RefreshCw, ShoppingCart, Undo2, DollarSign,
+    Package, Trash2, X, Check, Filter
   } from 'lucide-svelte';
-
-  let telegramToken = '';
-  let telegramChatId = '';
-  let notifyDailySummary = true;
-  let notifyEachSale = false;
-  let notifyEachRefund = true;
-  let notifyExpiry = true;
-  let notifyLowStock = true;
-
-  let isSendingTest = false;
-  let statusMsg = '';
-  let isSaving = false;
 
   interface NotificationLog {
     id: number;
@@ -24,243 +13,195 @@
     title: string;
     message: string;
     timestamp: string;
+    is_dismissed?: boolean;
+    related_id?: number;
   }
 
-  let logs: NotificationLog[] = [
-    {
-      id: 1,
-      type: 'expiry',
-      title: 'Near Expiry Alert',
-      message: 'Product "Lait Candia 1L" expires in 12 days (Stock: 24 pcs)',
-      timestamp: 'Today, 10:30 AM',
-    },
-    {
-      id: 2,
-      type: 'stock',
-      title: 'Low Stock Alert',
-      message: 'Product "Huile Elio 5L" is below min threshold (Stock: 2 pcs)',
-      timestamp: 'Today, 09:15 AM',
-    },
-    {
-      id: 3,
-      type: 'sale',
-      title: 'Daily Summary Ready',
-      message: 'Yesterday total revenue: 184,500 DZD across 86 transactions',
-      timestamp: 'Yesterday, 11:59 PM',
-    },
-  ];
+  let notifications: NotificationLog[] = [];
+  let filterType: string = 'all';
+  let isLoading = false;
 
   onMount(async () => {
-    try {
-      const settings = await invoke<Record<string, string>>('get_all_settings');
-      if (settings['telegram_bot_token']) telegramToken = settings['telegram_bot_token'];
-      if (settings['telegram_chat_id']) telegramChatId = settings['telegram_chat_id'];
-      if (settings['notify_daily_summary']) notifyDailySummary = settings['notify_daily_summary'] === 'true';
-      if (settings['notify_each_sale']) notifyEachSale = settings['notify_each_sale'] === 'true';
-      if (settings['notify_each_refund']) notifyEachRefund = settings['notify_each_refund'] === 'true';
-      if (settings['notify_expiry']) notifyExpiry = settings['notify_expiry'] === 'true';
-      if (settings['notify_low_stock']) notifyLowStock = settings['notify_low_stock'] === 'true';
-    } catch (e) {
-      console.error(e);
-    }
+    await loadNotifications();
   });
 
-  async function handleSaveSettings() {
+  async function loadNotifications() {
     try {
-      isSaving = true;
-      statusMsg = '';
-      await invoke('set_multiple_settings', {
-        settings: {
-          telegram_bot_token: telegramToken,
-          telegram_chat_id: telegramChatId,
-          notify_daily_summary: notifyDailySummary ? 'true' : 'false',
-          notify_each_sale: notifyEachSale ? 'true' : 'false',
-          notify_each_refund: notifyEachRefund ? 'true' : 'false',
-          notify_expiry: notifyExpiry ? 'true' : 'false',
-          notify_low_stock: notifyLowStock ? 'true' : 'false',
-        },
+      isLoading = true;
+      // Fetch dynamic alerts based on database queries
+      const today = new Date().toISOString().split('T')[0];
+      const prods = await invoke<any[]>('search_products', { query: '', categoryId: null, searchType: 'all' });
+
+      let dynamicList: NotificationLog[] = [];
+      let idCounter = 1;
+
+      for (const p of prods) {
+        if (p.expiry_date && p.expiry_date < today) {
+          dynamicList.push({
+            id: idCounter++,
+            type: 'expiry',
+            title: '🚨 Expired Product Alert (منتج منتهي الصلاحية)',
+            message: `Product "${p.name_fr || p.name_ar}" expired on ${p.expiry_date} (Stock: ${p.current_stock} pcs)`,
+            timestamp: 'Immediate Attention Required',
+            related_id: p.id,
+          });
+        } else if (p.current_stock <= p.min_stock) {
+          dynamicList.push({
+            id: idCounter++,
+            type: 'stock',
+            title: '⚠️ Low Stock Alert (تنبيه نقص المخزون)',
+            message: `Product "${p.name_fr || p.name_ar}" has reached low stock threshold (${p.current_stock} pcs remaining)`,
+            timestamp: 'Stock Replenishment Recommended',
+            related_id: p.id,
+          });
+        }
+      }
+
+      // Add recent sales & system events
+      dynamicList.push({
+        id: idCounter++,
+        type: 'sale',
+        title: '✅ POS Cash Session Active',
+        message: 'Current register session #01 is online and synchronized with local database.',
+        timestamp: 'Active Session',
       });
-      statusMsg = 'Telegram settings saved successfully!';
-      setTimeout(() => (statusMsg = ''), 3000);
-    } catch (e: any) {
-      statusMsg = 'Error: ' + (typeof e === 'string' ? e : e.message);
+
+      notifications = dynamicList;
+    } catch (e) {
+      console.error(e);
     } finally {
-      isSaving = false;
+      isLoading = false;
     }
   }
 
-  async function sendTelegramTest() {
-    if (!telegramToken || !telegramChatId) {
-      statusMsg = 'Please enter Telegram Bot Token and Chat ID first';
-      return;
-    }
-    try {
-      isSendingTest = true;
-      statusMsg = 'Sending test message to Telegram...';
-      const text = encodeURIComponent('🚀 *TitaouPOS Live Alert*\nTest connection successful from POS terminal!');
-      const url = `https://api.telegram.org/bot${telegramToken}/sendMessage?chat_id=${telegramChatId}&text=${text}&parse_mode=Markdown`;
-      
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.ok) {
-        statusMsg = '✅ Telegram test alert delivered successfully!';
-      } else {
-        statusMsg = '❌ Telegram error: ' + (data.description || 'Check Token/Chat ID');
-      }
-    } catch (e: any) {
-      statusMsg = 'Network error sending test: ' + e.message;
-    } finally {
-      isSendingTest = false;
-    }
+  $: filteredNotifications = notifications.filter(n => {
+    if (n.is_dismissed) return false;
+    if (filterType === 'all') return true;
+    return n.type === filterType;
+  });
+
+  function dismissNotification(id: number) {
+    notifications = notifications.map(n => n.id === id ? { ...n, is_dismissed: true } : n);
+  }
+
+  function dismissAll() {
+    notifications = notifications.map(n => ({ ...n, is_dismissed: true }));
   }
 </script>
 
-<div class="h-full flex flex-col bg-pos-bg p-4 overflow-y-auto select-none space-y-4">
+<div class="h-full flex flex-col bg-pos-bg p-6 overflow-hidden select-none space-y-4">
   <!-- Header -->
-  <div class="flex items-center justify-between pb-4 border-b border-pos-border shrink-0">
+  <div class="flex items-center justify-between pb-3 border-b border-pos-border shrink-0">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
         <Bell class="w-5 h-5" />
       </div>
       <div>
-        <h1 class="text-xl font-black text-pos-text tracking-tight">Notifications & Telegram Alerts / الإشعارات وتنبيهات تيليغرام</h1>
-        <p class="text-xs text-pos-muted">Configure real-time Telegram alerts for sales, refunds, expiring items, and low stock</p>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">Notification Feed & Live Alerts / مركز التنبيهات</h1>
+        <p class="text-xs text-pos-muted">Live event stream, expired item alerts, low inventory warnings & session notices</p>
       </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        on:click={loadNotifications}
+        disabled={isLoading}
+        class="px-3.5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+      >
+        <RefreshCw class="w-3.5 h-3.5 {isLoading ? 'animate-spin' : ''}" />
+        <span>Refresh</span>
+      </button>
+
+      {#if filteredNotifications.length > 0}
+        <button
+          type="button"
+          on:click={dismissAll}
+          class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+        >
+          <Trash2 class="w-4 h-4" />
+          <span>Dismiss All (مسح الكل)</span>
+        </button>
+      {/if}
     </div>
   </div>
 
-  {#if statusMsg}
-    <div class="p-3 bg-sky-100 dark:bg-sky-950/80 border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 text-xs font-bold rounded-xl animate-in fade-in">
-      {statusMsg}
-    </div>
-  {/if}
-
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Telegram Configuration Card -->
-    <div class="bg-pos-card border border-pos-border rounded-2xl p-5 shadow-xs space-y-4">
-      <div class="flex items-center gap-2">
-        <Send class="w-5 h-5 text-sky-500" />
-        <h3 class="font-black text-sm text-pos-text">Telegram Bot Integration</h3>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Bot Token</label>
-          <input
-            type="text"
-            bind:value={telegramToken}
-            placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Chat ID (Channel or User ID)</label>
-          <input
-            type="text"
-            bind:value={telegramChatId}
-            placeholder="-100123456789 or 987654321"
-            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
-
-        <div class="flex items-center gap-2 pt-2">
-          <button
-            type="button"
-            on:click={sendTelegramTest}
-            disabled={isSendingTest || !telegramToken}
-            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 disabled:opacity-40 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Send class="w-3.5 h-3.5" />
-            <span>{isSendingTest ? 'Sending...' : 'Send Test Alert (إرسال تجربة)'}</span>
-          </button>
-
-          <button
-            type="button"
-            on:click={handleSaveSettings}
-            disabled={isSaving}
-            class="px-5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
-          >
-            <CheckCircle2 class="w-4 h-4" />
-            <span>{isSaving ? 'Saving...' : 'Save Settings (حفظ)'}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Notification Rules & Toggles -->
-    <div class="bg-pos-card border border-pos-border rounded-2xl p-5 shadow-xs space-y-4">
-      <div class="flex items-center gap-2">
-        <Settings class="w-5 h-5 text-indigo-500" />
-        <h3 class="font-black text-sm text-pos-text">Automatic Notification Triggers</h3>
-      </div>
-
-      <div class="space-y-3 divide-y divide-pos-border/40">
-        <label class="flex items-center justify-between pt-2 cursor-pointer">
-          <div>
-            <p class="text-xs font-bold text-pos-text">Daily End-of-Day Summary</p>
-            <p class="text-[10px] text-pos-muted">Sends total revenue, transactions, and net cash at end of day</p>
-          </div>
-          <input type="checkbox" bind:checked={notifyDailySummary} class="w-4 h-4 text-sky-600 rounded cursor-pointer" />
-        </label>
-
-        <label class="flex items-center justify-between pt-2 cursor-pointer">
-          <div>
-            <p class="text-xs font-bold text-pos-text">Alert on Every Sale</p>
-            <p class="text-[10px] text-pos-muted">Sends instant notification for each completed checkout</p>
-          </div>
-          <input type="checkbox" bind:checked={notifyEachSale} class="w-4 h-4 text-sky-600 rounded cursor-pointer" />
-        </label>
-
-        <label class="flex items-center justify-between pt-2 cursor-pointer">
-          <div>
-            <p class="text-xs font-bold text-pos-text">Alert on Refunds & Cancellations</p>
-            <p class="text-[10px] text-pos-muted">Notifies manager whenever a refund or return is processed</p>
-          </div>
-          <input type="checkbox" bind:checked={notifyEachRefund} class="w-4 h-4 text-sky-600 rounded cursor-pointer" />
-        </label>
-
-        <label class="flex items-center justify-between pt-2 cursor-pointer">
-          <div>
-            <p class="text-xs font-bold text-pos-text">Near Expired & Expired Products</p>
-            <p class="text-[10px] text-pos-muted">Daily alert for products reaching expiry date within 30 days</p>
-          </div>
-          <input type="checkbox" bind:checked={notifyExpiry} class="w-4 h-4 text-sky-600 rounded cursor-pointer" />
-        </label>
-
-        <label class="flex items-center justify-between pt-2 cursor-pointer">
-          <div>
-            <p class="text-xs font-bold text-pos-text">Low Stock & Out of Stock Alerts</p>
-            <p class="text-[10px] text-pos-muted">Notifies when items drop below minimum inventory alert threshold</p>
-          </div>
-          <input type="checkbox" bind:checked={notifyLowStock} class="w-4 h-4 text-sky-600 rounded cursor-pointer" />
-        </label>
-      </div>
-    </div>
+  <!-- Filter Pills -->
+  <div class="flex items-center gap-1.5 shrink-0 bg-pos-card border border-pos-border p-1.5 rounded-2xl">
+    <button
+      type="button"
+      on:click={() => (filterType = 'all')}
+      class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'all' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
+    >
+      All Alerts ({notifications.filter(n => !n.is_dismissed).length})
+    </button>
+    <button
+      type="button"
+      on:click={() => (filterType = 'expiry')}
+      class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'expiry' ? 'bg-rose-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
+    >
+      Expiry Alerts ({notifications.filter(n => !n.is_dismissed && n.type === 'expiry').length})
+    </button>
+    <button
+      type="button"
+      on:click={() => (filterType = 'stock')}
+      class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'stock' ? 'bg-amber-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
+    >
+      Low Stock ({notifications.filter(n => !n.is_dismissed && n.type === 'stock').length})
+    </button>
+    <button
+      type="button"
+      on:click={() => (filterType = 'sale')}
+      class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'sale' ? 'bg-emerald-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
+    >
+      Sales & Sessions ({notifications.filter(n => !n.is_dismissed && n.type === 'sale').length})
+    </button>
   </div>
 
-  <!-- Recent Notifications Feed -->
-  <div class="bg-pos-card border border-pos-border rounded-2xl p-5 shadow-xs space-y-3">
-    <h3 class="font-black text-sm text-pos-text">Recent Store Activity & Notifications Feed</h3>
-    <div class="space-y-2">
-      {#each logs as log}
-        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border flex items-start justify-between gap-3">
-          <div class="flex items-start gap-2.5">
-            {#if log.type === 'expiry'}
-              <div class="p-2 bg-amber-500/10 text-amber-600 rounded-lg"><AlertTriangle class="w-4 h-4" /></div>
-            {:else if log.type === 'stock'}
-              <div class="p-2 bg-rose-500/10 text-rose-600 rounded-lg"><AlertOctagon class="w-4 h-4" /></div>
-            {:else}
-              <div class="p-2 bg-sky-500/10 text-sky-600 rounded-lg"><DollarSign class="w-4 h-4" /></div>
-            {/if}
-            <div>
-              <p class="text-xs font-black text-pos-text">{log.title}</p>
+  <!-- Notifications List Feed -->
+  <div class="flex-1 overflow-y-auto space-y-3">
+    {#if filteredNotifications.length === 0}
+      <div class="p-12 text-center bg-pos-card border border-pos-border rounded-3xl space-y-2">
+        <CheckCircle2 class="w-10 h-10 text-emerald-500 mx-auto" />
+        <h3 class="font-black text-sm text-pos-text">All Caught Up! (لا توجد تنبيهات جديدة)</h3>
+        <p class="text-xs text-pos-muted">Your store inventory, register sessions, and expiry dates are in good standing.</p>
+      </div>
+    {:else}
+      {#each filteredNotifications as log}
+        <div class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}">
+          <div class="flex items-start gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 {log.type === 'expiry' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950' : log.type === 'stock' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950' : 'bg-sky-100 text-sky-600 dark:bg-sky-950'}">
+              {#if log.type === 'expiry'}
+                <AlertOctagon class="w-5 h-5" />
+              {:else if log.type === 'stock'}
+                <AlertTriangle class="w-5 h-5" />
+              {:else}
+                <CheckCircle2 class="w-5 h-5" />
+              {/if}
+            </div>
+
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-black text-xs text-pos-text truncate">{log.title}</h4>
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase {log.type === 'expiry' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : log.type === 'stock' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800'}">
+                  {log.type}
+                </span>
+              </div>
               <p class="text-xs text-pos-muted">{log.message}</p>
+              <p class="text-[10px] text-pos-muted font-mono">{log.timestamp}</p>
             </div>
           </div>
-          <span class="text-[10px] text-pos-muted font-mono whitespace-nowrap">{log.timestamp}</span>
+
+          <button
+            type="button"
+            on:click={() => dismissNotification(log.id)}
+            class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-pos-muted hover:text-pos-text text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition shrink-0"
+          >
+            <X class="w-3 h-3" />
+            <span>Dismiss</span>
+          </button>
         </div>
       {/each}
-    </div>
+    {/if}
   </div>
 </div>

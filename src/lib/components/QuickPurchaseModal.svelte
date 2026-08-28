@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../i18n';
   import type { Supplier, Product, CreatePurchaseInput } from '../types';
+  import { normalizeBarcode } from '../utils/barcode';
   import { X, Check, ShoppingBag, Plus, Search, DollarSign } from 'lucide-svelte';
 
   export let isOpen = false;
@@ -17,8 +18,11 @@
   let purchasePrice = 0;
   let salePrice = 0;
   let quantity = 1;
-  let isSaving = false;
-  let errorMsg = '';
+  let barcodeInputEl: HTMLInputElement;
+
+  $: if (isOpen && barcodeInputEl) {
+    setTimeout(() => barcodeInputEl?.focus(), 50);
+  }
 
   $: if (isOpen && suppliers.length > 0 && !selectedSupplierId) {
     selectedSupplierId = suppliers[0].id;
@@ -52,13 +56,16 @@
       isSaving = true;
       errorMsg = '';
       const total = purchasePrice * quantity;
-      const input: CreatePurchaseInput = {
+      const input = {
         supplier_id: selectedSupplierId,
+        user_id: 1,
         invoice_number: 'ACH-' + Date.now().toString().slice(-6),
-        purchase_date: new Date().toISOString().split('T')[0],
-        total_amount: total,
+        date: new Date().toISOString().split('T')[0],
+        subtotal: total,
+        discount: 0,
+        tax: 0,
+        total: total,
         paid_amount: total,
-        payment_status: 'paid',
         payment_method: 'cash',
         notes: 'Quick POS Purchase (شراء سريع من نقطة البيع)',
         items: [
@@ -66,7 +73,9 @@
             product_id: foundProduct.id,
             quantity,
             unit_cost: purchasePrice,
-            total_cost: total,
+            discount: 0,
+            tax: 0,
+            total: total,
             expiry_date: foundProduct.expiry_date || null,
             batch_number: null,
           },
@@ -107,21 +116,27 @@
       {/if}
 
       <div class="p-6 space-y-4">
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Scan or Type Barcode</label>
-          <div class="flex items-center gap-2">
-            <input
-              type="text"
-              bind:value={barcodeSearch}
-              on:keydown={(e) => { if (e.key === 'Enter') handleSearchProduct(); }}
-              placeholder="Scan product barcode..."
-              class="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
-            />
-            <button on:click={handleSearchProduct} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer">
-              Find
-            </button>
+          <div>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Scan or Type Barcode</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                bind:this={barcodeInputEl}
+                bind:value={barcodeSearch}
+                on:keydown={(e) => {
+                  if (e.key === 'Enter') {
+                    barcodeSearch = normalizeBarcode(barcodeSearch);
+                    handleSearchProduct();
+                  }
+                }}
+                placeholder="Scan product barcode..."
+                class="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+              />
+              <button on:click={() => { barcodeSearch = normalizeBarcode(barcodeSearch); handleSearchProduct(); }} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer">
+                Find
+              </button>
+            </div>
           </div>
-        </div>
 
         {#if foundProduct}
           <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-pos-border text-xs space-y-1">

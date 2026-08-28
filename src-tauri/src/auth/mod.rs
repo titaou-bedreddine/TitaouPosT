@@ -139,3 +139,33 @@ pub fn list_active_users(db: &DbState) -> Result<Vec<User>, String> {
     let list: Vec<User> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
 }
+
+pub fn verify_admin_password(db: &DbState, password: &str) -> Result<bool, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT u.password_hash FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE (r.name = 'Administrator' OR u.role_id = 1) AND u.is_active = 1",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+
+    for hash_result in rows {
+        if let Ok(hash) = hash_result {
+            if let Ok(parsed_hash) = PasswordHash::new(&hash) {
+                if Argon2::default()
+                    .verify_password(password.as_bytes(), &parsed_hash)
+                    .is_ok()
+                {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
+    Ok(false)
+}

@@ -13,6 +13,9 @@
   let isDepositOpen = false;
   let isWithdrawOpen = false;
   let isCloseOpen = false;
+  let isStartupOpen = false;
+  let startupAmount = 10000;
+  let startupReason = 'Startup Cash / رصيد افتتاحي';
 
   let amount = 0;
   let reason = '';
@@ -92,6 +95,24 @@
       await loadData();
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function handleStartupSession() {
+    if (!$currentUser) return;
+    try {
+      const session = await invoke<any>('open_cash_session', {
+        userId: $currentUser.id,
+        registerId: 1,
+        openingAmount: startupAmount,
+        notes: startupReason || 'Startup Cash / رصيد افتتاحي',
+      });
+      $activeSession = session;
+      isStartupOpen = false;
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      alert('Failed to open session: ' + (e.message || e));
     }
   }
 </script>
@@ -257,13 +278,19 @@
         </table>
       </div>
     {:else}
-      <div class="p-12 text-center bg-pos-card border border-pos-border rounded-2xl">
-        <p class="text-sm font-bold text-pos-muted mb-4">No active cash session is currently open.</p>
+      <div class="p-12 text-center bg-pos-card border border-pos-border rounded-2xl shadow-sm max-w-md mx-auto my-8">
+        <div class="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mx-auto mb-4 font-bold">
+          <Lock class="w-7 h-7" />
+        </div>
+        <h3 class="text-base font-black text-pos-text mb-1">No Active Session (الصندوق مغلق)</h3>
+        <p class="text-xs font-bold text-pos-muted mb-5">Open a new cash register session to begin registering sales and movements.</p>
         <button
-          on:click={() => {}}
-          class="px-6 py-2.5 bg-sky-600 text-white font-extrabold text-xs rounded-xl"
+          type="button"
+          on:click={() => { startupAmount = 10000; startupReason = 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
+          class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2 mx-auto"
         >
-          Open New Session
+          <Plus class="w-4 h-4" />
+          <span>Open New Session (فتح صندوق جديد)</span>
         </button>
       </div>
     {/if}
@@ -371,6 +398,60 @@
         <div class="flex justify-end gap-2 pt-2">
           <button on:click={() => isCloseOpen = false} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded">Cancel</button>
           <button on:click={handleCloseSession} class="px-4 py-1.5 bg-rose-600 text-white text-xs font-bold rounded">Close Register</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if isStartupOpen}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <DollarSign class="w-6 h-6" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">Open New Cash Session</h3>
+            <p class="text-[11px] text-pos-muted">افتتاح صندوق جديد</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Opening Cash Amount (DZD) *</label>
+          <input
+            type="number"
+            bind:value={startupAmount}
+            on:focus={(e) => (e.target as HTMLInputElement).select()}
+            min="0"
+            class="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border-2 border-emerald-500/40 focus:border-emerald-500 rounded-xl text-lg font-mono font-black text-pos-text outline-none"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Notes / Reason (ملاحظات)</label>
+          <input
+            type="text"
+            bind:value={startupReason}
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none"
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            on:click={() => isStartupOpen = false}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            on:click={handleStartupSession}
+            class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
+            <Check class="w-4 h-4" />
+            <span>Open Session (فتح الصندوق)</span>
+          </button>
         </div>
       </div>
     </div>

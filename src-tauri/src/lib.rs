@@ -38,6 +38,7 @@ pub fn run() {
             commands::delete_category,
             commands::get_units,
             commands::process_sale,
+            commands::create_sale,
             commands::list_sales,
             commands::get_sale_items,
             commands::hold_sale,
@@ -65,6 +66,17 @@ pub fn run() {
             commands::get_hwid,
             commands::verify_license,
             commands::factory_reset,
+            commands::test_scale_connection,
+            commands::upload_product_to_scale,
+            commands::upload_all_scalable_to_scale,
+            commands::fetch_products_from_scale,
+            commands::get_scale_sync_logs,
+            commands::open_serial_cash_drawer,
+            commands::delete_sale,
+            commands::verify_admin_password,
+            commands::save_unit,
+            commands::backup_database,
+            commands::restore_database,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

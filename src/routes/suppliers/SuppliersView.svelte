@@ -278,15 +278,15 @@
 <!-- Modal: Supplier Profile Details Popup -->
 {#if previewSupplier}
   <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
       <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
             <Truck class="w-5 h-5" />
           </div>
           <div>
             <h3 class="font-black text-base text-pos-text">{previewSupplier.name}</h3>
-            <p class="text-xs text-pos-muted">{previewSupplier.contact_person || 'Contact Principal'}</p>
+            <p class="text-xs text-pos-muted">{previewSupplier.contact_person || 'Principal Commercial Contact'}</p>
           </div>
         </div>
         <button on:click={() => (previewSupplier = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
@@ -294,33 +294,54 @@
         </button>
       </div>
 
-      <div class="p-6 space-y-3 text-xs">
-        <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl space-y-2">
-          <div class="flex items-center gap-2">
-            <Phone class="w-3.5 h-3.5 text-sky-500 shrink-0" />
-            <span class="font-mono font-bold text-pos-text">{previewSupplier.phone || 'No phone'}</span>
+      <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <!-- Balance / Credit Summary Banner -->
+        <div class="p-4 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 rounded-2xl flex items-center justify-between text-purple-900 dark:text-purple-200">
+          <div>
+            <p class="text-[10px] uppercase font-black tracking-wider">Supplier Account Balance (حساب المورد)</p>
+            <p class="text-xl font-black font-mono">{previewSupplier.balance.toLocaleString()} DZD</p>
           </div>
-          <div class="flex items-center gap-2">
-            <Mail class="w-3.5 h-3.5 text-sky-500 shrink-0" />
-            <span class="text-pos-text">{previewSupplier.email || 'No email'}</span>
+          <span class="px-3 py-1 bg-purple-600 text-white text-xs font-black rounded-xl shadow-xs">
+            {previewSupplier.balance > 0 ? 'PAYABLE DUE' : 'CLEAR'}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl space-y-2.5">
+            <h4 class="font-black text-pos-text pb-1 border-b border-pos-border/60">Direct Contacts</h4>
+            <div class="flex items-center gap-2">
+              <Phone class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span class="font-mono font-bold text-pos-text">{previewSupplier.phone || 'No phone recorded'}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <Mail class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span class="text-pos-text truncate">{previewSupplier.email || 'No email recorded'}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <MapPin class="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span class="text-pos-text">{previewSupplier.address || 'Alger, Algérie'}</span>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <MapPin class="w-3.5 h-3.5 text-sky-500 shrink-0" />
-            <span class="text-pos-text">{previewSupplier.address || 'Alger'}</span>
+
+          <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-1.5">
+            <h4 class="font-black text-pos-text pb-1 border-b border-pos-border/60">Commercial & Tax Info</h4>
+            <div class="flex justify-between"><span class="text-pos-muted font-bold">RC:</span><span class="font-mono font-bold text-pos-text">{previewSupplier.rc || '—'}</span></div>
+            <div class="flex justify-between"><span class="text-pos-muted font-bold">NIF:</span><span class="font-mono font-bold text-pos-text">{previewSupplier.nif || '—'}</span></div>
+            <div class="flex justify-between"><span class="text-pos-muted font-bold">NIS:</span><span class="font-mono font-bold text-pos-text">{previewSupplier.nis || '—'}</span></div>
+            <div class="flex justify-between"><span class="text-pos-muted font-bold">AI:</span><span class="font-mono font-bold text-pos-text">{previewSupplier.ai || '—'}</span></div>
           </div>
         </div>
 
-        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-1">
-          <span class="font-black text-pos-text block mb-1">Fiscal Registry</span>
-          <div class="flex justify-between"><span class="text-pos-muted">RC:</span><span class="font-mono font-bold">{previewSupplier.rc || '—'}</span></div>
-          <div class="flex justify-between"><span class="text-pos-muted">NIF:</span><span class="font-mono font-bold">{previewSupplier.nif || '—'}</span></div>
-          <div class="flex justify-between"><span class="text-pos-muted">NIS:</span><span class="font-mono font-bold">{previewSupplier.nis || '—'}</span></div>
-          <div class="flex justify-between"><span class="text-pos-muted">AI:</span><span class="font-mono font-bold">{previewSupplier.ai || '—'}</span></div>
-        </div>
+        {#if previewSupplier.notes}
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-pos-border text-xs">
+            <span class="text-pos-muted font-bold block mb-0.5">Supplier Notes:</span>
+            <p class="text-pos-text">{previewSupplier.notes}</p>
+          </div>
+        {/if}
       </div>
 
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end">
-        <button on:click={() => (previewSupplier = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
+        <button on:click={() => (previewSupplier = null)} class="px-5 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
       </div>
     </div>
   </div>

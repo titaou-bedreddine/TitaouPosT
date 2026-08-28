@@ -38,7 +38,7 @@
           <!-- Store Header -->
           <div class="text-center pb-2 border-b-dashed">
             <h2 class="font-black text-base tracking-tight">TitaouPosT Supermarché</h2>
-            <p class="text-xxs text-gray-700">Lumina Retail POS System</p>
+            <p class="text-xxs text-gray-700">TitaouPOS • Created by Titaou Bedreddine</p>
             <p class="text-xxs text-gray-700">Didouche Mourad, Alger Centre</p>
             <p class="text-xxs text-gray-700">Tél: 0550 12 34 56 / 021 65 43 21</p>
             <p class="text-xxs text-gray-700">RC: 16/00-0123456B22 | NIF: 001616012345678</p>

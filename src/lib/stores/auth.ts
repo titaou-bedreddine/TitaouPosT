@@ -1,16 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { User } from '../types';
 
-export const currentUser = writable<User | null>({
-  id: 1,
-  username: 'admin',
-  display_name: 'Administrator',
-  role_id: 1,
-  role_name: 'Administrator',
-  max_discount_percent: 100,
-  is_active: true,
-  permissions: ['*'],
-});
+export const currentUser = writable<User | null>(null);
 
 export const isAuthenticated = derived(currentUser, ($u) => !!$u);
 

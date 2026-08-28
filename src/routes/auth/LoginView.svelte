@@ -6,7 +6,7 @@
   import { Lock, UserCheck, Shield, ChevronDown } from 'lucide-svelte';
 
   let usersList: User[] = [];
-  let selectedUsername = 'admin';
+  let selectedUsername = '';
   let password = '';
   let errorMsg = '';
   let isLoading = false;
@@ -18,14 +18,8 @@
         selectedUsername = usersList[0].username;
       }
     } catch (e) {
-      console.error(e);
-      // Fallback
-      usersList = [
-        { id: 1, username: 'admin', display_name: 'Administrator', role_id: 1, role_name: 'Administrator', max_discount_percent: 100, is_active: true, permissions: [] },
-        { id: 2, username: 'kamel', display_name: 'Kamel Zerrouki', role_id: 2, role_name: 'Cashier', max_discount_percent: 10, is_active: true, permissions: [] },
-        { id: 3, username: 'amina', display_name: 'Amina Cherif', role_id: 2, role_name: 'Cashier', max_discount_percent: 15, is_active: true, permissions: [] },
-        { id: 4, username: 'samir', display_name: 'Samir Bouzid', role_id: 3, role_name: 'Manager', max_discount_percent: 30, is_active: true, permissions: [] },
-      ];
+      console.error('Failed to load users:', e);
+      usersList = [];
     }
   });
 

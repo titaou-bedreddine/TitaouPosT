@@ -347,26 +347,70 @@
   {@const qrData = encodeURIComponent(`CUST:${previewCustomer.id}:BALANCE:${previewCustomer.balance}`)}
   {@const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`}
   <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
       <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
-        <h3 class="font-black text-base text-pos-text">{previewCustomer.name}</h3>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
+            <Users class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-base text-pos-text">{previewCustomer.name}</h3>
+            <p class="text-xs text-pos-muted">Customer Code: #CUST-{previewCustomer.id}</p>
+          </div>
+        </div>
         <button on:click={() => (previewCustomer = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
           <X class="w-5 h-5" />
         </button>
       </div>
 
-      <div class="p-6 text-center space-y-4">
-        <!-- Real QR Code -->
-        <div class="w-36 h-36 bg-white p-2 rounded-2xl mx-auto shadow-md border border-pos-border flex items-center justify-center">
-          <img src={qrUrl} alt="QR Code" class="w-full h-full object-contain" />
+      <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <!-- Balance Summary Pill -->
+        <div class="p-4 rounded-2xl border flex items-center justify-between {previewCustomer.balance > 0 ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200' : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200'}">
+          <div>
+            <p class="text-[10px] uppercase font-black tracking-wider">Outstanding Debt Balance (الرصيد المستحق)</p>
+            <p class="text-xl font-black font-mono">{previewCustomer.balance.toLocaleString()} DZD</p>
+          </div>
+          {#if previewCustomer.balance > 0}
+            <button
+              type="button"
+              on:click={() => { selectedCustomer = previewCustomer; isDebtModalOpen = true; previewCustomer = null; }}
+              class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer"
+            >
+              Record Payment
+            </button>
+          {:else}
+            <span class="px-2.5 py-1 bg-emerald-600 text-white font-black text-[10px] rounded-lg">SETTLED (خالص)</span>
+          {/if}
         </div>
-        <p class="text-xs font-mono font-bold text-pos-muted">Customer Code: #CUST-{previewCustomer.id}</p>
 
-        <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-start text-xs space-y-1.5">
-          <div class="flex justify-between"><span class="text-pos-muted">Phone:</span><span class="font-mono font-bold text-pos-text">{previewCustomer.phone || 'N/A'}</span></div>
-          <div class="flex justify-between"><span class="text-pos-muted">Address:</span><span class="font-bold text-pos-text">{previewCustomer.address || 'N/A'}</span></div>
-          <div class="flex justify-between"><span class="text-pos-muted">RC / NIF:</span><span class="font-mono text-pos-text">{previewCustomer.rc || '—'} / {previewCustomer.nif || '—'}</span></div>
-          <div class="flex justify-between pt-1 border-t border-pos-border"><span class="font-bold text-pos-muted">Balance Due (الرصيد المستحق):</span><span class="font-mono font-black text-rose-600">{previewCustomer.balance.toLocaleString()} DZD</span></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- QR Card -->
+          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border text-center space-y-2 flex flex-col items-center justify-center">
+            <div class="w-28 h-28 bg-white p-1.5 rounded-xl shadow-sm border border-pos-border flex items-center justify-center">
+              <img src={qrUrl} alt="QR Code" class="w-full h-full object-contain" />
+            </div>
+            <p class="text-[10px] text-pos-muted font-bold">Scan at POS for Instant Account Lookup</p>
+          </div>
+
+          <!-- Contact & Registration -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border text-xs space-y-2">
+            <div class="flex justify-between pb-1 border-b border-pos-border/50">
+              <span class="text-pos-muted font-bold">Phone:</span>
+              <span class="font-mono font-bold text-pos-text">{previewCustomer.phone || '—'}</span>
+            </div>
+            <div class="flex justify-between pb-1 border-b border-pos-border/50">
+              <span class="text-pos-muted font-bold">Email:</span>
+              <span class="text-pos-text truncate max-w-[130px]">{previewCustomer.email || '—'}</span>
+            </div>
+            <div class="flex justify-between pb-1 border-b border-pos-border/50">
+              <span class="text-pos-muted font-bold">City / Address:</span>
+              <span class="text-pos-text">{previewCustomer.address || 'Alger'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-pos-muted font-bold">RC / NIF:</span>
+              <span class="font-mono text-pos-text">{previewCustomer.rc || '—'} / {previewCustomer.nif || '—'}</span>
+            </div>
+          </div>
         </div>
       </div>
 

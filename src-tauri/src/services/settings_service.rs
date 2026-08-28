@@ -114,3 +114,29 @@ pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
+
+pub fn backup_database(destination_path: &str) -> Result<String, String> {
+    let source_path = crate::database::get_database_path();
+    if !source_path.exists() {
+        return Err("Source database file does not exist".to_string());
+    }
+
+    let dest = std::path::PathBuf::from(destination_path);
+    if let Some(parent) = dest.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    std::fs::copy(&source_path, &dest).map_err(|e| format!("Failed to copy database: {}", e))?;
+    Ok(format!("Backup successfully created at {}", destination_path))
+}
+
+pub fn restore_database(source_backup_path: &str) -> Result<String, String> {
+    let backup_path = std::path::PathBuf::from(source_backup_path);
+    if !backup_path.exists() {
+        return Err("Backup file not found".to_string());
+    }
+
+    let target_path = crate::database::get_database_path();
+    std::fs::copy(&backup_path, &target_path).map_err(|e| format!("Failed to restore database: {}", e))?;
+    Ok("Database successfully restored! Please restart the application.".to_string())
+}

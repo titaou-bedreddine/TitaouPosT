@@ -20,6 +20,7 @@
   import SettingsView from './routes/settings/SettingsView.svelte';
   import NotificationsView from './routes/notifications/NotificationsView.svelte';
   import LoginView from './routes/auth/LoginView.svelte';
+  import AboutView from './routes/about/AboutView.svelte';
 
   import { printHtmlDirectly } from './lib/utils/printer';
 
@@ -27,7 +28,7 @@
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Info
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -200,6 +201,15 @@
           <Settings class="w-4 h-4" />
           <span>{t('nav_settings', $currentLocale)}</span>
         </button>
+
+        <button
+          type="button"
+          on:click={() => currentRoute = 'about'}
+          class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'about' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
+        >
+          <Info class="w-4 h-4 text-sky-500" />
+          <span>About TitaouPOS (عن البرنامج)</span>
+        </button>
       </nav>
 
       <!-- Bottom User Profile & Network Status -->
@@ -217,39 +227,69 @@
           <span>Open Cash Drawer / درج النقود</span>
         </button>
 
-        <!-- Clean User Card Horizontal -->
-        <div class="flex items-center justify-between p-2 bg-pos-card rounded-xl border border-pos-border shadow-xs">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 flex items-center justify-center font-bold text-xs shrink-0">
-              {$currentUser?.display_name?.charAt(0) || 'U'}
+        <!-- Clean User Card Horizontal with Compact Language Selector -->
+        <div class="p-2 bg-pos-card rounded-xl border border-pos-border shadow-xs space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300 flex items-center justify-center font-bold text-xs shrink-0">
+                {$currentUser?.display_name?.charAt(0) || 'U'}
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-black text-pos-text truncate">{$currentUser?.display_name || 'Admin'}</p>
+                <p class="text-[9px] text-pos-muted capitalize truncate">{$currentUser?.role_name || 'Administrator'}</p>
+              </div>
             </div>
-            <div class="min-w-0">
-              <p class="text-xs font-black text-pos-text truncate">{$currentUser?.display_name || 'Admin'}</p>
-              <p class="text-[10px] text-pos-muted capitalize truncate">{$currentUser?.role_name || 'Administrator'}</p>
+
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                on:click={toggleTheme}
+                class="p-1 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer transition"
+                title="Toggle Theme"
+              >
+                {#if isDarkMode}
+                  <Sun class="w-3.5 h-3.5 text-amber-400" />
+                {:else}
+                  <Moon class="w-3.5 h-3.5" />
+                {/if}
+              </button>
+              <button
+                type="button"
+                on:click={handleLogout}
+                class="p-1 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer transition"
+                title="Sign Out"
+              >
+                <LogOut class="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          <div class="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              on:click={toggleTheme}
-              class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer transition"
-              title="Toggle Theme"
-            >
-              {#if isDarkMode}
-                <Sun class="w-4 h-4 text-amber-400" />
-              {:else}
-                <Moon class="w-4 h-4" />
-              {/if}
-            </button>
-            <button
-              type="button"
-              on:click={handleLogout}
-              class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer transition"
-              title="Sign Out"
-            >
-              <LogOut class="w-4 h-4" />
-            </button>
+          <!-- Compact Mini Language Toggle -->
+          <div class="flex items-center justify-between gap-1 pt-1.5 border-t border-pos-border/40 text-[10px]">
+            <span class="text-[9px] text-pos-muted font-bold">Lang:</span>
+            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg">
+              <button
+                type="button"
+                on:click={() => setLocale('ar')}
+                class="px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer {$currentLocale === 'ar' ? 'bg-sky-600 text-white font-black' : 'text-pos-muted hover:text-pos-text'}"
+              >
+                عربي
+              </button>
+              <button
+                type="button"
+                on:click={() => setLocale('fr')}
+                class="px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer {$currentLocale === 'fr' ? 'bg-sky-600 text-white font-black' : 'text-pos-muted hover:text-pos-text'}"
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                on:click={() => setLocale('en')}
+                class="px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer {$currentLocale === 'en' ? 'bg-sky-600 text-white font-black' : 'text-pos-muted hover:text-pos-text'}"
+              >
+                EN
+              </button>
+            </div>
           </div>
         </div>
 
@@ -286,6 +326,8 @@
         <NotificationsView />
       {:else if currentRoute === 'settings'}
         <SettingsView />
+      {:else if currentRoute === 'about'}
+        <AboutView />
       {/if}
     </main>
   </div>

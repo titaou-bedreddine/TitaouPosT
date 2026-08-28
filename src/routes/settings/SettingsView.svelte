@@ -7,14 +7,18 @@
     Sliders, User, Building, Printer, Smartphone, Download,
     ShieldCheck, RefreshCw, AlertOctagon, Check, Copy, Key,
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
-    Wifi, HardDrive, FileText, CheckCircle2, History, Laptop
+    Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
+    Scale, Bell, Send, CreditCard, Keyboard
   } from 'lucide-svelte';
 
   type SettingsTab =
     | 'general'
     | 'invoices'
     | 'barcodes'
+    | 'scale'
+    | 'notifications'
     | 'pos'
+    | 'shortcuts'
     | 'network'
     | 'import_export'
     | 'activation'
@@ -39,9 +43,44 @@
     receipt_paper_width: '80mm',
     auto_cut_paper: 'true',
     open_drawer_on_sale: 'true',
+    drawer_com_port: '1',
+    drawer_baud_rate: '9600',
+    scale_enabled: 'true',
+    scale_model: 'ACLAS LH51 / LS M3 / TS',
+    scale_ip: '192.168.1.87',
+    scale_port: '0',
+    scale_protocol: '0',
+    scale_default_barcode_type: '97',
+    scale_department_id: '1',
+    scale_auto_sync: 'true',
+    telegram_bot_token: '',
+    telegram_chat_id: '',
+    notify_daily_summary: 'true',
+    notify_each_sale: 'false',
+    notify_each_refund: 'true',
+    notify_expiry: 'true',
+    notify_low_stock: 'true',
     app_license_status: 'activated',
-    auto_update_enabled: 'true',
-    mobile_server_port: '8080',
+    allow_negative_stock: 'false',
+    pos_autofocus_search: 'true',
+    pos_auto_capture_barcode: 'true',
+    require_pin_for_discount: 'false',
+    default_customer_name: 'Client Comptoir / زبون عادي',
+    hold_sale_require_note: 'false',
+    default_barcode_prefix: '22',
+    scale_barcode_format: '97',
+    shortcut_f1: 'Focus Barcode Search',
+    shortcut_f2: 'Quick New Product',
+    shortcut_f3: 'Switch Cart Mode',
+    shortcut_f4: 'Hold Current Sale',
+    shortcut_f5: 'List Held Sales',
+    shortcut_f6: 'Edit Quantity',
+    shortcut_f7: 'Apply Discount',
+    shortcut_f8: 'Select Customer',
+    shortcut_f9: 'Pay Cash & Print',
+    shortcut_f10: 'Kick Cash Drawer',
+    shortcut_f11: 'Split / TPE Payment',
+    shortcut_f12: 'Clear Active Cart',
     barcode_label_width: '50',
     barcode_label_height: '30',
     shelf_tag_width: '60',
@@ -52,6 +91,20 @@
   let activationCode = '';
   let activationSuccess = false;
   let saveSuccessMsg = '';
+
+  // Scale state
+  let scaleStatusMsg = '';
+  let isTestingScale = false;
+  let isUploadingScale = false;
+  let scaleSyncLogs: any[] = [];
+
+  // Drawer state
+  let drawerStatusMsg = '';
+  let isOpeningDrawer = false;
+
+  // Telegram test state
+  let isSendingTelegram = false;
+  let telegramStatusMsg = '';
 
   // Updates
   let isCheckingUpdate = false;
@@ -68,8 +121,8 @@
 
   // Barcode & Label Previews
   let previewBarcodeNumber = '613000000001';
-  let previewProductName = 'سكر أبيض سيفيتال 1 كغ / Sucre Blanc 1kg';
-  let previewPrice = 100;
+  let previewProductName = 'Lait Candia 1L Entier';
+  let previewPrice = 120;
 
   // Factory Reset
   let resetType = 'transactions_only';
@@ -77,6 +130,7 @@
 
   onMount(async () => {
     await loadSettings();
+    await loadScaleLogs();
   });
 
   async function loadSettings() {
@@ -85,6 +139,14 @@
       settings = { ...settings, ...fetched };
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadScaleLogs() {
+    try {
+      scaleSyncLogs = await invoke<any[]>('get_scale_sync_logs');
     } catch (e) {
       console.error(e);
     }
@@ -104,6 +166,126 @@
     } catch (e) {
       console.error(e);
       triggerSaveNotification('Saved locally');
+    }
+  }
+
+  async function handleTestScaleConnection() {
+    try {
+      isTestingScale = true;
+      scaleStatusMsg = 'Testing connection to ACLAS scale...';
+      const res = await invoke<string>('test_scale_connection', {
+        ip: settings.scale_ip || '192.168.1.87',
+        port: parseInt(settings.scale_port || '0'),
+        protocolType: parseInt(settings.scale_protocol || '0'),
+      });
+      scaleStatusMsg = '✅ ' + res;
+    } catch (e: any) {
+      scaleStatusMsg = '❌ ' + (typeof e === 'string' ? e : e.message || 'Scale connection failed');
+    } finally {
+      isTestingScale = false;
+    }
+  }
+
+  let isFetchingScale = false;
+
+  async function handleFetchFromScale() {
+    try {
+      isFetchingScale = true;
+      scaleStatusMsg = 'Fetching PLU products from scale to PC...';
+      const count = await invoke<number>('fetch_products_from_scale', {
+        ip: settings.scale_ip || '192.168.1.87',
+        port: parseInt(settings.scale_port || '0'),
+        protocolType: parseInt(settings.scale_protocol || '0'),
+        userName: $currentUser?.display_name || 'admin',
+      });
+      scaleStatusMsg = `✅ Successfully downloaded & updated ${count} products from ACLAS scale!`;
+      await loadScaleLogs();
+    } catch (e: any) {
+      scaleStatusMsg = '❌ Error downloading from scale: ' + (typeof e === 'string' ? e : e.message);
+    } finally {
+      isFetchingScale = false;
+    }
+  }
+
+  async function handleUploadAllScalable() {
+    try {
+      isUploadingScale = true;
+      scaleStatusMsg = 'Uploading all scalable products to scale...';
+      const count = await invoke<number>('upload_all_scalable_to_scale', {
+        ip: settings.scale_ip || '192.168.1.87',
+        port: parseInt(settings.scale_port || '0'),
+        protocolType: parseInt(settings.scale_protocol || '0'),
+        defaultDept: parseInt(settings.scale_department_id || '1'),
+        defaultBarcodeType: parseInt(settings.scale_default_barcode_type || '97'),
+        userName: $currentUser?.display_name || 'admin',
+      });
+      scaleStatusMsg = `✅ Successfully synchronized ${count} scalable products to ACLAS scale!`;
+      await loadScaleLogs();
+    } catch (e: any) {
+      scaleStatusMsg = '❌ Error uploading: ' + (typeof e === 'string' ? e : e.message);
+    } finally {
+      isUploadingScale = false;
+    }
+  }
+
+  async function handleTestSerialDrawer() {
+    try {
+      isOpeningDrawer = true;
+      drawerStatusMsg = 'Sending kick pulse to cash drawer...';
+      const port = parseInt(settings.drawer_com_port || '1');
+      const baud = parseInt(settings.drawer_baud_rate || '9600');
+      const res = await invoke<string>('open_serial_cash_drawer', { comPort: port, baudRate: baud });
+      drawerStatusMsg = '✅ ' + res;
+    } catch (e: any) {
+      drawerStatusMsg = '❌ ' + (typeof e === 'string' ? e : e.message);
+    } finally {
+      isOpeningDrawer = false;
+    }
+  }
+
+  async function handleBackupDatabase() {
+    try {
+      const defaultName = `TitaouPOS_Backup_${new Date().toISOString().slice(0, 10)}.sqlite`;
+      const targetPath = `C:\\Users\\Public\\Downloads\\${defaultName}`;
+      const msg = await invoke<string>('backup_database', { destinationPath: targetPath });
+      triggerSaveNotification(msg);
+    } catch (e: any) {
+      alert('Backup Error: ' + (e.message || e));
+    }
+  }
+
+  async function handleRestoreDatabase() {
+    const backupPath = prompt('Enter the absolute path of the backup file to restore (e.g. C:\\Users\\Public\\Downloads\\backup.sqlite):');
+    if (!backupPath) return;
+    try {
+      const msg = await invoke<string>('restore_database', { sourceBackupPath: backupPath });
+      alert(msg);
+    } catch (e: any) {
+      alert('Restore Error: ' + (e.message || e));
+    }
+  }
+
+  async function sendTelegramTest() {
+    if (!settings.telegram_bot_token || !settings.telegram_chat_id) {
+      telegramStatusMsg = 'Please enter Telegram Bot Token and Chat ID';
+      return;
+    }
+    try {
+      isSendingTelegram = true;
+      telegramStatusMsg = 'Sending test message...';
+      const text = encodeURIComponent('🚀 *TitaouPOS Live Alert*\nTest connection successful from POS settings!');
+      const url = `https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage?chat_id=${settings.telegram_chat_id}&text=${text}&parse_mode=Markdown`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.ok) {
+        telegramStatusMsg = '✅ Telegram test alert delivered successfully!';
+      } else {
+        telegramStatusMsg = '❌ Telegram error: ' + (data.description || 'Check Token/Chat ID');
+      }
+    } catch (e: any) {
+      telegramStatusMsg = 'Network error: ' + e.message;
+    } finally {
+      isSendingTelegram = false;
     }
   }
 
@@ -281,7 +463,25 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'invoices' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Printer class="w-4 h-4 mb-1" />
-        <span class="truncate">Invoices & Print</span>
+        <span class="truncate">Printing & Drawer</span>
+      </button>
+
+      <button
+        type="button"
+        on:click={() => (currentTab = 'scale')}
+        class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'scale' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
+      >
+        <Scale class="w-4 h-4 mb-1" />
+        <span class="truncate">ACLAS Scale</span>
+      </button>
+
+      <button
+        type="button"
+        on:click={() => (currentTab = 'notifications')}
+        class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'notifications' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
+      >
+        <Bell class="w-4 h-4 mb-1" />
+        <span class="truncate">Notifications</span>
       </button>
 
       <button
@@ -300,6 +500,15 @@
       >
         <Sliders class="w-4 h-4 mb-1" />
         <span class="truncate">POS Rules</span>
+      </button>
+
+      <button
+        type="button"
+        on:click={() => (currentTab = 'shortcuts')}
+        class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'shortcuts' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
+      >
+        <Keyboard class="w-4 h-4 mb-1" />
+        <span class="truncate">Shortcuts</span>
       </button>
 
       <button
@@ -495,36 +704,57 @@
               </div>
             </div>
 
-            <!-- Hardware Toggles -->
-            <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2 border border-pos-border">
-              <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer">
-                <input type="checkbox" checked class="rounded text-sky-600 focus:ring-0" />
-                <span>Auto-cut receipt paper after printing</span>
-              </label>
+            <!-- Advanced Receipt Content Options -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2.5 border border-pos-border">
+              <span class="text-xs font-black text-pos-text block mb-1">Receipt Content & Layout Options</span>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
+                  <input type="checkbox" bind:checked={settings.receipt_show_cashier} class="rounded text-sky-600 focus:ring-0" />
+                  <span>Display Cashier Name</span>
+                </label>
 
-              <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer">
-                <input type="checkbox" checked class="rounded text-sky-600 focus:ring-0" />
-                <span>Trigger cash drawer kick on cash sales</span>
-              </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
+                  <input type="checkbox" bind:checked={settings.receipt_show_qr} class="rounded text-sky-600 focus:ring-0" />
+                  <span>Print Receipt QR Verification Code</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
+                  <input type="checkbox" bind:checked={settings.receipt_show_tax} class="rounded text-sky-600 focus:ring-0" />
+                  <span>Print Tax / TVA Breakdown</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
+                  <input type="checkbox" checked class="rounded text-sky-600 focus:ring-0" />
+                  <span>Auto-cut receipt paper after printing</span>
+                </label>
+              </div>
             </div>
           </div>
 
           <!-- Live Receipt Preview Box -->
-          <div class="bg-slate-100 dark:bg-slate-900/60 p-4 rounded-2xl flex flex-col items-center justify-center border border-pos-border">
-            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider mb-2">Live Thermal Preview</span>
-            <div class="w-64 bg-white text-black p-4 shadow-md font-mono text-[10px] space-y-2 border border-slate-300">
+          <div class="bg-slate-100 dark:bg-slate-900/60 p-4 rounded-2xl flex flex-col items-center justify-start border border-pos-border">
+            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider mb-2">Live Dynamic Preview ({settings.receipt_paper_width || '80mm'})</span>
+            <div class="{settings.receipt_paper_width === '58mm' ? 'w-48' : 'w-64'} bg-white text-black p-3.5 shadow-md font-mono text-[10px] space-y-2 border border-slate-300 transition-all rounded-sm">
               <div class="text-center pb-1 border-b-dashed">
                 <p class="font-black text-xs">{settings.shop_name_fr || 'TitaouPOS'}</p>
+                {#if settings.shop_name_ar}
+                  <p class="font-bold text-[10px]">{settings.shop_name_ar}</p>
+                {/if}
                 <p class="text-[8px] text-gray-600">{settings.shop_address || 'Alger, Algérie'}</p>
                 <p class="text-[8px] text-gray-600">Tél: {settings.shop_phone || '0553444057'}</p>
+                {#if settings.receipt_header}
+                  <p class="text-[8px] font-bold text-sky-800 mt-1 italic">{settings.receipt_header}</p>
+                {/if}
               </div>
               <div class="py-1 border-b-dashed flex justify-between text-[8px]">
                 <span>TICKET #9842</span>
-                <span>Caisse: Admin</span>
+                {#if settings.receipt_show_cashier !== false}
+                  <span>Caisse: Admin</span>
+                {/if}
               </div>
               <div class="space-y-0.5 py-1 border-b-dashed">
                 <div class="flex justify-between font-bold">
-                  <span>1x Sucre Cevital</span>
+                  <span>1x Sucre Cevital 1kg</span>
                   <span>100 DZD</span>
                 </div>
                 <div class="flex justify-between font-bold">
@@ -532,21 +762,293 @@
                   <span>150 DZD</span>
                 </div>
               </div>
+              {#if settings.receipt_show_tax}
+                <div class="text-[8px] text-gray-600 py-0.5 border-b-dashed flex justify-between">
+                  <span>Total HT: 210 DZD</span>
+                  <span>TVA (19%): 40 DZD</span>
+                </div>
+              {/if}
               <div class="font-black flex justify-between text-xs pt-1">
-                <span>TOTAL:</span>
+                <span>TOTAL PAYÉ:</span>
                 <span>250 DZD</span>
               </div>
-              <div class="text-center text-[8px] pt-1 text-gray-500 border-t-dashed">
-                *** Merci de votre visite ***
-              </div>
+              {#if settings.receipt_footer}
+                <div class="text-center text-[8px] pt-1 text-gray-500 border-t-dashed">
+                  {settings.receipt_footer}
+                </div>
+              {:else}
+                <div class="text-center text-[8px] pt-1 text-gray-500 border-t-dashed">
+                  *** Merci de votre visite ***
+                </div>
+              {/if}
+              {#if settings.receipt_show_qr !== false}
+                <div class="text-center pt-1">
+                  <div class="inline-block px-3 py-1 bg-slate-100 border border-slate-300 font-mono text-[7px] text-gray-600 rounded">
+                    [QR: TITAOU-VTE-9842]
+                  </div>
+                </div>
+              {/if}
             </div>
           </div>
         </div>
 
+        <!-- Serial Cash Drawer Settings -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+          <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
+            <CreditCard class="w-4 h-4 text-emerald-600" />
+            <span>Serial Cash Drawer (COM Port)</span>
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">COM Port</label>
+              <select bind:value={settings.drawer_com_port} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
+                {#each Array.from({ length: 10 }, (_, i) => i + 1) as port}
+                  <option value={port.toString()}>COM{port}</option>
+                {/each}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Baud Rate</label>
+              <select bind:value={settings.drawer_baud_rate} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text">
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400">38400</option>
+                <option value="115200">115200</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button type="button" on:click={handleTestSerialDrawer} disabled={isOpeningDrawer} class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs">
+                {isOpeningDrawer ? 'Opening...' : 'Test Open Cash Drawer (تجربة فتح الدرج)'}
+              </button>
+            </div>
+          </div>
+          {#if drawerStatusMsg}
+            <div class="p-2 bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-200 text-xs font-bold rounded-lg">{drawerStatusMsg}</div>
+          {/if}
+        </div>
+
         <div class="pt-4 border-t border-pos-border flex justify-end">
           <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">
-            Save Print Settings
+            Save Print & Drawer Settings
           </button>
+        </div>
+      </div>
+
+    <!-- SCALE TAB (ACLAS Real SDK) -->
+    {:else if currentTab === 'scale'}
+      <div class="max-w-4xl space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text flex items-center gap-2">
+              <Scale class="w-5 h-5 text-sky-600" />
+              <span>ACLAS Electronic Scale SDK Integration</span>
+            </h2>
+            <p class="text-xs text-pos-muted">Direct TCP/IP synchronization for ACLAS LH51, LS M3, and TS Series scales</p>
+          </div>
+          <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Scale Settings</span>
+          </button>
+        </div>
+
+        {#if scaleStatusMsg}
+          <div class="p-3 bg-sky-100 dark:bg-sky-950 border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 text-xs font-bold rounded-xl animate-in fade-in">
+            {scaleStatusMsg}
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="md:col-span-2 p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+            <h3 class="font-black text-sm text-pos-text">Scale Network & Protocol Configuration</h3>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Scale IP Address (Ethernet) *</label>
+                <input type="text" bind:value={settings.scale_ip} placeholder="192.168.1.87" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Scale Port</label>
+                <input type="number" bind:value={settings.scale_port} placeholder="0" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Default Scale Barcode Format *</label>
+                <select bind:value={settings.scale_default_barcode_type} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
+                  <option value="97">Type 97: 18-Code (Dept + ItemCode + Price + Weight + Checksum)</option>
+                  <option value="2">Type 02: EAN-13 Price Embedded (DD IIIII PPPPP C)</option>
+                  <option value="7">Type 07: EAN-13 Weight Embedded (DD IIIII WWWWW C)</option>
+                  <option value="22">Type 22: EAN-13 1-Digit Dept Price Embedded (D IIIIII PPPPP C)</option>
+                  <option value="27">Type 27: EAN-13 1-Digit Dept Weight Embedded (D IIIIII WWWWW C)</option>
+                  <option value="12">Type 12: Fixed Code 22 Price Embedded (22 IIIII PPPPP C)</option>
+                  <option value="17">Type 17: Fixed Code 27 Weight Embedded (27 IIIII WWWWW C)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Scale Department ID (1-99)</label>
+                <input type="number" min="1" max="99" bind:value={settings.scale_department_id} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text" />
+              </div>
+            </div>
+
+            <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
+              <input type="checkbox" bind:checked={settings.scale_auto_sync} class="rounded text-sky-600" />
+              <span>Automatically sync scalable products to scale on price/name changes</span>
+            </label>
+
+            <!-- Actions -->
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                on:click={handleTestScaleConnection}
+                disabled={isTestingScale}
+                class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <RefreshCw class="w-3.5 h-3.5 {isTestingScale ? 'animate-spin' : ''}" />
+                <span>{isTestingScale ? 'Testing...' : 'Test Connection (فحص الاتصال)'}</span>
+              </button>
+
+              <button
+                type="button"
+                on:click={handleUploadAllScalable}
+                disabled={isUploadingScale || isFetchingScale}
+                class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Upload class="w-4 h-4" />
+                <span>{isUploadingScale ? 'Uploading...' : 'Upload to Scale (إرسال للميزان)'}</span>
+              </button>
+
+              <button
+                type="button"
+                on:click={handleFetchFromScale}
+                disabled={isUploadingScale || isFetchingScale}
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Download class="w-4 h-4" />
+                <span>{isFetchingScale ? 'Downloading...' : 'Fetch from Scale (جلب من الميزان)'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="p-5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-2xl space-y-3">
+            <h4 class="font-black text-xs text-sky-800 dark:text-sky-200">ACLAS Scale Features</h4>
+            <ul class="text-xs text-pos-muted space-y-2">
+              <li>• Direct native dynamic loading via <strong class="text-pos-text">AclasSDK.dll (Win64)</strong></li>
+              <li>• Generates standard UTF-16LE PLU format with custom department & price</li>
+              <li>• Real Barcode Type 97 payload verification</li>
+              <li>• Automatic synchronization on POS price changes</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Sync Logs Table -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="font-black text-xs text-pos-text">Recent Scale Synchronization History (سجل المزامنة)</h3>
+            <button on:click={loadScaleLogs} class="text-xs font-bold text-sky-600 hover:underline">Refresh</button>
+          </div>
+          <div class="bg-pos-card border border-pos-border rounded-2xl overflow-hidden">
+            <table class="w-full text-start text-xs border-collapse">
+              <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
+                <tr>
+                  <th class="p-2.5 text-start">Time</th>
+                  <th class="p-2.5 text-start">Product</th>
+                  <th class="p-2.5 text-start">PLU #</th>
+                  <th class="p-2.5 text-center">Direction</th>
+                  <th class="p-2.5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-pos-border/40">
+                {#if scaleSyncLogs.length === 0}
+                  <tr>
+                    <td colspan="5" class="p-4 text-center text-pos-muted">No synchronization records yet.</td>
+                  </tr>
+                {:else}
+                  {#each scaleSyncLogs.slice(0, 10) as log}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td class="p-2.5 font-mono text-pos-muted">{log.created_at}</td>
+                      <td class="p-2.5 font-bold text-pos-text">{log.product_name || 'All Scalable Items'}</td>
+                      <td class="p-2.5 font-mono text-sky-600">{log.scale_plu || '—'}</td>
+                      <td class="p-2.5 text-center uppercase font-mono text-[10px]">{log.direction}</td>
+                      <td class="p-2.5 text-center">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase {log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'}">
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  {/each}
+                {/if}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    <!-- NOTIFICATIONS TAB -->
+    {:else if currentTab === 'notifications'}
+      <div class="max-w-4xl space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text flex items-center gap-2">
+              <Bell class="w-5 h-5 text-sky-600" />
+              <span>Telegram Bot Notifications & Event Alerts</span>
+            </h2>
+            <p class="text-xs text-pos-muted">Send automated alerts directly to your phone or management channel</p>
+          </div>
+          <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Alert Settings</span>
+          </button>
+        </div>
+
+        {#if telegramStatusMsg}
+          <div class="p-3 bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-200 text-xs font-bold rounded-xl">
+            {telegramStatusMsg}
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+            <h3 class="font-black text-sm text-pos-text">Telegram Bot Credentials</h3>
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Bot Token</label>
+              <input type="text" bind:value={settings.telegram_bot_token} placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Chat ID (Channel or Group ID)</label>
+              <input type="text" bind:value={settings.telegram_chat_id} placeholder="-100123456789" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+            </div>
+            <button type="button" on:click={sendTelegramTest} disabled={isSendingTelegram} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <Send class="w-3.5 h-3.5" />
+              <span>{isSendingTelegram ? 'Sending...' : 'Send Test Alert (إرسال تجربة)'}</span>
+            </button>
+          </div>
+
+          <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+            <h3 class="font-black text-sm text-pos-text">Alert Triggers</h3>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Daily End-of-Day revenue summary</span>
+              <input type="checkbox" bind:checked={settings.notify_daily_summary} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Instant notification on every sale</span>
+              <input type="checkbox" bind:checked={settings.notify_each_sale} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Notification on refunds & returns</span>
+              <input type="checkbox" bind:checked={settings.notify_each_refund} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Near-expired (under 30 days) & expired items alert</span>
+              <input type="checkbox" bind:checked={settings.notify_expiry} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Low stock & inventory depletion alert</span>
+              <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -651,6 +1153,173 @@
           <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">
             Save Label Settings
           </button>
+        </div>
+      </div>
+
+    <!-- POS RULES TAB -->
+    {:else if currentTab === 'pos'}
+      <div class="max-w-4xl space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text flex items-center gap-2">
+              <Sliders class="w-5 h-5 text-sky-600" />
+              <span>Point of Sale Business Rules & Operational Flow</span>
+            </h2>
+            <p class="text-xs text-pos-muted">Configure cart behavior, scanner auto-focus, cashier security rules, and negative stock selling</p>
+          </div>
+          <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save POS Rules</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Inventory & Stock Selling Rules -->
+          <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+            <h3 class="font-black text-sm text-pos-text">Stock & Inventory Controls</h3>
+            
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>Allow Negative Stock Selling</span>
+                <p class="text-[10px] text-pos-muted font-normal">Permit cashiers to complete sales even when stock is zero or depleted</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.allow_negative_stock} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>Require Note When Holding Sales</span>
+                <p class="text-[10px] text-pos-muted font-normal">Prompt cashiers to enter a customer reference or note before holding a ticket</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.hold_sale_require_note} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Default Walk-in Customer Label</label>
+              <input type="text" bind:value={settings.default_customer_name} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none" />
+            </div>
+          </div>
+
+          <!-- Scanner & Hardware Automation Rules -->
+          <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+            <h3 class="font-black text-sm text-pos-text">Scanner & Workflow Automation</h3>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>Autofocus Barcode Search Bar</span>
+                <p class="text-[10px] text-pos-muted font-normal">Always keep cursor ready in search bar after each product addition or sale</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.pos_autofocus_search} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>Global Barcode Auto-Capture</span>
+                <p class="text-[10px] text-pos-muted font-normal">Intercept fast barcode scanner strokes even when cursor is on another element</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.pos_auto_capture_barcode} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+
+            <!-- Cart Line Ordering Rule -->
+            <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1">
+              <label class="block text-xs font-bold text-pos-text">Cart Product Insertion Order</label>
+              <p class="text-[10px] text-pos-muted">Choose where newly scanned items appear in the shopping cart</p>
+              <select bind:value={settings.cart_item_order} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text mt-1">
+                <option value="bottom">New items at BOTTOM (Auto-scrolls to bottom)</option>
+                <option value="top">New items at TOP (Most recent on top)</option>
+              </select>
+            </div>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>Require Admin PIN for Discounts</span>
+                <p class="text-[10px] text-pos-muted font-normal">Disallow cashiers from applying custom discounts without supervisor authorization</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.require_pin_for_discount} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+    <!-- KEYBOARD SHORTCUTS TAB -->
+    {:else if currentTab === 'shortcuts'}
+      <div class="max-w-4xl space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text flex items-center gap-2">
+              <Keyboard class="w-5 h-5 text-sky-600" />
+              <span>POS Keyboard Shortcuts Map (اختصارات لوحة المفاتيح)</span>
+            </h2>
+            <p class="text-xs text-pos-muted">Custom high-speed keyboard bindings for touch-free cash register operation</p>
+          </div>
+          <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+            <Check class="w-4 h-4" />
+            <span>Save Shortcuts</span>
+          </button>
+        </div>
+
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Focus Barcode Search</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F1</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Quick Add / New Product</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F2</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Switch Mode (Sale / Refund / Purchase)</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F3</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Hold Active Sale</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-amber-600 rounded-lg shadow-inner">F4</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Resume Held Sales Modal</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-amber-600 rounded-lg shadow-inner">F5</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Edit Selected Item Quantity</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F6</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Apply Discount / Remise</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F7</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Select Customer Account</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F8</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Quick Cash Pay & Print Receipt</span>
+              <kbd class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 font-mono font-black text-emerald-700 dark:text-emerald-300 rounded-lg shadow-inner">F9</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Kick Open Serial Cash Drawer</span>
+              <kbd class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 font-mono font-black text-emerald-700 dark:text-emerald-300 rounded-lg shadow-inner">F10</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Split / Card / TPE Payment Modal</span>
+              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F11</kbd>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <span class="font-bold text-pos-text">Clear / Cancel Active Cart</span>
+              <kbd class="px-2.5 py-1 bg-rose-100 dark:bg-rose-950 font-mono font-black text-rose-600 rounded-lg shadow-inner">F12</kbd>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -794,17 +1463,17 @@
             <div class="space-y-2">
               <button
                 type="button"
-                on:click={() => triggerSaveNotification('Full SQLite Database Backup saved to Desktop/TitaouPOS_Backup.sqlite')}
-                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition"
+                on:click={handleBackupDatabase}
+                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
               >
                 <HardDrive class="w-4 h-4" />
-                <span>Backup Now (نسخ احتياطي الآن)</span>
+                <span>Backup Now (نسخ احتياطي للبيانات)</span>
               </button>
 
               <button
                 type="button"
-                on:click={() => triggerSaveNotification('Database restore file selected')}
-                class="w-full py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer"
+                on:click={handleRestoreDatabase}
+                class="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text text-xs font-bold rounded-xl cursor-pointer transition active:scale-95"
               >
                 Restore from Backup File (.sqlite)
               </button>

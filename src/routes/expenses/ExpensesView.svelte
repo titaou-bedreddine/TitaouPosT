@@ -7,7 +7,8 @@
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import {
     Plus, DollarSign, Trash2, Eye, Printer, X, Check,
-    TrendingDown, Calendar, User, Receipt
+    TrendingDown, Calendar, User, Receipt, AlertTriangle,
+    CreditCard, Banknote, Building
   } from 'lucide-svelte';
 
   let expenses: Expense[] = [];
@@ -24,6 +25,11 @@
   let isSaving = false;
   let errorMsg = '';
 
+  // Custom Delete Modal
+  let isDeleteModalOpen = false;
+  let expenseToDelete: Expense | null = null;
+  let isDeleting = false;
+
   onMount(async () => {
     await loadExpenses();
   });
@@ -35,6 +41,12 @@
       console.error(e);
     }
   }
+
+  // Real Top Statistics
+  $: totalExpensesCount = expenses.length;
+  $: totalAmountSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+  $: totalCashDeducted = expenses.filter(e => e.payment_method === 'cash').reduce((sum, e) => sum + e.amount, 0);
+  $: totalOtherPayments = totalAmountSpent - totalCashDeducted;
 
   async function handleAddExpense() {
     if (amount <= 0) {
@@ -72,114 +84,198 @@
     }
   }
 
-  async function handleDeleteExpense(id: number) {
-    if (!confirm('Are you sure you want to delete this expense voucher?')) return;
+  function promptDelete(exp: Expense, e?: Event) {
+    if (e) e.stopPropagation();
+    expenseToDelete = exp;
+    isDeleteModalOpen = true;
+  }
+
+  async function confirmDeleteExpense() {
+    if (!expenseToDelete) return;
     try {
-      await invoke('delete_expense', { expenseId: id });
+      isDeleting = true;
+      await invoke('delete_expense', { expenseId: expenseToDelete.id });
+      isDeleteModalOpen = false;
+      expenseToDelete = null;
       await loadExpenses();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      alert('Failed to delete expense: ' + (e.message || e));
+    } finally {
+      isDeleting = false;
     }
   }
 
-  function printExpenseVoucher(exp: Expense) {
-    const html = `
-      <div class="text-center pb-2 border-b-dashed">
-        <h2 class="font-black text-sm uppercase">TitaouPOS Superette</h2>
-        <p class="text-xxs">Rue Principale, Alger • Tél: 0553444057</p>
-        <p class="font-black text-xs mt-1 bg-black text-white px-1">BON DE DECAISSEMENT / سند صرف</p>
-        <p class="text-xxs mt-0.5">${exp.date || new Date().toLocaleString()}</p>
-      </div>
+  async function printExpenseVoucher(exp: Expense) {
+    try {
+      const settings = await invoke<Record<string, string>>('get_all_settings');
+      const shopName = settings['shop_name_fr'] || 'TitaouPOS';
+      const shopPhone = settings['shop_phone'] || '0553444057';
+      const shopAddress = settings['shop_address'] || 'Alger Centre';
 
-      <div class="py-2 border-b-dashed text-xxs space-y-1">
-        <div class="flex justify-between"><span>Numéro:</span><strong>#${exp.expense_number}</strong></div>
-        <div class="flex justify-between"><span>Bénéficiaire (المستفيد):</span><strong>${exp.recipient || 'Divers'}</strong></div>
-        <div class="flex justify-between"><span>Catégorie:</span><strong>${exp.category_name || 'Général'}</strong></div>
-        <div class="flex justify-between"><span>Mode de paiement:</span><strong>${exp.payment_method.toUpperCase()}</strong></div>
-        ${exp.notes ? `<div class="flex justify-between"><span>Motif:</span><strong>${exp.notes}</strong></div>` : ''}
-      </div>
-
-      <div class="py-3 border-b-dashed text-center">
-        <p class="text-xs text-gray-600 font-bold">MONTANT SORTIE (المبلغ المصروف):</p>
-        <p class="text-2xl font-black font-mono text-black mt-1">${exp.amount.toLocaleString()} DZD</p>
-      </div>
-
-      <div class="py-2 text-xxs flex justify-between">
-        <span>Signature Caissier: _______</span>
-        <span>Signature Bénéficiaire: _______</span>
-      </div>
-
-      <div class="text-center pt-2 border-t-dashed text-[8px] text-gray-400">
-        TitaouPOS • Created by Titaou Bedreddine 0553444057
-      </div>
-    `;
-
-    printHtmlDirectly(html, `Voucher - ${exp.expense_number}`);
+      const html = `
+        <div style="width: 72mm; font-family: monospace; font-size: 10px; text-align: center; margin: 0 auto; padding: 2mm;">
+          <p style="font-size: 14px; font-weight: 900; margin: 0; text-transform: uppercase;">${shopName}</p>
+          <p style="font-size: 8px; margin: 2px 0;">${shopAddress} • Tél: ${shopPhone}</p>
+          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
+          <p style="font-size: 11px; font-weight: 900; background: #000; color: #fff; padding: 2px 0; margin: 2px 0;">BON DE DÉCAISSEMENT / سند صرف</p>
+          <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; margin-top: 4px;">
+            <span>BON #${exp.expense_number}</span>
+            <span>${exp.date}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 8px;">
+            <span>Bénéficiaire: ${exp.recipient || 'Divers'}</span>
+            <span>Catégorie: ${exp.category_name || 'Général'}</span>
+          </div>
+          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 900;">
+            <span>MONTANT SORTI:</span>
+            <span>${exp.amount.toLocaleString()} DZD</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 9px;">
+            <span>Mode de règlement:</span>
+            <span style="font-weight: bold; text-transform: uppercase;">${exp.payment_method}</span>
+          </div>
+          ${exp.notes ? `
+            <div style="text-align: left; font-size: 8px; margin-top: 4px;">
+              <span>Motif: ${exp.notes}</span>
+            </div>
+          ` : ''}
+          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
+          <div style="display: flex; justify-content: space-between; font-size: 8px; margin-top: 8px;">
+            <span>Signature Caissier</span>
+            <span>Signature Bénéficiaire</span>
+          </div>
+        </div>
+      `;
+      printHtmlDirectly(html, 'Voucher #' + exp.expense_number);
+    } catch (e: any) {
+      alert('Error printing voucher: ' + (e.message || e));
+    }
   }
 </script>
 
-<div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none">
+<div class="h-full flex flex-col bg-pos-bg p-6 overflow-hidden select-none space-y-4">
   <!-- Header -->
-  <div class="flex items-center justify-between pb-4 border-b border-pos-border shrink-0">
+  <div class="flex items-center justify-between pb-3 border-b border-pos-border shrink-0">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold">
         <TrendingDown class="w-5 h-5" />
       </div>
       <div>
-        <h1 class="text-xl font-black text-pos-text tracking-tight">Expenses & Operating Costs / المصاريف والتكاليف</h1>
-        <p class="text-xs text-pos-muted">Track store overhead and deduct directly from active cash drawer</p>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">Expenses & Decaissements / إدارة المصاريف والمخرجات</h1>
+        <p class="text-xs text-pos-muted">Track store overhead and auto-deduct cash directly from active cash register session</p>
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
-      <button
-        type="button"
-        on:click={() => { isAddOpen = true; errorMsg = ''; }}
-        class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
-      >
-        <Plus class="w-4 h-4" />
-        <span>Add Expense (تسجيل مصروف جديد)</span>
-      </button>
+    <button
+      type="button"
+      on:click={() => { isAddOpen = true; errorMsg = ''; }}
+      class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+    >
+      <Plus class="w-4 h-4" />
+      <span>New Expense Voucher (سند صرف جديد)</span>
+    </button>
+  </div>
+
+  <!-- Real Statistics Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold">
+        <Receipt class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">Vouchers</p>
+        <p class="text-base font-black font-mono text-pos-text">{totalExpensesCount.toLocaleString()}</p>
+      </div>
+    </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center font-bold">
+        <DollarSign class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">Total Spent</p>
+        <p class="text-base font-black font-mono text-rose-600">{totalAmountSpent.toLocaleString()} DZD</p>
+      </div>
+    </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center font-bold">
+        <Banknote class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">Cash Drawer Paid</p>
+        <p class="text-base font-black font-mono text-emerald-600">{totalCashDeducted.toLocaleString()} DZD</p>
+      </div>
+    </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
+        <CreditCard class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">Bank / Other</p>
+        <p class="text-base font-black font-mono text-sky-600">{totalOtherPayments.toLocaleString()} DZD</p>
+      </div>
     </div>
   </div>
 
   <!-- Expenses Table -->
-  <div class="flex-1 overflow-y-auto mt-4 bg-pos-card border border-pos-border rounded-2xl shadow-xs">
+  <div class="flex-1 overflow-y-auto bg-pos-card border border-pos-border rounded-2xl shadow-xs">
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Expense #</th>
+          <th class="p-3 text-start">Voucher #</th>
           <th class="p-3 text-start">Date</th>
-          <th class="p-3 text-start">Category / الفئة</th>
-          <th class="p-3 text-start">Recipient / المستفيد</th>
-          <th class="p-3 text-start">Payment Method</th>
+          <th class="p-3 text-start">Category (الفئة)</th>
+          <th class="p-3 text-start">Beneficiary (المستفيد)</th>
           <th class="p-3 text-end">Amount (المبلغ)</th>
+          <th class="p-3 text-center">Payment</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-pos-border/40">
         {#if expenses.length === 0}
           <tr>
-            <td colspan="7" class="p-8 text-center text-pos-muted">No expenses recorded yet.</td>
+            <td colspan="7" class="p-8 text-center text-pos-muted">No expense records recorded yet.</td>
           </tr>
         {:else}
           {#each expenses as exp}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-              <td class="p-3 font-mono font-bold text-sky-600">#{exp.expense_number}</td>
+              <td class="p-3 font-mono font-bold text-rose-600">#{exp.expense_number}</td>
               <td class="p-3 font-mono text-pos-muted">{exp.date}</td>
               <td class="p-3 font-bold text-pos-text">{exp.category_name || 'Général'}</td>
-              <td class="p-3 text-pos-muted">{exp.recipient || '—'}</td>
-              <td class="p-3 uppercase font-mono font-bold">{exp.payment_method}</td>
+              <td class="p-3 text-pos-muted">{exp.recipient || 'Divers'}</td>
               <td class="p-3 text-end font-mono font-black text-rose-600">{exp.amount.toLocaleString()} DZD</td>
+              <td class="p-3 text-center">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {exp.payment_method === 'cash' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-sky-100 text-sky-800'}">
+                  {exp.payment_method}
+                </span>
+              </td>
               <td class="p-3 text-end">
                 <div class="flex items-center justify-end gap-1">
-                  <button on:click={() => printExpenseVoucher(exp)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="Print Voucher">
+                  <button
+                    type="button"
+                    on:click={() => printExpenseVoucher(exp)}
+                    class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
+                    title="Print Voucher"
+                  >
                     <Printer class="w-4 h-4" />
                   </button>
-                  <button on:click={() => (previewExpense = exp)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="Preview">
+                  <button
+                    type="button"
+                    on:click={() => (previewExpense = exp)}
+                    class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
+                    title="View Voucher"
+                  >
                     <Eye class="w-4 h-4" />
                   </button>
-                  <button on:click={() => handleDeleteExpense(exp.id)} class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer" title="Delete">
+                  <button
+                    type="button"
+                    on:click={(e) => promptDelete(exp, e)}
+                    class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer"
+                    title="Delete Voucher"
+                  >
                     <Trash2 class="w-4 h-4" />
                   </button>
                 </div>
@@ -192,7 +288,7 @@
   </div>
 </div>
 
-<!-- Modal: Add Expense -->
+<!-- Modal: New Expense Voucher -->
 {#if isAddOpen}
   <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
     <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
@@ -202,7 +298,7 @@
             <TrendingDown class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-base text-pos-text">Record Expense / تسجيل مصروف</h3>
+            <h3 class="font-black text-base text-pos-text">New Expense Voucher (سند صرف جديد)</h3>
             <p class="text-xs text-pos-muted">Deducts automatically from active cash drawer</p>
           </div>
         </div>
@@ -212,7 +308,9 @@
       </div>
 
       {#if errorMsg}
-        <div class="mx-6 mt-4 p-3 bg-rose-100 text-rose-800 text-xs font-bold rounded-xl">{errorMsg}</div>
+        <div class="mx-6 mt-4 p-3 bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 text-xs font-bold rounded-xl border border-rose-300">
+          {errorMsg}
+        </div>
       {/if}
 
       <div class="p-6 space-y-3">
@@ -226,11 +324,11 @@
             <label class="block text-xs font-bold text-pos-muted mb-1">Category / الفئة</label>
             <select bind:value={categoryId} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
               <option value={1}>Loyer / Rent (إيجار)</option>
-              <option value={2}>Électricité / Gaz (كهرباء وغاز)</option>
-              <option value={3}>Transport / Livraison (نقل وشحن)</option>
-              <option value={4}>Maintenance / Reparation (صيانة)</option>
-              <option value={5}>Salaires / Payroll (رواتب)</option>
-              <option value={6}>Divers / Other (مصاريف أخرى)</option>
+              <option value={2}>Électricité & Eau / Utilities (كهرباء وغاز ومياه)</option>
+              <option value={3}>Transport & Livraison / Delivery (نقل وتوصيل)</option>
+              <option value={4}>Maintenance & Réparation (صيانة وإصلاح)</option>
+              <option value={5}>Fournitures & Emballage / Packaging (مستلزمات وتغليف)</option>
+              <option value={6}>Divers / General Expenses (مصاريف عامة)</option>
             </select>
           </div>
 
@@ -238,8 +336,9 @@
             <label class="block text-xs font-bold text-pos-muted mb-1">Payment Method</label>
             <select bind:value={paymentMethod} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
               <option value="cash">Cash (الصندوق)</option>
-              <option value="bank">Banque / Virement</option>
-              <option value="check">Chèque</option>
+              <option value="tpe">TPE Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="other">Other</option>
             </select>
           </div>
         </div>
@@ -255,43 +354,37 @@
         </div>
       </div>
 
-      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end gap-2">
-        <button on:click={() => (isAddOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Cancel</button>
+      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
+        <button on:click={() => (isAddOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
+          Cancel
+        </button>
         <button on:click={handleAddExpense} disabled={isSaving} class="px-6 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
           <Check class="w-4 h-4" />
-          <span>{isSaving ? 'Saving...' : 'Save Expense (حفظ المصروف)'}</span>
+          <span>{isSaving ? 'Recording...' : 'Record Voucher (تسجيل السند)'}</span>
         </button>
       </div>
     </div>
   </div>
 {/if}
 
-<!-- Modal: Preview Expense -->
-{#if previewExpense}
-  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
-        <h3 class="font-black text-base text-pos-text">Expense #{previewExpense.expense_number}</h3>
-        <button on:click={() => (previewExpense = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
-          <X class="w-5 h-5" />
-        </button>
+<!-- Delete Confirmation Modal -->
+{#if isDeleteModalOpen && expenseToDelete}
+  <div class="fixed inset-0 z-60 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
+      <div class="flex items-center gap-3 text-rose-600">
+        <AlertTriangle class="w-6 h-6 shrink-0" />
+        <h3 class="font-black text-sm text-pos-text">Confirm Expense Deletion</h3>
       </div>
-
-      <div class="p-6 space-y-3 text-xs">
-        <div class="flex justify-between"><span class="text-pos-muted">Date:</span><span class="font-mono font-bold text-pos-text">{previewExpense.date}</span></div>
-        <div class="flex justify-between"><span class="text-pos-muted">Category:</span><span class="font-bold text-pos-text">{previewExpense.category_name || 'Général'}</span></div>
-        <div class="flex justify-between"><span class="text-pos-muted">Recipient:</span><span class="font-bold text-pos-text">{previewExpense.recipient || '—'}</span></div>
-        <div class="flex justify-between"><span class="text-pos-muted">Payment Method:</span><span class="uppercase font-mono">{previewExpense.payment_method}</span></div>
-        <div class="flex justify-between"><span class="text-pos-muted">Notes:</span><span class="text-pos-text">{previewExpense.notes || '—'}</span></div>
-        <div class="flex justify-between pt-2 border-t border-pos-border"><span class="font-bold text-pos-muted">Amount:</span><span class="text-lg font-black font-mono text-rose-600">{previewExpense.amount.toLocaleString()} DZD</span></div>
-      </div>
-
-      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
-        <button on:click={() => printExpenseVoucher(previewExpense)} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
-          <Printer class="w-4 h-4" />
-          <span>Print Voucher (طباعة سند)</span>
+      <p class="text-xs text-pos-muted">
+        Are you sure you want to delete expense voucher <strong class="text-pos-text">#{expenseToDelete.expense_number}</strong> ({expenseToDelete.amount.toLocaleString()} DZD)?
+      </p>
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (isDeleteModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
+          Cancel
         </button>
-        <button on:click={() => (previewExpense = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
+        <button on:click={confirmDeleteExpense} disabled={isDeleting} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
+          {isDeleting ? 'Deleting...' : 'Delete Voucher'}
+        </button>
       </div>
     </div>
   </div>

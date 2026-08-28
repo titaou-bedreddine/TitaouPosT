@@ -5,6 +5,8 @@
   import { currentUser } from '../stores/auth';
   import type { User } from '../types';
 
+  import { normalizeBarcode } from '../utils/barcode';
+
   export let query = '';
   export let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
   export let onSearch: () => void;
@@ -32,6 +34,11 @@
 
   async function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
+      // Auto-normalize if scanning numeric barcode with AZERTY/Arabic keyboard active
+      if (searchType === 'barcode' || /^[&é"'\(-è_çà0-9١-٩]+$/.test(query.trim())) {
+        query = normalizeBarcode(query);
+      }
+
       // Check if scanned an employee QR code (e.g. EMP-QR-01)
       if (query.trim().startsWith('EMP-QR-') || query.trim().startsWith('EMP_QR_')) {
         try {

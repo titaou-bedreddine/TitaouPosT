@@ -65,7 +65,18 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     let mut total_cash_paid: i64 = 0;
     let mut total_credit_amount: i64 = 0;
 
-    for payment in &input.payments {
+    let payments_list: Vec<crate::models::SalePaymentInput> = if input.payments.is_empty() {
+        let method = input.payment_method.clone().unwrap_or_else(|| "cash".to_string());
+        vec![crate::models::SalePaymentInput {
+            payment_method: method,
+            amount: input.total_amount,
+            reference_code: None,
+        }]
+    } else {
+        input.payments.clone()
+    };
+
+    for payment in &payments_list {
         tx.execute(
             "INSERT INTO sale_payments (sale_id, payment_method, amount, reference_code)
              VALUES (?1, ?2, ?3, ?4)",
@@ -124,7 +135,8 @@ pub fn list_sales(
     let mut sql = String::from(
         "SELECT s.id, s.sale_number, s.session_id, s.user_id, u.display_name,
                 s.customer_id, c.name, s.subtotal, s.discount_amount, s.tax_amount,
-                s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at
+                s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at,
+                (SELECT sp.payment_method FROM sale_payments sp WHERE sp.sale_id = s.id ORDER BY sp.amount DESC LIMIT 1) as payment_method
          FROM sales s
          LEFT JOIN users u ON s.user_id = u.id
          LEFT JOIN customers c ON s.customer_id = c.id
@@ -170,6 +182,7 @@ pub fn list_sales(
                 payment_status: row.get(13)?,
                 status: row.get(14)?,
                 created_at: row.get(15)?,
+                payment_method: row.get(16)?,
                 items: None,
             })
         })
@@ -258,5 +271,40 @@ pub fn delete_held_sale(db: &DbState, held_id: i64) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     conn.execute("DELETE FROM held_sales WHERE id = ?1", [held_id])
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn delete_sale(db: &DbState, sale_id: i64) -> Result<(), String> {
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // Restore stock for each item
+    {
+        let mut stmt = tx
+            .prepare("SELECT product_id, quantity, is_refunded FROM sale_items WHERE sale_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let items: Vec<(i64, f64, bool)> = stmt
+            .query_map([sale_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        for (product_id, qty, is_refund) in items {
+            let stock_reversal = if is_refund { -qty } else { qty };
+            tx.execute(
+                "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
+                rusqlite::params![stock_reversal, product_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Delete sale (cascade deletes sale_items and sale_payments)
+    tx.execute("DELETE FROM sales WHERE id = ?1", [sale_id])
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }

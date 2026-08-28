@@ -2,11 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
-  import type { Category, Product, Supplier, Unit, SaleInput } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, isRefundMode, addToCart, clearCart } from '../../lib/stores/cart';
+  import type { Category, Product, Supplier, Unit } from '../../lib/types';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, isRefundMode, addToCart, clearCart, cartItemOrder } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly, buildReceiptHtml } from '../../lib/utils/printer';
+  import { normalizeBarcode } from '../../lib/utils/barcode';
 
   import TopActionBar from '../../lib/components/TopActionBar.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
@@ -22,6 +23,7 @@
   import QuickPurchaseModal from '../../lib/components/QuickPurchaseModal.svelte';
   import ReturnDamagedModal from '../../lib/components/ReturnDamagedModal.svelte';
   import CreditCustomerModal from '../../lib/components/CreditCustomerModal.svelte';
+  import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
 
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
@@ -55,12 +57,35 @@
   let isQuickPurchaseOpen = false;
   let isReturnDamagedOpen = false;
   let isCreditCustomerOpen = false;
+  let isOtherArticleOpen = false;
 
   let lastSaleSuccessNumber = '';
   let barcodeBuffer = '';
   let lastKeyTime = 0;
 
+  let currentShopName = 'TitaouPOS';
+  let currentTime = new Date().toLocaleTimeString();
+  let currentDate = new Date().toLocaleDateString();
+  let timeInterval: any;
+
+  let cartContainerEl: HTMLDivElement;
+
   onMount(async () => {
+    try {
+      const s = await invoke<Record<string, string>>('get_all_settings');
+      currentShopName = s['shop_name_fr'] || s['shop_name_ar'] || 'TitaouPOS';
+      if (s['cart_item_order'] === 'top' || s['cart_item_order'] === 'bottom') {
+        $cartItemOrder = s['cart_item_order'];
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
+    timeInterval = setInterval(() => {
+      currentTime = new Date().toLocaleTimeString();
+      currentDate = new Date().toLocaleDateString();
+    }, 1000);
+
     await loadCategories();
     await loadUnits();
     await loadSuppliers();
@@ -69,7 +94,17 @@
     window.addEventListener('keydown', handleGlobalKeyDown);
   });
 
+  // Auto-scroll to bottom when in 'bottom' mode and new item is added
+  $: if ($cartItems && $cartItemOrder === 'bottom' && cartContainerEl) {
+    setTimeout(() => {
+      if (cartContainerEl) {
+        cartContainerEl.scrollTop = cartContainerEl.scrollHeight;
+      }
+    }, 50);
+  }
+
   onDestroy(() => {
+    clearInterval(timeInterval);
     window.removeEventListener('keydown', handleGlobalKeyDown);
   });
 
@@ -172,27 +207,40 @@
       const saleDate = new Date().toLocaleString();
       const cashier = $currentUser?.display_name || 'Admin';
 
-      const saleInput: SaleInput = {
+      const saleInput = {
         session_id: $activeSession?.id || 1,
         customer_id: customerId,
         user_id: $currentUser?.id || 1,
+        subtotal: $cartSubtotal,
         total_amount: $cartGrandTotal,
+        paid_amount: $cartGrandTotal,
+        change_amount: 0,
         tax_amount: 0,
         discount_amount: $globalDiscountAmount,
-        final_amount: $cartGrandTotal,
+        discount_percentage: 0,
         payment_method: selectedPaymentMode,
         is_refund: $isRefundMode,
         notes: customerName ? `Credit Sale to ${customerName}` : undefined,
+        payments: [
+          {
+            payment_method: selectedPaymentMode,
+            amount: $cartGrandTotal,
+            reference_code: null,
+          }
+        ],
         items: $cartItems.map((i) => ({
           product_id: i.product_id,
-          sku: i.sku,
-          barcode: i.barcode,
+          sku: i.sku || '',
+          barcode: i.barcode || '',
+          name_fr: i.name_fr || '',
+          name_ar: i.name_ar || '',
+          name_en: i.name_en || '',
           quantity: i.quantity,
           unit_price: i.unit_price,
-          discount_amount: i.discount_amount,
-          tax_amount: i.tax_amount,
+          discount_amount: i.discount_amount || 0,
+          tax_amount: i.tax_amount || 0,
           total_price: i.total_price,
-          is_refund: i.is_refund,
+          is_refund: i.is_refund || false,
         })),
       };
 
@@ -200,6 +248,19 @@
 
       // Silent Auto-Print
       if (autoPrintEnabled) {
+        let appSettings: Record<string, string> = {};
+        try {
+          appSettings = await invoke<Record<string, string>>('get_all_settings');
+        } catch (e) {
+          console.warn('Could not load settings for receipt:', e);
+        }
+
+        const shopName = appSettings['shop_name_fr'] || appSettings['shop_name_ar'] || 'TitaouPOS Superette';
+        const shopAddress = appSettings['shop_address'] || 'Rue Principale, Alger';
+        const shopPhone = appSettings['shop_phone'] || '0553444057';
+        const shopRc = appSettings['shop_rc'] || undefined;
+        const shopNif = appSettings['shop_nif'] || undefined;
+
         const receiptItems = $cartItems.map((i) => ({
           name: i.name_fr || i.name_ar,
           quantity: i.quantity,
@@ -210,9 +271,11 @@
         if (selectedPaymentMode === 'credit') {
           // Print 2 Copies: Store Copy + Client Copy
           const copy1 = buildReceiptHtml({
-            shopName: 'TitaouPOS Superette',
-            shopAddress: 'Rue Principale, Alger',
-            shopPhone: '0553444057',
+            shopName,
+            shopAddress,
+            shopPhone,
+            shopRc,
+            shopNif,
             saleNumber,
             saleDate,
             cashierName: cashier,
@@ -227,9 +290,11 @@
           });
 
           const copy2 = buildReceiptHtml({
-            shopName: 'TitaouPOS Superette',
-            shopAddress: 'Rue Principale, Alger',
-            shopPhone: '0553444057',
+            shopName,
+            shopAddress,
+            shopPhone,
+            shopRc,
+            shopNif,
             saleNumber,
             saleDate,
             cashierName: cashier,
@@ -246,9 +311,11 @@
           printHtmlDirectly(copy1 + '<div style="page-break-after:always;"></div>' + copy2, 'Credit Receipts');
         } else {
           const receipt = buildReceiptHtml({
-            shopName: 'TitaouPOS Superette',
-            shopAddress: 'Rue Principale, Alger',
-            shopPhone: '0553444057',
+            shopName,
+            shopAddress,
+            shopPhone,
+            shopRc,
+            shopNif,
             saleNumber,
             saleDate,
             cashierName: cashier,
@@ -264,7 +331,14 @@
 
       // Auto-kick cash drawer
       if (autoDrawerEnabled && selectedPaymentMode === 'cash') {
-        printHtmlDirectly('<div style="display:none"></div>', 'Kick Drawer');
+        try {
+          const settings = await invoke<Record<string, string>>('get_all_settings');
+          const port = parseInt(settings['drawer_com_port'] || '1');
+          const baud = parseInt(settings['drawer_baud_rate'] || '9600');
+          await invoke('open_serial_cash_drawer', { comPort: port, baudRate: baud });
+        } catch (drawerErr) {
+          console.warn('Native drawer checkout trigger notice:', drawerErr);
+        }
       }
 
       lastSaleSuccessNumber = saleNumber;
@@ -276,6 +350,7 @@
       }, 4000);
     } catch (err: any) {
       console.error('Failed to complete sale:', err);
+      alert('Checkout Failed: ' + (err.message || err));
     }
   }
 
@@ -291,7 +366,7 @@
     if (e.key === 'Enter') {
       if (barcodeBuffer.length >= 6) {
         e.preventDefault();
-        searchQuery = barcodeBuffer;
+        searchQuery = normalizeBarcode(barcodeBuffer);
         searchType = 'barcode';
         loadProducts();
         barcodeBuffer = '';
@@ -333,7 +408,11 @@
       isCashDrawerOpen = true;
     } else if (e.key === 'F10') {
       e.preventDefault();
-      printHtmlDirectly('<div style="display:none"></div>', 'Kick Drawer');
+      try {
+        invoke('open_serial_cash_drawer', { comPort: 1, baudRate: 9600 });
+      } catch (e) {
+        console.warn(e);
+      }
     }
   }
 </script>
@@ -351,6 +430,7 @@
     onPrintReceipt={() => (isPrintReceiptOpen = true)}
     onQuickPurchase={() => (isQuickPurchaseOpen = true)}
     onReturnDamaged={() => (isReturnDamagedOpen = true)}
+    onOpenOtherArticle={() => (isOtherArticleOpen = true)}
   />
 
   {#if lastSaleSuccessNumber}
@@ -458,15 +538,15 @@
       <div class="p-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-700 text-white shadow-xs">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shadow-md">
+            <div class="w-10 h-10 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md shrink-0">
               <img src="/logo.png" alt="Logo" class="w-full h-full object-contain" />
             </div>
             <div>
-              <h2 class="font-black text-base tracking-tight leading-none text-white drop-shadow-xs">
-                TitaouPOS Market
+              <h2 class="font-black text-base tracking-tight leading-none text-white drop-shadow-xs truncate max-w-[210px]">
+                {currentShopName}
               </h2>
               <p class="text-[10px] text-sky-200 font-bold leading-none mt-1">
-                Point de Vente & Caisse Moderne
+                {currentDate} • {currentTime}
               </p>
             </div>
           </div>
@@ -513,7 +593,7 @@
       </div>
 
       <!-- Cart Item Cards List -->
-      <div class="flex-1 overflow-y-auto p-2.5 space-y-2">
+      <div bind:this={cartContainerEl} class="flex-1 overflow-y-auto p-2.5 space-y-2">
         {#if $cartItems.length === 0}
           <div class="h-full flex flex-col items-center justify-center text-pos-muted p-4 text-center">
             <ShoppingBag class="w-10 h-10 stroke-1 mb-2 opacity-20" />
@@ -528,10 +608,13 @@
 
       <!-- Totals & Checkout Footer -->
       <div class="p-3.5 border-t border-pos-border bg-slate-50 dark:bg-slate-800/40 space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-black text-pos-text uppercase tracking-wider">TOTAL</span>
-          <span class="text-3xl font-black font-mono {$cartGrandTotal < 0 ? 'text-amber-600' : 'text-sky-600 dark:text-sky-400'}">
-            {$cartGrandTotal.toLocaleString()} DZD
+        <div class="flex items-center justify-between p-2.5 bg-sky-50/50 dark:bg-sky-950/30 rounded-xl border border-sky-200/60 dark:border-sky-800/60">
+          <div>
+            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">TOTAL PAYABLE</span>
+            <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} lines</span>
+          </div>
+          <span class="text-3xl lg:text-4xl font-black font-mono tracking-tight transition-all duration-200 hover:scale-105 {$cartGrandTotal < 0 ? 'text-amber-600' : 'text-sky-600 dark:text-sky-400'}">
+            {$cartGrandTotal.toLocaleString()} <span class="text-sm font-bold">DZD</span>
           </span>
         </div>
 
@@ -609,5 +692,10 @@
     totalAmount={$cartGrandTotal}
     onClose={() => (isCreditCustomerOpen = false)}
     onConfirmCredit={(cId, cName) => executeCheckout(cId, cName)}
+  />
+
+  <OtherArticleModal
+    isOpen={isOtherArticleOpen}
+    onClose={() => (isOtherArticleOpen = false)}
   />
 </div>

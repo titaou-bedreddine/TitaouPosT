@@ -51,6 +51,12 @@ pub struct Product {
     pub max_stock: Option<f64>,
     pub image_path: Option<String>,
     pub expiry_date: Option<String>,
+    pub is_scalable: bool,
+    pub scale_code: Option<String>,
+    pub scale_plu: Option<i64>,
+    pub scale_barcode_type: Option<i64>,
+    pub scale_department_id: Option<i64>,
+    pub scale_sync_status: Option<String>,
     pub is_bundle: bool,
     pub is_active: bool,
     pub barcodes: Vec<String>,
@@ -72,6 +78,19 @@ pub struct ProductInput {
     pub min_stock: f64,
     pub image_path: Option<String>,
     pub expiry_date: Option<String>,
+    #[serde(default)]
+    pub is_scalable: bool,
+    #[serde(default)]
+    pub scale_code: Option<String>,
+    #[serde(default)]
+    pub scale_plu: Option<i64>,
+    #[serde(default)]
+    pub scale_barcode_type: Option<i64>,
+    #[serde(default)]
+    pub scale_department_id: Option<i64>,
+    #[serde(default)]
+    pub scale_sync_status: Option<String>,
+    #[serde(default)]
     pub is_bundle: bool,
     pub barcodes: Vec<String>,
 }
@@ -111,42 +130,75 @@ pub struct CashMovement {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CartItem {
     pub product_id: i64,
+    #[serde(default)]
     pub sku: Option<String>,
+    #[serde(default)]
     pub barcode: Option<String>,
-    pub name_ar: String,
-    pub name_fr: String,
-    pub name_en: String,
+    #[serde(default)]
+    pub name_ar: Option<String>,
+    #[serde(default)]
+    pub name_fr: Option<String>,
+    #[serde(default)]
+    pub name_en: Option<String>,
+    #[serde(default)]
     pub image_path: Option<String>,
+    #[serde(default)]
     pub unit_price: i64,
+    #[serde(default)]
     pub quantity: f64,
+    #[serde(default)]
     pub discount_amount: i64,
+    #[serde(default)]
     pub tax_amount: i64,
+    #[serde(default)]
     pub total_price: i64,
+    #[serde(default)]
     pub is_refund: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SalePaymentInput {
+    #[serde(default)]
     pub payment_method: String,
+    #[serde(default)]
     pub amount: i64,
+    #[serde(default)]
     pub reference_code: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct CreateSaleInput {
+    #[serde(default)]
     pub session_id: i64,
+    #[serde(default)]
     pub user_id: i64,
+    #[serde(default)]
     pub customer_id: Option<i64>,
+    #[serde(default)]
     pub items: Vec<CartItem>,
+    #[serde(default)]
     pub subtotal: i64,
+    #[serde(default)]
     pub discount_amount: i64,
+    #[serde(default)]
     pub discount_percentage: f64,
+    #[serde(default)]
     pub discount_reason: Option<String>,
+    #[serde(default)]
     pub tax_amount: i64,
+    #[serde(default)]
     pub total_amount: i64,
+    #[serde(default)]
     pub paid_amount: i64,
+    #[serde(default)]
     pub change_amount: i64,
+    #[serde(default)]
     pub payments: Vec<SalePaymentInput>,
+    #[serde(default)]
+    pub payment_method: Option<String>,
+    #[serde(default)]
+    pub is_refund: Option<bool>,
+    #[serde(default)]
     pub notes: Option<String>,
 }
 
@@ -165,6 +217,7 @@ pub struct Sale {
     pub total_amount: i64,
     pub paid_amount: i64,
     pub change_amount: i64,
+    pub payment_method: Option<String>,
     pub payment_status: String,
     pub status: String,
     pub created_at: String,
@@ -226,25 +279,67 @@ pub struct PurchaseItemInput {
     pub product_id: i64,
     pub quantity: f64,
     pub unit_cost: i64,
+    #[serde(default)]
     pub discount: i64,
+    #[serde(default)]
     pub tax: i64,
+    #[serde(default)]
     pub total: i64,
+    #[serde(default)]
+    pub expiry_date: Option<String>,
+    #[serde(default)]
+    pub batch_number: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CreatePurchaseInput {
     pub invoice_number: String,
     pub supplier_id: i64,
+    #[serde(default)]
     pub user_id: i64,
+    #[serde(default, alias = "purchase_date")]
     pub date: String,
+    #[serde(default)]
     pub subtotal: i64,
+    #[serde(default)]
     pub discount: i64,
+    #[serde(default)]
     pub tax: i64,
+    #[serde(default, alias = "total_amount")]
     pub total: i64,
+    #[serde(default)]
     pub paid_amount: i64,
+    #[serde(default)]
     pub payment_method: String,
     pub items: Vec<PurchaseItemInput>,
+    #[serde(default)]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ScaleSyncLog {
+    pub id: i64,
+    pub product_id: Option<i64>,
+    pub product_name: Option<String>,
+    pub scale_plu: Option<i64>,
+    pub action: String,
+    pub direction: String,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub user_name: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ScaleConfig {
+    pub enabled: bool,
+    pub model: String,
+    pub ip_address: String,
+    pub port: u32,
+    pub protocol_type: u32,
+    pub default_barcode_type: i64,
+    pub department_id: i64,
+    pub auto_sync_on_change: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

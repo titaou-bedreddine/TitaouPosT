@@ -4,10 +4,10 @@
   import type { Purchase, Supplier, Product } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
-  import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
   import {
     FileSpreadsheet, Plus, Trash2, CheckCircle2, Search, Package,
-    Printer, Eye, Edit3, X, Tag, DollarSign, ArrowRight
+    Printer, Eye, Edit3, X, Tag, DollarSign, ArrowRight, Truck,
+    TrendingUp, AlertCircle
   } from 'lucide-svelte';
 
   let purchases: Purchase[] = [];
@@ -22,9 +22,10 @@
   let paymentMethod = 'cash';
   let notes = '';
 
-  // OmniSearch inside invoice
+  // 1-character live search
   let searchQuery = '';
-  let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
+  let liveSearchResults: Product[] = [];
+  let isSearchDropdownOpen = false;
 
   interface ItemRow {
     product_id: number;
@@ -58,23 +59,26 @@
     }
   }
 
-  async function handleOmniSearchProduct() {
-    if (!searchQuery.trim()) return;
-    try {
-      const results = await invoke<Product[]>('search_products', {
-        query: searchQuery.trim(),
-        categoryId: null,
-        searchType: searchType === 'qr' ? 'barcode' : searchType,
-      });
+  $: if (searchQuery.trim().length > 0) {
+    const q = searchQuery.trim().toLowerCase();
+    liveSearchResults = products
+      .filter(p =>
+        (p.name_fr && p.name_fr.toLowerCase().includes(q)) ||
+        (p.name_ar && p.name_ar.toLowerCase().includes(q)) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.barcodes && p.barcodes.some(b => b.toLowerCase().includes(q)))
+      )
+      .slice(0, 8);
+    isSearchDropdownOpen = liveSearchResults.length > 0;
+  } else {
+    liveSearchResults = [];
+    isSearchDropdownOpen = false;
+  }
 
-      if (results.length > 0) {
-        const p = results[0];
-        await addItemAndFocus(p);
-        searchQuery = '';
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  async function selectProductFromSearch(p: Product) {
+    searchQuery = '';
+    isSearchDropdownOpen = false;
+    await addItemAndFocus(p);
   }
 
   async function addItemAndFocus(p: Product) {
@@ -132,7 +136,7 @@
   function handleSaleKeyDown(e: KeyboardEvent, idx: number) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const searchInput = document.querySelector('.omni-purchase-search input') as HTMLInputElement;
+      const searchInput = document.getElementById('purchase-omni-input') as HTMLInputElement;
       if (searchInput) {
         searchInput.focus();
         searchInput.select();
@@ -153,16 +157,8 @@
   $: subtotal = items.reduce((sum, i) => sum + i.total, 0);
   $: total = subtotal;
 
-  function setPaidAll() {
-    paidAmount = total;
-  }
-
-  function setPaidHalf() {
-    paidAmount = Math.round(total / 2);
-  }
-
-  function setPaidZero() {
-    paidAmount = 0;
+  function setPaidPercent(pct: number) {
+    paidAmount = Math.round((total * pct) / 100);
   }
 
   async function handleCreatePurchase() {
@@ -178,17 +174,22 @@
         input: {
           invoice_number: invNum,
           supplier_id: selectedSupplierId,
-          purchase_date: invoiceDate,
-          total_amount: total,
+          user_id: $currentUser?.id || 1,
+          date: invoiceDate,
+          subtotal: subtotal,
+          discount: 0,
+          tax: 0,
+          total: total,
           paid_amount: paidAmount,
-          payment_status: paidAmount >= total ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid',
           payment_method: paymentMethod,
           notes: notes || 'Facture Achat',
           items: items.map(i => ({
             product_id: i.product_id,
             quantity: i.quantity,
             unit_cost: i.unit_cost,
-            total_cost: i.total,
+            discount: 0,
+            tax: 0,
+            total: i.total,
             expiry_date: null,
             batch_number: null,
           })),
@@ -220,9 +221,9 @@
   }
 </script>
 
-<div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none">
+<div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none space-y-4">
   <!-- Header -->
-  <div class="flex items-center justify-between pb-4 border-b border-pos-border shrink-0">
+  <div class="flex items-center justify-between pb-3 border-b border-pos-border shrink-0">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
         <FileSpreadsheet class="w-5 h-5" />
@@ -233,28 +234,26 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
-      <button
-        type="button"
-        on:click={() => { isCreateOpen = true; items = []; }}
-        class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
-      >
-        <Plus class="w-4 h-4" />
-        <span>New Purchase (فاتورة شراء جديدة)</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      on:click={() => { isCreateOpen = true; errorMsg = ''; }}
+      class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+    >
+      <Plus class="w-4 h-4" />
+      <span>New Purchase (فاتورة شراء جديدة)</span>
+    </button>
   </div>
 
-  <!-- Purchases History Table -->
-  <div class="flex-1 overflow-y-auto mt-4 bg-pos-card border border-pos-border rounded-2xl shadow-xs">
+  <!-- Purchases List Table -->
+  <div class="flex-1 overflow-y-auto bg-pos-card border border-pos-border rounded-2xl shadow-xs">
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
           <th class="p-3 text-start">Invoice #</th>
-          <th class="p-3 text-start">Supplier / المورد</th>
           <th class="p-3 text-start">Date</th>
+          <th class="p-3 text-start">Supplier / المورد</th>
           <th class="p-3 text-end">Total Amount</th>
-          <th class="p-3 text-end">Paid Amount</th>
+          <th class="p-3 text-end">Paid (المدفوع)</th>
           <th class="p-3 text-center">Status</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
@@ -265,21 +264,21 @@
             <td colspan="7" class="p-8 text-center text-pos-muted">No purchase invoices recorded yet.</td>
           </tr>
         {:else}
-          {#each purchases as p}
+          {#each purchases as pur}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-              <td class="p-3 font-mono font-bold text-sky-600">#{p.invoice_number}</td>
-              <td class="p-3 font-bold text-pos-text">{p.supplier_name || 'Fournisseur Divers'}</td>
-              <td class="p-3 font-mono text-pos-muted">{p.purchase_date}</td>
-              <td class="p-3 text-end font-mono font-black text-pos-text">{p.total_amount.toLocaleString()} DZD</td>
-              <td class="p-3 text-end font-mono font-bold text-emerald-600">{p.paid_amount.toLocaleString()} DZD</td>
+              <td class="p-3 font-mono font-bold text-sky-600">#{pur.invoice_number}</td>
+              <td class="p-3 font-mono text-pos-muted">{pur.date}</td>
+              <td class="p-3 font-bold text-pos-text">{pur.supplier_name || 'Fournisseur Inconnu'}</td>
+              <td class="p-3 text-end font-mono font-black text-pos-text">{pur.total.toLocaleString()} DZD</td>
+              <td class="p-3 text-end font-mono font-black text-emerald-600">{pur.paid_amount.toLocaleString()} DZD</td>
               <td class="p-3 text-center">
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase font-mono {p.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}">
-                  {p.payment_status}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase {pur.paid_amount >= pur.total ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}">
+                  {pur.paid_amount >= pur.total ? 'Paid' : 'Credit / Dette'}
                 </span>
               </td>
               <td class="p-3 text-end">
                 <div class="flex items-center justify-end gap-1">
-                  <button on:click={() => (previewPurchase = p)} class="p-1.5 hover:text-sky-600 rounded-lg cursor-pointer" title="Preview">
+                  <button on:click={() => (previewPurchase = pur)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="View Details">
                     <Eye class="w-4 h-4" />
                   </button>
                 </div>
@@ -295,8 +294,8 @@
 <!-- Modal: New Purchase Invoice -->
 {#if isCreateOpen}
   <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
-      <!-- Header -->
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <!-- Modal Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-sky-600/10 text-sky-600 flex items-center justify-center font-bold">
@@ -313,112 +312,136 @@
       </div>
 
       {#if errorMsg}
-        <div class="mx-6 mt-4 p-3 bg-rose-100 text-rose-800 text-xs font-bold rounded-xl">{errorMsg}</div>
+        <div class="mx-6 mt-4 p-3 bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 text-xs font-bold rounded-xl border border-rose-300">
+          {errorMsg}
+        </div>
       {/if}
 
-      <div class="p-6 overflow-y-auto flex-1 space-y-4">
-        <!-- Supplier & Metadata Row -->
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-4 flex-1">
+        <!-- Supplier, Invoice # & Date Row -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Supplier / المورد</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">Supplier / المورد *</label>
             <select bind:value={selectedSupplierId} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
               {#each suppliers as s}
                 <option value={s.id}>{s.name} ({s.phone || 'No phone'})</option>
               {/each}
             </select>
           </div>
+
           <div>
             <label class="block text-xs font-bold text-pos-muted mb-1">Invoice / Bon Number</label>
             <input type="text" bind:value={invoiceNumber} placeholder="Ex: ACH-2026-001" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
           </div>
+
           <div>
             <label class="block text-xs font-bold text-pos-muted mb-1">Date</label>
             <input type="date" bind:value={invoiceDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
           </div>
         </div>
 
-        <!-- OmniSearch Scanner Input -->
-        <div class="omni-purchase-search p-3 bg-sky-50/50 dark:bg-sky-950/20 rounded-2xl border border-sky-200 dark:border-sky-800 flex items-center gap-2">
-          <div class="flex-1">
-            <UniversalSearchBar
-              bind:query={searchQuery}
-              bind:searchType
-              onSearch={handleOmniSearchProduct}
+        <!-- 1-Character Live Search Bar -->
+        <div class="relative">
+          <div class="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-pos-border">
+            <Search class="w-4 h-4 text-pos-muted ml-2" />
+            <input
+              id="purchase-omni-input"
+              type="text"
+              bind:value={searchQuery}
+              placeholder="Search by typing 1 letter, digit, barcode, or name (Ex: 'c', 'lait', '2')..."
+              class="w-full bg-transparent border-0 text-xs font-bold text-pos-text outline-none"
             />
+            {#if searchQuery}
+              <button on:click={() => (searchQuery = '')} class="text-pos-muted hover:text-pos-text p-1"><X class="w-3.5 h-3.5" /></button>
+            {/if}
           </div>
-          <button
-            type="button"
-            on:click={handleOmniSearchProduct}
-            class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl cursor-pointer"
-          >
-            Add
-          </button>
+
+          <!-- Live Instant Search Dropdown Cards -->
+          {#if isSearchDropdownOpen}
+            <div class="absolute left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-2xl shadow-xl z-30 max-h-60 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 gap-2 animate-in fade-in">
+              {#each liveSearchResults as p}
+                <button
+                  type="button"
+                  on:click={() => selectProductFromSearch(p)}
+                  class="flex items-center justify-between p-2.5 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/60 border border-pos-border text-start transition cursor-pointer"
+                >
+                  <div class="min-w-0">
+                    <p class="text-xs font-black text-pos-text truncate">{p.name_fr || p.name_ar}</p>
+                    <p class="text-[10px] text-pos-muted font-mono">{p.barcodes?.[0] || p.sku || 'No barcode'} • Stock: {p.current_stock}</p>
+                  </div>
+                  <div class="text-end shrink-0 ml-2">
+                    <p class="text-xs font-black text-sky-600 font-mono">{p.purchase_price} DZD</p>
+                    <span class="text-[9px] text-emerald-600 font-bold">Sale: {p.sale_price}</span>
+                  </div>
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
 
-        <!-- Items Table with auto-tabbing -->
-        <div class="border border-pos-border rounded-2xl overflow-hidden">
-          <table class="w-full text-xs text-start border-collapse">
-            <thead class="bg-slate-100 dark:bg-slate-800 border-b border-pos-border font-bold text-pos-muted">
+        <!-- Items Table -->
+        <div class="bg-pos-card border border-pos-border rounded-2xl overflow-hidden shadow-xs">
+          <table class="w-full text-start text-xs border-collapse">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
               <tr>
-                <th class="p-2 text-start">Product</th>
-                <th class="p-2 text-center w-24">Qty (Qté)</th>
-                <th class="p-2 text-end w-32">Purchase Cost</th>
-                <th class="p-2 text-end w-32">Sale Price</th>
-                <th class="p-2 text-end w-28">Total Cost</th>
-                <th class="p-2 text-center w-12"></th>
+                <th class="p-2.5 text-start">Product</th>
+                <th class="p-2.5 text-center w-24">Qty (Qté)</th>
+                <th class="p-2.5 text-center w-28">Purchase Cost</th>
+                <th class="p-2.5 text-center w-28">Sale Price</th>
+                <th class="p-2.5 text-end w-28">Total Cost</th>
+                <th class="p-2.5 text-center w-12"></th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-pos-border">
+            <tbody class="divide-y divide-pos-border/40">
               {#if items.length === 0}
                 <tr>
-                  <td colspan="6" class="p-6 text-center text-pos-muted font-medium">
-                    Scan a barcode or search above to add products to this invoice.
-                  </td>
+                  <td colspan="6" class="p-6 text-center text-pos-muted">Scan or type in the search bar above to add products.</td>
                 </tr>
               {:else}
                 {#each items as item, idx}
-                  <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td class="p-2">
-                      <p class="font-bold text-pos-text">{item.name}</p>
+                  <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                    <td class="p-2.5 font-bold text-pos-text">
+                      <p>{item.name}</p>
                       <p class="text-[10px] text-pos-muted font-mono">{item.barcode}</p>
                     </td>
-                    <td class="p-2 text-center">
+                    <td class="p-2.5 text-center">
                       <input
-                        id="qty-{idx}"
+                        id={`qty-${idx}`}
                         type="number"
                         min="1"
                         bind:value={item.quantity}
                         on:input={updateTotals}
                         on:keydown={(e) => handleQtyKeyDown(e, idx)}
-                        class="w-18 text-center px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg font-mono font-black text-xs outline-none focus:ring-2 focus:ring-sky-500"
+                        class="w-20 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-black text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
-                    <td class="p-2 text-end">
+                    <td class="p-2.5 text-center">
                       <input
-                        id="cost-{idx}"
+                        id={`cost-${idx}`}
                         type="number"
                         min="0"
                         bind:value={item.unit_cost}
                         on:input={updateTotals}
                         on:keydown={(e) => handleCostKeyDown(e, idx)}
-                        class="w-24 text-end px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg font-mono font-bold text-xs outline-none focus:ring-2 focus:ring-sky-500"
+                        class="w-24 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
-                    <td class="p-2 text-end">
+                    <td class="p-2.5 text-center">
                       <input
-                        id="sale-{idx}"
+                        id={`sale-${idx}`}
                         type="number"
                         min="0"
                         bind:value={item.sale_price}
                         on:keydown={(e) => handleSaleKeyDown(e, idx)}
-                        class="w-24 text-end px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg font-mono font-bold text-xs text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
+                        class="w-24 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-bold text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
-                    <td class="p-2 text-end font-mono font-black text-pos-text">
+                    <td class="p-2.5 text-end font-mono font-black text-pos-text">
                       {item.total.toLocaleString()} DZD
                     </td>
-                    <td class="p-2 text-center">
-                      <button on:click={() => removeItem(idx)} class="text-rose-500 hover:text-rose-700 p-1 cursor-pointer">
+                    <td class="p-2.5 text-center">
+                      <button on:click={() => removeItem(idx)} class="text-pos-muted hover:text-rose-600 p-1 cursor-pointer">
                         <Trash2 class="w-4 h-4" />
                       </button>
                     </td>
@@ -429,91 +452,59 @@
           </table>
         </div>
 
-        <!-- Payment Settlement Row -->
+        <!-- Settlement & Totals Grid -->
         <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <div class="space-y-1">
-            <span class="text-xs text-pos-muted font-bold">Paid to Supplier / المبلغ المدفوع للمورد</span>
-            <div class="flex items-center gap-1.5">
+          <div class="space-y-1.5 w-full md:w-auto">
+            <label class="block text-xs font-bold text-pos-muted">Paid to Supplier / المبلغ المدفوع للمورد</label>
+            <div class="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
                 max={total}
                 bind:value={paidAmount}
-                class="px-3 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-black text-emerald-600 outline-none"
+                class="w-36 px-3 py-1.5 bg-pos-card border border-pos-border rounded-xl text-sm font-mono font-black text-emerald-600 outline-none"
               />
-              <button type="button" on:click={setPaidAll} class="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text rounded-lg text-xs font-bold cursor-pointer">All (الكل)</button>
-              <button type="button" on:click={setPaidHalf} class="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text rounded-lg text-xs font-bold cursor-pointer">Half (النصف)</button>
-              <button type="button" on:click={setPaidZero} class="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text rounded-lg text-xs font-bold cursor-pointer">0 (دين)</button>
+              <div class="flex items-center gap-1">
+                <button type="button" on:click={() => setPaidPercent(0)} class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-[10px] font-bold rounded-lg cursor-pointer">0 (دين)</button>
+                <button type="button" on:click={() => setPaidPercent(25)} class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-[10px] font-bold rounded-lg cursor-pointer">25%</button>
+                <button type="button" on:click={() => setPaidPercent(50)} class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-[10px] font-bold rounded-lg cursor-pointer">Half (النصف)</button>
+                <button type="button" on:click={() => setPaidPercent(75)} class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-[10px] font-bold rounded-lg cursor-pointer">75%</button>
+                <button type="button" on:click={() => setPaidPercent(100)} class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-[10px] font-bold rounded-lg cursor-pointer">All (الكل)</button>
+              </div>
             </div>
           </div>
 
           <div class="text-end">
-            <span class="text-xs text-pos-muted font-bold block">Total Invoice:</span>
-            <span class="text-2xl font-black font-mono text-sky-600 dark:text-sky-400">{total.toLocaleString()} DZD</span>
+            <p class="text-xs text-pos-muted font-bold">Total Invoice:</p>
+            <p class="text-2xl font-black font-mono text-sky-600">{total.toLocaleString()} DZD</p>
           </div>
         </div>
       </div>
 
-      <!-- Footer Buttons -->
+      <!-- Modal Footer -->
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
         <button
           type="button"
           on:click={printLabelsForPurchase}
-          disabled={items.length === 0}
-          class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 disabled:opacity-40 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+          class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
         >
-          <Tag class="w-4 h-4 text-sky-500" />
+          <Tag class="w-4 h-4" />
           <span>Auto-Print Shelf Tags (طباعة ملصقات الأسعار)</span>
         </button>
 
         <div class="flex items-center gap-2">
-          <button on:click={() => (isCreateOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Cancel</button>
-          <button on:click={handleCreatePurchase} disabled={items.length === 0 || isSaving} class="px-6 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+          <button on:click={() => (isCreateOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
+            Cancel
+          </button>
+          <button
+            on:click={handleCreatePurchase}
+            disabled={isSaving}
+            class="px-6 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
             <CheckCircle2 class="w-4 h-4" />
             <span>{isSaving ? 'Saving...' : 'Save Invoice (حفظ الفاتورة)'}</span>
           </button>
         </div>
-      </div>
-    </div>
-  </div>
-{/if}
-
-<!-- Modal: Preview Purchase -->
-{#if previewPurchase}
-  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
-        <h3 class="font-black text-base text-pos-text">Purchase Invoice #{previewPurchase.invoice_number}</h3>
-        <button on:click={() => (previewPurchase = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
-          <X class="w-5 h-5" />
-        </button>
-      </div>
-
-      <div class="p-6 space-y-3 text-xs">
-        <div class="flex justify-between">
-          <span class="text-pos-muted">Supplier:</span>
-          <span class="font-bold text-pos-text">{previewPurchase.supplier_name}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-pos-muted">Date:</span>
-          <span class="font-mono text-pos-text">{previewPurchase.purchase_date}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-pos-muted">Total:</span>
-          <span class="font-black font-mono text-sky-600">{previewPurchase.total_amount.toLocaleString()} DZD</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-pos-muted">Paid:</span>
-          <span class="font-bold font-mono text-emerald-600">{previewPurchase.paid_amount.toLocaleString()} DZD</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-pos-muted">Status:</span>
-          <span class="font-bold uppercase font-mono">{previewPurchase.payment_status}</span>
-        </div>
-      </div>
-
-      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end">
-        <button on:click={() => (previewPurchase = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
       </div>
     </div>
   </div>

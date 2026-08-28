@@ -44,8 +44,40 @@ export interface Product {
   min_stock: number;
   max_stock?: number;
   image_path?: string;
+  expiry_date?: string;
+  is_scalable: boolean;
+  scale_code?: string;
+  scale_plu?: number;
+  scale_barcode_type?: number;
+  scale_department_id?: number;
+  scale_sync_status?: string;
   is_bundle: boolean;
   is_active: boolean;
+  barcodes: string[];
+}
+
+export interface ProductInput {
+  sku?: string;
+  name_ar: string;
+  name_fr: string;
+  name_en: string;
+  category_id?: number | null;
+  unit_id?: number | null;
+  purchase_price: number;
+  sale_price: number;
+  min_sale_price: number;
+  tax_rate: number;
+  current_stock: number;
+  min_stock: number;
+  image_path?: string;
+  expiry_date?: string;
+  is_scalable: boolean;
+  scale_code?: string;
+  scale_plu?: number;
+  scale_barcode_type?: number;
+  scale_department_id?: number;
+  scale_sync_status?: string;
+  is_bundle: boolean;
   barcodes: string[];
 }
 
@@ -109,6 +141,7 @@ export interface Sale {
   total_amount: number;
   paid_amount: number;
   change_amount: number;
+  payment_method?: string;
   payment_status: string;
   status: string;
   created_at: string;

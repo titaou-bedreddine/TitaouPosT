@@ -14,7 +14,10 @@ pub fn search_products(
     let mut sql = String::from(
         "SELECT DISTINCT p.id, p.sku, p.name_ar, p.name_fr, p.name_en, p.category_id, c.name_ar,
                 p.unit_id, u.name, p.purchase_price, p.sale_price, p.min_sale_price, p.tax_rate,
-                p.current_stock, p.min_stock, p.max_stock, p.image_path, p.expiry_date, p.is_bundle, p.is_active
+                p.current_stock, p.min_stock, p.max_stock, p.image_path, p.expiry_date,
+                COALESCE(p.is_scalable, 0), p.scale_code, p.scale_plu, COALESCE(p.scale_barcode_type, 97),
+                COALESCE(p.scale_department_id, 1), COALESCE(p.scale_sync_status, 'pending'),
+                p.is_bundle, p.is_active
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
          LEFT JOIN units u ON p.unit_id = u.id
@@ -54,6 +57,7 @@ pub fn search_products(
 
     let product_rows = stmt
         .query_map([], |row| {
+            let is_scalable_int: i64 = row.get(18)?;
             Ok(Product {
                 id: row.get(0)?,
                 sku: row.get(1)?,
@@ -73,8 +77,14 @@ pub fn search_products(
                 max_stock: row.get(15)?,
                 image_path: row.get(16)?,
                 expiry_date: row.get(17)?,
-                is_bundle: row.get(18)?,
-                is_active: row.get(19)?,
+                is_scalable: is_scalable_int == 1,
+                scale_code: row.get(19)?,
+                scale_plu: row.get(20)?,
+                scale_barcode_type: row.get(21)?,
+                scale_department_id: row.get(22)?,
+                scale_sync_status: row.get(23)?,
+                is_bundle: row.get(24)?,
+                is_active: row.get(25)?,
                 barcodes: Vec::new(),
             })
         })
@@ -103,15 +113,36 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
+    let is_scalable_int = if input.is_scalable { 1 } else { 0 };
+
     let id = if let Some(pid) = product_id {
+        // Fetch old prices for price history
+        let old_prices: Option<(i64, i64)> = tx.query_row(
+            "SELECT purchase_price, sale_price FROM products WHERE id = ?1",
+            [pid],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).ok();
+
+        if let Some((old_pur, old_sale)) = old_prices {
+            if old_pur != input.purchase_price || old_sale != input.sale_price {
+                let _ = tx.execute(
+                    "INSERT INTO product_price_history (product_id, old_purchase_price, new_purchase_price, old_sale_price, new_sale_price)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![pid, old_pur, input.purchase_price, old_sale, input.sale_price],
+                );
+            }
+        }
+
         tx.execute(
             "UPDATE products SET
                 sku = ?1, name_ar = ?2, name_fr = ?3, name_en = ?4,
                 category_id = ?5, unit_id = ?6, purchase_price = ?7,
                 sale_price = ?8, min_sale_price = ?9, tax_rate = ?10,
                 current_stock = ?11, min_stock = ?12, image_path = ?13,
-                expiry_date = ?14, is_bundle = ?15
-             WHERE id = ?16",
+                expiry_date = ?14, is_scalable = ?15, scale_code = ?16,
+                scale_plu = ?17, scale_barcode_type = ?18, scale_department_id = ?19,
+                scale_sync_status = ?20, is_bundle = ?21
+             WHERE id = ?22",
             rusqlite::params![
                 input.sku,
                 input.name_ar,
@@ -127,6 +158,12 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
                 input.min_stock,
                 input.image_path,
                 input.expiry_date,
+                is_scalable_int,
+                input.scale_code,
+                input.scale_plu,
+                input.scale_barcode_type,
+                input.scale_department_id,
+                input.scale_sync_status.unwrap_or_else(|| "pending".to_string()),
                 input.is_bundle,
                 pid
             ],
@@ -145,8 +182,10 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
             "INSERT INTO products (
                 sku, name_ar, name_fr, name_en, category_id, unit_id,
                 purchase_price, sale_price, min_sale_price, tax_rate,
-                current_stock, min_stock, image_path, expiry_date, is_bundle, is_active
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1)",
+                current_stock, min_stock, image_path, expiry_date,
+                is_scalable, scale_code, scale_plu, scale_barcode_type,
+                scale_department_id, scale_sync_status, is_bundle, is_active
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, 1)",
             rusqlite::params![
                 input.sku,
                 input.name_ar,
@@ -162,12 +201,26 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
                 input.min_stock,
                 input.image_path,
                 input.expiry_date,
+                is_scalable_int,
+                input.scale_code,
+                input.scale_plu,
+                input.scale_barcode_type,
+                input.scale_department_id,
+                input.scale_sync_status.unwrap_or_else(|| "pending".to_string()),
                 input.is_bundle
             ],
         )
         .map_err(|e| e.to_string())?;
 
-        tx.last_insert_rowid()
+        let new_id = tx.last_insert_rowid();
+
+        let _ = tx.execute(
+            "INSERT INTO product_price_history (product_id, old_purchase_price, new_purchase_price, old_sale_price, new_sale_price)
+             VALUES (?1, 0, ?2, 0, ?3)",
+            rusqlite::params![new_id, input.purchase_price, input.sale_price],
+        );
+
+        new_id
     };
 
     for (i, barcode) in input.barcodes.iter().enumerate() {
@@ -263,4 +316,23 @@ pub fn get_units(db: &DbState) -> Result<Vec<Unit>, String> {
 
     let list: Vec<Unit> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+
+pub fn save_unit(db: &DbState, name: &str, short_name: &str, allow_decimals: bool, unit_id: Option<i64>) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    if let Some(uid) = unit_id {
+        conn.execute(
+            "UPDATE units SET name = ?1, short_name = ?2, allow_decimals = ?3 WHERE id = ?4",
+            rusqlite::params![name, short_name, allow_decimals, uid],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(uid)
+    } else {
+        conn.execute(
+            "INSERT INTO units (name, short_name, allow_decimals) VALUES (?1, ?2, ?3)",
+            rusqlite::params![name, short_name, allow_decimals],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(conn.last_insert_rowid())
+    }
 }

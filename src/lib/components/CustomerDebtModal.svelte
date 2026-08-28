@@ -4,6 +4,7 @@
   import { currentUser } from '../stores/auth';
   import { activeSession } from '../stores/session';
   import { QrCode, Printer, FileText, X, Check, DollarSign } from 'lucide-svelte';
+  import { printHtmlDirectly } from '../utils/printer';
 
   export let isOpen = false;
   export let customer: Customer | null = null;
@@ -44,7 +45,18 @@
         }
       });
       if (autoPrint) {
-        window.print();
+        const voucherHtml = `
+          <div style="text-align:center; font-family:monospace; font-size:10px; width:72mm; margin:0 auto; padding:2mm;">
+            <p style="font-size:14px; font-weight:900;">PAYMENT RECEIPT / وصل دفع</p>
+            <hr style="border-top:1px dashed #000; margin:4px 0;" />
+            <p>Amount: <strong>${amount} DZD</strong></p>
+            <p>Method: <strong>${paymentMethod.toUpperCase()}</strong></p>
+            ${reference ? `<p>Ref: ${reference}</p>` : ''}
+            ${notes ? `<p>Notes: ${notes}</p>` : ''}
+            <p style="font-size:8px; margin-top:6px;">TitaouPOS • Titaou Bedreddine</p>
+          </div>
+        `;
+        printHtmlDirectly(voucherHtml, 'Debt Payment Receipt');
       }
       onPaymentRecorded();
       onClose();

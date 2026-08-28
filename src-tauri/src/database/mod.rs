@@ -57,6 +57,74 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN is_scalable INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_code TEXT;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_plu INTEGER;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_barcode_type INTEGER DEFAULT 97;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_department_id INTEGER DEFAULT 1;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_sync_status TEXT DEFAULT 'pending';", []);
+
+        let _ = conn.execute(
+            "CREATE TABLE IF NOT EXISTS scale_sync_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER,
+                product_name TEXT,
+                scale_plu INTEGER,
+                action TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                user_name TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );",
+            [],
+        );
+
+        let _ = conn.execute(
+            "CREATE TABLE IF NOT EXISTS product_price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                old_purchase_price INTEGER NOT NULL,
+                new_purchase_price INTEGER NOT NULL,
+                old_sale_price INTEGER NOT NULL,
+                new_sale_price INTEGER NOT NULL,
+                user_id INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );",
+            [],
+        );
+
+        // Seed default expense categories if empty
+        let _ = conn.execute_batch("
+            INSERT OR IGNORE INTO expense_categories (id, name_ar, name_fr, name_en, description, is_active) VALUES
+            (1, 'إيجار المحل', 'Loyer du magasin', 'Store Rent', 'Loyer commercial', 1),
+            (2, 'كهرباء وغاز ومياه', 'Électricité & Eau', 'Utilities', 'Factures Sonelgaz et Eau', 1),
+            (3, 'نقل وتوصيل', 'Transport & Livraison', 'Transport & Delivery', 'Frais de transport', 1),
+            (4, 'صيانة وإصلاح', 'Maintenance & Réparation', 'Maintenance', 'Entretien matériel', 1),
+            (5, 'مستلزمات وتغليف', 'Fournitures & Emballage', 'Supplies & Packaging', 'Sacs et emballage', 1),
+            (6, 'مصاريف عامة متنوعة', 'Divers / Général', 'General Expenses', 'Dépenses diverses', 1);
+        ");
+
+        // Seed default Walk-in Customer if not present
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO customers (id, name, code, phone, qr_code, balance, is_active)
+             VALUES (1, 'Client Comptoir / زبون عادي', 'CUST-001', '0550000000', 'CUST-001', 0, 1);",
+            [],
+        );
+
+        // Performance Indexes
+        let _ = conn.execute_batch("
+            CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+            CREATE INDEX IF NOT EXISTS idx_products_scalable ON products(is_scalable);
+            CREATE INDEX IF NOT EXISTS idx_products_expiry ON products(expiry_date);
+            CREATE INDEX IF NOT EXISTS idx_barcodes_barcode ON barcodes(barcode);
+            CREATE INDEX IF NOT EXISTS idx_barcodes_product_id ON barcodes(product_id);
+            CREATE INDEX IF NOT EXISTS idx_sales_invoice_number ON sales(invoice_number);
+            CREATE INDEX IF NOT EXISTS idx_sales_user_id ON sales(user_id);
+            CREATE INDEX IF NOT EXISTS idx_purchases_invoice ON purchases(invoice_number);
+            CREATE INDEX IF NOT EXISTS idx_employees_code ON employees(employee_code);
+            CREATE INDEX IF NOT EXISTS idx_customers_code ON customers(code);
+        ");
 
         let m2 = include_str!("../../migrations/002_seed_data.sql");
         let _ = conn.execute_batch(m2);
