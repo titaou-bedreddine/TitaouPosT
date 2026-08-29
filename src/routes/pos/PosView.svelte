@@ -146,9 +146,9 @@
 
       // Sort products
       if (sortBy === 'name_asc') {
-        list.sort((a, b) => (a.name_fr || a.name_ar).localeCompare(b.name_fr || b.name_ar));
+        list.sort((a, b) => ((a.name_fr || a.name_ar || '') as string).localeCompare((b.name_fr || b.name_ar || '') as string));
       } else if (sortBy === 'name_desc') {
-        list.sort((a, b) => (b.name_fr || b.name_ar).localeCompare(a.name_fr || a.name_ar));
+        list.sort((a, b) => ((b.name_fr || b.name_ar || '') as string).localeCompare((a.name_fr || a.name_ar || '') as string));
       } else if (sortBy === 'price_asc') {
         list.sort((a, b) => a.sale_price - b.sale_price);
       } else if (sortBy === 'price_desc') {

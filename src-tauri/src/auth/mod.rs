@@ -253,4 +253,19 @@ mod tests {
         let user = authenticate_user(&db, "admin", "wrongpassword").unwrap();
         assert!(user.is_none(), "Admin authentication with wrong password should fail");
     }
+
+    #[test]
+    fn test_authenticate_real_db() {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let p = std::path::PathBuf::from(appdata).join("TitaouPosT").join("titaou_post.db");
+            if p.exists() {
+                println!("Testing against real DB: {:?}", p);
+                let conn = rusqlite::Connection::open(&p).unwrap();
+                let state = DbState { conn: Mutex::new(conn) };
+                let user = authenticate_user(&state, "admin", "admin").unwrap();
+                println!("Result of real DB authenticate admin/admin: {:?}", user);
+                assert!(user.is_some(), "Should authenticate admin on real DB");
+            }
+        }
+    }
 }

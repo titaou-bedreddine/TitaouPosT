@@ -29,7 +29,7 @@
     | 'danger';
 
   let currentTab: SettingsTab = 'general';
-  let settings: Record<string, string> = {
+  let settings: Record<string, any> = {
     shop_name_ar: 'سوبرماركت تيتاو',
     shop_name_fr: 'TitaouPOS Supermarché',
     shop_phone: '0553444057 / 021654321',

@@ -40,6 +40,7 @@
       errorMsg = '';
       const user = await invoke<User | null>('login', { username: uname, password: pwd });
       if (user) {
+        currentUser.set(user);
         $currentUser = user;
       } else {
         errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
