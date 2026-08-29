@@ -24,6 +24,7 @@
   import ReturnDamagedModal from '../../lib/components/ReturnDamagedModal.svelte';
   import CreditCustomerModal from '../../lib/components/CreditCustomerModal.svelte';
   import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
+  import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
 
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
@@ -38,15 +39,14 @@
   let selectedCategory: number | null = null;
   let searchQuery = '';
   let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
-  let sortBy: 'default' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' = 'default';
+  let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' = 'name_asc';
 
-  // Checkout and Mode State
-  let selectedPaymentMode: 'cash' | 'tpe' | 'credit' = 'cash';
+  let selectedPaymentMode: 'cash' | 'card' | 'credit' = 'cash';
   let autoPrintEnabled = true;
   let autoDrawerEnabled = true;
+  let isFastCheckingOut = false;
 
-  // Modals
-  let isPaymentOpen = false;
+  let isPaymentModalOpen = false;
   let isCashDrawerOpen = false;
   let isCategoryManagerOpen = false;
   let isHeldSalesOpen = false;
@@ -58,6 +58,10 @@
   let isReturnDamagedOpen = false;
   let isCreditCustomerOpen = false;
   let isOtherArticleOpen = false;
+
+  let isUnknownBarcodeModalOpen = false;
+  let unknownScannedBarcode = '';
+  let initialBarcodeForNewProduct = '';
 
   let lastSaleSuccessNumber = '';
   let barcodeBuffer = '';
@@ -155,8 +159,20 @@
 
       products = list;
 
-      if (searchQuery.trim().length >= 8 && searchType === 'all' && products.length === 1) {
-        const exactMatch = products[0].barcodes.includes(searchQuery.trim()) || products[0].sku === searchQuery.trim();
+      if (searchQuery.trim().length >= 6 && searchType === 'barcode') {
+        const queryCode = searchQuery.trim();
+        const matched = list.find(p => p.barcodes?.includes(queryCode) || p.sku === queryCode);
+        if (matched) {
+          addToCart(matched, 1, $isRefundMode);
+          searchQuery = '';
+          await loadProducts();
+        } else {
+          unknownScannedBarcode = queryCode;
+          isUnknownBarcodeModalOpen = true;
+          searchQuery = '';
+        }
+      } else if (searchQuery.trim().length >= 8 && searchType === 'all' && products.length === 1) {
+        const exactMatch = products[0].barcodes?.includes(searchQuery.trim()) || products[0].sku === searchQuery.trim();
         if (exactMatch) {
           addToCart(products[0], 1, $isRefundMode);
           searchQuery = '';
@@ -168,6 +184,31 @@
     }
   }
 
+  async function handleScannedBarcode(rawBarcode: string) {
+    const code = normalizeBarcode(rawBarcode).trim();
+    if (!code) return;
+
+    try {
+      const list = await invoke<Product[]>('search_products', {
+        query: code,
+        categoryId: null,
+        searchType: 'barcode',
+      });
+
+      const matched = list.find(p => p.barcodes?.includes(code) || p.sku === code);
+      if (matched) {
+        addToCart(matched, 1, $isRefundMode);
+        searchQuery = '';
+        await loadProducts();
+      } else {
+        unknownScannedBarcode = code;
+        isUnknownBarcodeModalOpen = true;
+      }
+    } catch (e) {
+      console.error('Error looking up scanned barcode:', e);
+    }
+  }
+
   function handleCategoryClick(catId: number | null) {
     selectedCategory = catId;
     loadProducts();
@@ -175,12 +216,34 @@
 
   function handleOpenEdit(p: Product) {
     editingProduct = p;
+    initialBarcodeForNewProduct = '';
     isProductEditOpen = true;
   }
 
   function handleOpenNewProduct() {
     editingProduct = null;
+    initialBarcodeForNewProduct = '';
     isProductEditOpen = true;
+  }
+
+  async function handleProductSaved() {
+    await loadProducts();
+    if (initialBarcodeForNewProduct) {
+      try {
+        const list = await invoke<Product[]>('search_products', {
+          query: initialBarcodeForNewProduct,
+          categoryId: null,
+          searchType: 'barcode',
+        });
+        const created = list.find(p => p.barcodes?.includes(initialBarcodeForNewProduct));
+        if (created) {
+          addToCart(created, 1, $isRefundMode);
+        }
+      } catch (e) {
+        console.warn('Auto add created product error:', e);
+      }
+      initialBarcodeForNewProduct = '';
+    }
   }
 
   // Fast Checkout Action
@@ -366,10 +429,9 @@
     if (e.key === 'Enter') {
       if (barcodeBuffer.length >= 6) {
         e.preventDefault();
-        searchQuery = normalizeBarcode(barcodeBuffer);
-        searchType = 'barcode';
-        loadProducts();
+        const code = barcodeBuffer;
         barcodeBuffer = '';
+        handleScannedBarcode(code);
         return;
       }
     } else if (e.key.length === 1) {
@@ -669,8 +731,24 @@
     product={editingProduct}
     categories={categories}
     units={units}
+    initialBarcode={initialBarcodeForNewProduct}
     onClose={() => (isProductEditOpen = false)}
-    onSaved={loadProducts}
+    onSaved={handleProductSaved}
+  />
+
+  <UnknownBarcodeModal
+    isOpen={isUnknownBarcodeModalOpen}
+    barcode={unknownScannedBarcode}
+    onClose={() => (isUnknownBarcodeModalOpen = false)}
+    onAddNewWithBarcode={(bc) => {
+      editingProduct = null;
+      initialBarcodeForNewProduct = bc;
+      isProductEditOpen = true;
+    }}
+    onLinkedToProduct={(p) => {
+      addToCart(p, 1, $isRefundMode);
+      loadProducts();
+    }}
   />
 
   <QuickPurchaseModal

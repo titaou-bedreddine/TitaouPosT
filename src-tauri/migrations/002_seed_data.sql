@@ -18,7 +18,7 @@ INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (1, 'Ma
 INSERT OR IGNORE INTO registers (id, name, identifier, is_active) VALUES (2, 'Secondary Register 02', 'REG-02', 1);
 
 -- 4. Seed Clean Starter Categories
-INSERT OR IGNORE INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (1, 'المواد الغذائية العامة', 'Alimentation Générale', 'General Groceries', '#0284c7', 1);
+INSERT OR IGNORE INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (1, 'افتراضي (Default)', 'Général / Default', 'Default', '#0284c7', 1);
 INSERT OR IGNORE INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (2, 'المشروبات والعصائر', 'Boissons & Jus', 'Beverages & Juices', '#0ea5e9', 1);
 INSERT OR IGNORE INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (3, 'منتجات الحليب والألبان', 'Produits Laitiers', 'Dairy Products', '#38bdf8', 1);
 INSERT OR IGNORE INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (4, 'البسكويت والحلويات', 'Biscuiterie & Chocolat', 'Snacks & Sweets', '#f59e0b', 1);

@@ -14,6 +14,7 @@
   export let product: Product | null = null;
   export let categories: Category[] = [];
   export let units: Unit[] = [];
+  export let initialBarcode: string = '';
   export let onClose: () => void;
   export let onSaved: () => void;
 
@@ -29,7 +30,7 @@
   let salePrice = 0;
   let minSalePrice = 0;
   let taxRate = 19;
-  let currentStock = 100;
+  let currentStock = 0;
   let minStock = 5;
   let imagePath = '';
   let expiryDate = '';
@@ -73,6 +74,10 @@
   let printLabelInitialType: 'barcode' | 'etiquette' = 'barcode';
   let printLabelInitialQty = 1;
   let printProductObj: Product | null = null;
+
+  function generateRandomSku() {
+    sku = 'PRD-' + Math.floor(1000 + Math.random() * 9000);
+  }
 
   function getTransientProduct(): Product {
     const bCodes = [...barcodeTokens];
@@ -187,62 +192,78 @@
     setTimeout(() => (copyFeedback = ''), 2000);
   }
 
-  $: if (isOpen && product) {
-    sku = product.sku || '';
-    nameAr = product.name_ar || '';
-    nameFr = product.name_fr || '';
-    nameEn = product.name_en || '';
-    categoryId = product.category_id || (categories.length > 0 ? categories[0].id : 1);
-    unitId = product.unit_id || (units.length > 0 ? units[0].id : 1);
-    purchasePrice = product.purchase_price || 0;
-    salePrice = product.sale_price || 0;
-    minSalePrice = product.min_sale_price || 0;
-    taxRate = product.tax_rate || 19;
-    currentStock = product.current_stock || 0;
-    minStock = product.min_stock || 5;
-    imagePath = product.image_path || '';
-    expiryDate = product.expiry_date || '';
-    isBundle = product.is_bundle || false;
-    isScalable = product.is_scalable || false;
-    scaleCode = product.scale_code || '';
-    scalePlu = product.scale_plu || (product.id || 1);
-    scaleBarcodeType = product.scale_barcode_type || 97;
-    scaleDepartmentId = product.scale_department_id || 1;
-    scaleSyncStatus = product.scale_sync_status || 'pending';
-    barcodeTokens = product.barcodes ? [...product.barcodes] : [];
-    currentBarcodeTyped = '';
-    editingTokenIndex = null;
-    handleSalePriceChange();
-    activeTab = 'details';
-  } else if (isOpen && !product) {
-    sku = 'PRD-' + Math.floor(1000 + Math.random() * 9000);
-    nameAr = '';
-    nameFr = '';
-    nameEn = '';
-    categoryId = categories.length > 0 ? categories[0].id : 1;
-    unitId = units.length > 0 ? units[0].id : 1;
-    purchasePrice = 0;
-    salePrice = 0;
-    minSalePrice = 0;
-    taxRate = 19;
-    currentStock = 50;
-    minStock = 5;
-    imagePath = '';
-    expiryDate = '';
-    isBundle = false;
-    isScalable = false;
-    scaleCode = '950001';
-    scalePlu = Math.floor(100 + Math.random() * 900);
-    scaleBarcodeType = 97;
-    scaleDepartmentId = 1;
-    scaleSyncStatus = 'pending';
-    barcodeTokens = [];
-    generateValidEan13();
-    currentBarcodeTyped = '';
-    editingTokenIndex = null;
-    profitMarginPercent = 20;
-    profitMarginAmount = 0;
-    activeTab = 'details';
+  let lastIsOpen = false;
+  let lastProductId: number | null | undefined = undefined;
+  let lastInitialBarcode = '';
+
+  function initializeModal() {
+    if (product) {
+      sku = product.sku || '';
+      nameAr = product.name_ar || '';
+      nameFr = product.name_fr || '';
+      nameEn = product.name_en || '';
+      categoryId = product.category_id || (categories.length > 0 ? categories[0].id : 1);
+      unitId = product.unit_id || (units.length > 0 ? units[0].id : 1);
+      purchasePrice = product.purchase_price || 0;
+      salePrice = product.sale_price || 0;
+      minSalePrice = product.min_sale_price || 0;
+      taxRate = product.tax_rate || 19;
+      currentStock = product.current_stock || 0;
+      minStock = product.min_stock || 5;
+      imagePath = product.image_path || '';
+      expiryDate = product.expiry_date || '';
+      isBundle = product.is_bundle || false;
+      isScalable = product.is_scalable || false;
+      scaleCode = product.scale_code || '';
+      scalePlu = product.scale_plu || (product.id || 1);
+      scaleBarcodeType = product.scale_barcode_type || 97;
+      scaleDepartmentId = product.scale_department_id || 1;
+      scaleSyncStatus = product.scale_sync_status || 'pending';
+      barcodeTokens = product.barcodes ? [...product.barcodes] : [];
+      currentBarcodeTyped = '';
+      editingTokenIndex = null;
+      handleSalePriceChange();
+      activeTab = 'details';
+    } else {
+      sku = '';
+      nameAr = '';
+      nameFr = '';
+      nameEn = '';
+      categoryId = categories.length > 0 ? categories[0].id : 1;
+      unitId = units.length > 0 ? units[0].id : 1;
+      purchasePrice = 0;
+      salePrice = 0;
+      minSalePrice = 0;
+      taxRate = 19;
+      currentStock = 0;
+      minStock = 5;
+      imagePath = '';
+      expiryDate = '';
+      isBundle = false;
+      isScalable = false;
+      scaleCode = '';
+      scalePlu = 1;
+      scaleBarcodeType = 97;
+      scaleDepartmentId = 1;
+      scaleSyncStatus = 'pending';
+      barcodeTokens = initialBarcode ? [initialBarcode.trim()] : [];
+      currentBarcodeTyped = '';
+      editingTokenIndex = null;
+      profitMarginPercent = 20;
+      profitMarginAmount = 0;
+      activeTab = 'details';
+    }
+  }
+
+  $: if (isOpen && (!lastIsOpen || (product ? product.id : null) !== lastProductId || initialBarcode !== lastInitialBarcode)) {
+    lastIsOpen = true;
+    lastProductId = product ? product.id : null;
+    lastInitialBarcode = initialBarcode;
+    initializeModal();
+  } else if (!isOpen) {
+    lastIsOpen = false;
+    lastProductId = undefined;
+    lastInitialBarcode = '';
   }
 
   function addBarcodeToken() {
@@ -534,8 +555,14 @@
 
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-pos-muted mb-1">SKU / Reference</label>
-                  <input type="text" bind:value={sku} placeholder="PRD-001" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-bold text-pos-muted">SKU / Reference</label>
+                    <button type="button" on:click={generateRandomSku} class="text-[10px] font-black text-sky-600 hover:underline flex items-center gap-0.5" title="Auto-generate SKU">
+                      <Sparkles class="w-3 h-3" />
+                      <span>Auto</span>
+                    </button>
+                  </div>
+                  <input type="text" bind:value={sku} placeholder="Optional (PRD-001)" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
                 </div>
 
                 <!-- Category / Family with Quick Add Trigger -->

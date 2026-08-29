@@ -23,6 +23,7 @@
 
   let isProductEditOpen = false;
   let editingProduct: Product | null = null;
+  let initialBarcodeForNewProduct = '';
 
   // Print Label Modal
   let isPrintLabelOpen = false;
@@ -131,11 +132,13 @@
 
   function openAddNew() {
     editingProduct = null;
+    initialBarcodeForNewProduct = '';
     isProductEditOpen = true;
   }
 
   function openEdit(p: Product) {
     editingProduct = p;
+    initialBarcodeForNewProduct = '';
     isProductEditOpen = true;
   }
 
@@ -545,6 +548,7 @@
   product={editingProduct}
   categories={categories}
   units={units}
+  initialBarcode={initialBarcodeForNewProduct}
   onClose={() => (isProductEditOpen = false)}
   onSaved={loadProducts}
 />
