@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { currentUser } from '../../lib/stores/auth';
   import type { User } from '../../lib/types';
-  import { Lock, UserCheck, Shield, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
+  import { Lock, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
 
   let usersList: User[] = [];
   let selectedUsername = 'admin';
@@ -14,12 +14,10 @@
 
   onMount(async () => {
     try {
-      const list = await invoke<User[]>('get_active_users');
-      if (list && list.length > 0) {
-        usersList = list;
-        selectedUsername = list[0].username;
+      usersList = await invoke<User[]>('get_active_users');
+      if (usersList && usersList.length > 0) {
+        selectedUsername = usersList[0].username;
       } else {
-        usersList = [{ id: 1, username: 'admin', display_name: 'Administrator', role_id: 1, role_name: 'Administrator', max_discount_percent: 100, is_active: true, permissions: [] }];
         selectedUsername = 'admin';
       }
     } catch (e) {
@@ -31,8 +29,9 @@
 
   async function handleLogin() {
     const uname = (selectedUsername || 'admin').trim();
-    const pwd = password.trim();
-    if (!pwd) {
+    const pwd = (password || '').trim();
+
+    if (!uname || !pwd) {
       errorMsg = 'Please enter password / الرجاء إدخال كلمة المرور';
       return;
     }
@@ -41,12 +40,12 @@
       errorMsg = '';
       const user = await invoke<User | null>('login', { username: uname, password: pwd });
       if (user) {
-        currentUser.set(user);
+        $currentUser = user;
       } else {
         errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
       }
     } catch (err: any) {
-      console.error('Login invocation error:', err);
+      console.error('Login error:', err);
       errorMsg = typeof err === 'string' ? err : err.message || 'Login failed';
     } finally {
       isLoading = false;
@@ -86,7 +85,7 @@
             class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition appearance-none cursor-pointer"
           >
             {#if usersList.length === 0}
-              <option value="admin">Administrator (admin)</option>
+              <option value="admin">Administrator (Administrator)</option>
             {:else}
               {#each usersList as u}
                 <option value={u.username}>
@@ -137,7 +136,6 @@
         <Lock class="w-4 h-4" />
         <span>{isLoading ? 'Signing In...' : 'Sign In to POS / تسجيل الدخول'}</span>
       </button>
-
     </div>
   </div>
 </div>
