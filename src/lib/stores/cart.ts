@@ -120,7 +120,7 @@ export function clearCart() {
   isRefundMode.set(false);
 }
 
-export async function holdCurrentSale(note = 'Auto-held for New Sale'): Promise<boolean> {
+export async function holdCurrentSale(note?: string): Promise<boolean> {
   const items = get(cartItems);
   if (items.length === 0) return false;
 
@@ -128,17 +128,21 @@ export async function holdCurrentSale(note = 'Auto-held for New Sale'): Promise<
     const total = get(cartGrandTotal);
     const customerId = get(selectedCustomerId);
     const timeStr = new Date().toLocaleTimeString();
+    const finalNote = note?.trim()
+      ? `${note.trim()} • ${total.toLocaleString()} DZD`
+      : `${total.toLocaleString()} DZD (${items.length} items - ${timeStr})`;
+
     await invoke('hold_sale', {
       customerId,
       cartDataJson: JSON.stringify(items),
       totalAmount: total,
-      notes: `${note} (${items.length} items - ${timeStr})`,
+      notes: finalNote,
     });
 
     clearCart();
     await refreshHeldSales();
 
-    heldNotification.set(`Cart with ${items.length} items moved to Held Sales!`);
+    heldNotification.set(`Cart #${total.toLocaleString()} DZD (${items.length} items) held!`);
     setTimeout(() => heldNotification.set(null), 4000);
     return true;
   } catch (e) {

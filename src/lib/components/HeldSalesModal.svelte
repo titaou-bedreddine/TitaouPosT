@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { cartItems, heldSalesList, refreshHeldSales, clearCart } from '../stores/cart';
+  import { cartItems, heldSalesList, refreshHeldSales, clearCart, holdCurrentSale } from '../stores/cart';
   import { currentUser } from '../stores/auth';
-  import type { HeldSale } from '../types';
-  import { PauseCircle, Play, Trash2, X, Plus } from 'lucide-svelte';
+  import type { HeldSale, CartItem } from '../types';
+  import { PauseCircle, Play, Trash2, X, ShoppingBag, Clock } from 'lucide-svelte';
 
   export let isOpen = false;
   export let onClose: () => void;
@@ -15,17 +15,26 @@
     refreshHeldSales();
   }
 
+  function getSaleDetails(sale: HeldSale): { total: number; count: number; preview: string } {
+    try {
+      const items: CartItem[] = JSON.parse(sale.cart_json);
+      const total = items.reduce((sum, i) => {
+        const val = i.total_price || (i.quantity * (i.unit_price - (i.discount_amount || 0)));
+        return i.is_refund ? sum - val : sum + val;
+      }, 0);
+      const count = items.reduce((c, i) => c + i.quantity, 0);
+      const preview = items.slice(0, 2).map(i => `${i.name_fr || i.name_ar} (x${i.quantity})`).join(', ') + (items.length > 2 ? '...' : '');
+      return { total, count, preview };
+    } catch {
+      return { total: 0, count: 0, preview: '' };
+    }
+  }
+
   async function handleHoldCurrentCart() {
     if (!$currentUser || $cartItems.length === 0) return;
     try {
       isSaving = true;
-      await invoke('hold_sale', {
-        userId: $currentUser.id,
-        customerId: null,
-        cartJson: JSON.stringify($cartItems),
-        note: holdNote || null,
-      });
-      clearCart();
+      await holdCurrentSale(holdNote || undefined);
       holdNote = '';
       await refreshHeldSales();
       onClose();
@@ -40,7 +49,7 @@
     try {
       const items = JSON.parse(sale.cart_json);
       if ($cartItems.length > 0) {
-        await holdCurrentSale('Auto-held before resuming held sale #' + sale.id);
+        await holdCurrentSale();
       }
       $cartItems = items;
       await handleDelete(sale.id);
@@ -62,33 +71,33 @@
 
 {#if isOpen}
   <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-pos-card border border-pos-border rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in duration-150">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in duration-150 flex flex-col max-h-[85vh]">
       <div class="flex items-center justify-between px-5 py-3.5 border-b border-pos-border bg-slate-50 dark:bg-slate-800/50">
         <h3 class="font-extrabold text-base text-pos-text flex items-center gap-2">
           <PauseCircle class="w-5 h-5 text-indigo-500" />
-          <span>Held Sales / Ventes en Attente ({$heldSalesList.length})</span>
+          <span>Held Sales / المبيعات المعلقة ({$heldSalesList.length})</span>
         </h3>
-        <button on:click={onClose} class="text-pos-muted hover:text-pos-text p-1 rounded cursor-pointer">
+        <button on:click={onClose} class="text-pos-muted hover:text-pos-text p-1 rounded-lg cursor-pointer">
           <X class="w-5 h-5" />
         </button>
       </div>
 
-      <div class="p-5 space-y-4">
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
         {#if $cartItems.length > 0}
-          <div class="p-3 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2">
+          <div class="p-3.5 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2">
             <span class="text-xs font-bold text-indigo-900 dark:text-indigo-200">Hold Active Cart ({$cartItems.length} items):</span>
             <div class="flex gap-2">
               <input
                 type="text"
                 bind:value={holdNote}
                 placeholder="Optional customer name or table note..."
-                class="flex-1 px-3 py-1.5 bg-pos-card border border-pos-border rounded text-xs text-pos-text outline-none"
+                class="flex-1 px-3 py-2 bg-pos-card border border-pos-border rounded-xl text-xs text-pos-text outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <button
                 type="button"
                 on:click={handleHoldCurrentCart}
                 disabled={isSaving}
-                class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded transition flex items-center gap-1 cursor-pointer"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer shadow-sm"
               >
                 <span>Hold Now</span>
               </button>
@@ -97,38 +106,57 @@
         {/if}
 
         <!-- List of Held Sales -->
-        <div class="max-h-64 overflow-y-auto space-y-2">
+        <div class="space-y-2.5">
           {#if $heldSalesList.length === 0}
-            <div class="p-8 text-center text-pos-muted text-xs">
-              No held sales currently in queue.
+            <div class="p-10 text-center text-pos-muted text-xs flex flex-col items-center justify-center gap-2">
+              <ShoppingBag class="w-8 h-8 opacity-40" />
+              <span>No held sales currently in queue / لا توجد مبيعات معلقة حالياً</span>
             </div>
           {:else}
             {#each $heldSalesList as sale}
-              <div class="flex items-center justify-between p-3 bg-pos-card border border-pos-border rounded-lg hover:border-indigo-400 transition">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs text-indigo-600 font-mono">{sale.sale_reference}</span>
-                    <span class="text-[11px] text-pos-muted">{sale.created_at}</span>
+              {@const details = getSaleDetails(sale)}
+              <div class="p-3.5 bg-pos-card border border-pos-border rounded-xl hover:border-indigo-400 transition shadow-xs flex items-center justify-between gap-3">
+                <div class="min-w-0 flex-1 space-y-1">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {details.total.toLocaleString()} DZD
+                    </span>
+                    <span class="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-pos-muted px-2 py-0.5 rounded-full font-mono">
+                      {details.count} items
+                    </span>
+                    <span class="text-[10px] text-pos-muted font-mono flex items-center gap-1">
+                      <Clock class="w-3 h-3" />
+                      {sale.created_at}
+                    </span>
                   </div>
+
                   {#if sale.note}
-                    <p class="text-xs font-semibold text-pos-text mt-0.5">{sale.note}</p>
+                    <p class="text-xs font-semibold text-pos-text truncate">
+                      {sale.note}
+                    </p>
+                  {:else if details.preview}
+                    <p class="text-[11px] text-pos-muted truncate font-mono">
+                      {details.preview}
+                    </p>
                   {/if}
                 </div>
-                <div class="flex items-center gap-1.5">
+
+                <div class="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     on:click={() => handleResume(sale)}
-                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded flex items-center gap-1 cursor-pointer"
+                    class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 transition"
                   >
-                    <Play class="w-3 h-3" />
-                    <span>Resume</span>
+                    <Play class="w-3.5 h-3.5 fill-current" />
+                    <span>Resume / استرجاع</span>
                   </button>
                   <button
                     type="button"
                     on:click={() => handleDelete(sale.id)}
-                    class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded cursor-pointer"
+                    class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-xl cursor-pointer transition"
+                    title="Delete Held Sale"
                   >
-                    <Trash2 class="w-3.5 h-3.5" />
+                    <Trash2 class="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -138,8 +166,8 @@
       </div>
 
       <div class="px-5 py-3 border-t border-pos-border bg-slate-50 dark:bg-slate-800/50 flex justify-end">
-        <button on:click={onClose} class="px-4 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded">
-          Close
+        <button on:click={onClose} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
+          Close / إغلاق
         </button>
       </div>
     </div>

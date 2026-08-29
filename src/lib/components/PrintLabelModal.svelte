@@ -32,22 +32,26 @@
   $: stickerShowName    = (settings.sticker_show_product_name || 'true') === 'true';
   $: stickerShowBarcode = (settings.sticker_show_barcode    || 'true')  === 'true';
   $: stickerShowPrice   = (settings.sticker_show_price      || 'true')  === 'true';
-  $: stickerNameSize    = parseInt(settings.sticker_name_font_size  || '9');
-  $: stickerPriceSize   = parseInt(settings.sticker_price_font_size || '12');
-  $: stickerBarcodeSize = parseInt(settings.sticker_barcode_font_size || '10');
+  $: stickerNameSize    = parseInt(settings.sticker_name_font_size  || '12');
+  $: stickerPriceSize   = parseInt(settings.sticker_price_font_size || '16');
+  $: stickerBarcodeSize = parseInt(settings.sticker_barcode_font_size || '12');
   $: stickerNameBold    = (settings.sticker_name_bold   || 'true') === 'true';
   $: stickerPriceBold   = (settings.sticker_price_bold  || 'true') === 'true';
+  $: stickerAlign       = settings.sticker_text_align || 'center';
+  $: stickerOrientation = settings.sticker_orientation || 'landscape';
 
   // Shelf preset config
   $: shelfShowShop   = (settings.shelf_show_shop_name    || 'true') === 'true';
   $: shelfShowName   = (settings.shelf_show_product_name || 'true') === 'true';
   $: shelfShowPrice  = (settings.shelf_show_price        || 'true') === 'true';
   $: shelfShowRef    = (settings.shelf_show_ref          || 'true') === 'true';
-  $: shelfNameSize   = parseInt(settings.shelf_name_font_size  || '11');
-  $: shelfPriceSize  = parseInt(settings.shelf_price_font_size || '18');
-  $: shelfRefSize    = parseInt(settings.shelf_ref_font_size   || '8');
+  $: shelfNameSize   = parseInt(settings.shelf_name_font_size  || '16');
+  $: shelfPriceSize  = parseInt(settings.shelf_price_font_size || '28');
+  $: shelfRefSize    = parseInt(settings.shelf_ref_font_size   || '10');
   $: shelfNameBold   = (settings.shelf_name_bold  || 'true') === 'true';
   $: shelfPriceBold  = (settings.shelf_price_bold || 'true') === 'true';
+  $: shelfAlign      = settings.shelf_text_align || 'center';
+  $: shelfOrientation = settings.shelf_orientation || 'landscape';
 
   $: shopName = settings.shop_name_fr || 'TitaouPOS';
 
@@ -64,8 +68,8 @@
         format: barcode.length === 13 ? 'EAN13' :
                 barcode.length === 8  ? 'EAN8'  :
                 barcode.length === 12 ? 'UPC'   : 'CODE128',
-        width: 1.5,
-        height: 40,
+        width: 1.8,
+        height: 44,
         displayValue: true,
         fontSize: stickerBarcodeSize,
         margin: 0,
@@ -77,7 +81,7 @@
       try {
         JsBarcode(barcodeSvgEl, barcode, {
           format: 'CODE128',
-          width: 1.5, height: 40,
+          width: 1.8, height: 44,
           displayValue: true, fontSize: stickerBarcodeSize, margin: 0,
           background: '#ffffff', lineColor: '#000000',
         });
@@ -119,33 +123,45 @@
     }
   }
 
+  function getFlexAlign(align: string): string {
+    if (align === 'left') return 'flex-start';
+    if (align === 'right') return 'flex-end';
+    return 'center';
+  }
+
   function buildStickerHtml(): string {
     const svgContent = barcodeSvgEl ? barcodeSvgEl.outerHTML : '';
-    const nameStyle = `font-size:${stickerNameSize}px; font-weight:${stickerNameBold ? '900' : '400'}; margin:2px 0;`;
-    const priceStyle = `font-size:${stickerPriceSize}px; font-weight:${stickerPriceBold ? '900' : '400'}; font-family:monospace; margin:2px 0;`;
+    const flexAlign = getFlexAlign(stickerAlign);
+    const finalWidth = stickerOrientation === 'portrait' ? heightMm : widthMm;
+    const finalHeight = stickerOrientation === 'portrait' ? widthMm : heightMm;
+    const nameStyle = `font-size:${stickerNameSize}px; font-weight:${stickerNameBold ? '900' : '500'}; text-align:${stickerAlign}; margin:2px 0;`;
+    const priceStyle = `font-size:${stickerPriceSize}px; font-weight:${stickerPriceBold ? '900' : '700'}; font-family:monospace; text-align:${stickerAlign}; margin:2px 0;`;
     return `
-      <div style="width:${widthMm}mm; height:${heightMm}mm; padding:2mm; text-align:center;
-                  display:flex; flex-direction:column; align-items:center; justify-content:center;
+      <div style="width:${finalWidth}mm; height:${finalHeight}mm; padding:2mm; text-align:${stickerAlign};
+                  display:flex; flex-direction:column; align-items:${flexAlign}; justify-content:center;
                   font-family:sans-serif; overflow:hidden; box-sizing:border-box; background:#fff;">
-        ${stickerShowShop ? `<span style="font-size:8px; font-weight:bold; text-transform:uppercase; color:#555; display:block;">${shopName}</span>` : ''}
-        ${stickerShowName ? `<span style="${nameStyle} display:block; overflow:hidden; white-space:nowrap; max-width:100%;">${product?.name_fr || product?.name_ar || ''}</span>` : ''}
-        ${stickerShowBarcode && barcode ? `<div style="max-width:100%; overflow:hidden; display:flex; justify-content:center; align-items:center;">${svgContent}</div>` : ''}
-        ${stickerShowPrice ? `<span style="${priceStyle} display:block;">${product?.sale_price?.toLocaleString() || '0'} DZD</span>` : ''}
+        ${stickerShowShop ? `<span style="font-size:10px; font-weight:bold; text-transform:uppercase; color:#444; display:block; width:100%; text-align:${stickerAlign};">${shopName}</span>` : ''}
+        ${stickerShowName ? `<span style="${nameStyle} display:block; overflow:hidden; white-space:nowrap; max-width:100%; width:100%;">${product?.name_fr || product?.name_ar || ''}</span>` : ''}
+        ${stickerShowBarcode && barcode ? `<div style="max-width:100%; overflow:hidden; display:flex; justify-content:${flexAlign}; width:100%; align-items:center;">${svgContent}</div>` : ''}
+        ${stickerShowPrice ? `<span style="${priceStyle} display:block; width:100%;">${product?.sale_price?.toLocaleString() || '0'} DZD</span>` : ''}
       </div>
     `;
   }
 
   function buildShelfTagHtml(): string {
-    const nameStyle = `font-size:${shelfNameSize}px; font-weight:${shelfNameBold ? '900' : '400'};`;
-    const priceStyle = `font-size:${shelfPriceSize}px; font-weight:${shelfPriceBold ? '900' : '400'};`;
+    const flexAlign = getFlexAlign(shelfAlign);
+    const finalWidth = shelfOrientation === 'portrait' ? heightMm : widthMm;
+    const finalHeight = shelfOrientation === 'portrait' ? widthMm : heightMm;
+    const nameStyle = `font-size:${shelfNameSize}px; font-weight:${shelfNameBold ? '900' : '600'}; text-align:${shelfAlign};`;
+    const priceStyle = `font-size:${shelfPriceSize}px; font-weight:${shelfPriceBold ? '900' : '700'}; text-align:${shelfAlign};`;
     return `
-      <div style="width:${widthMm}mm; height:${heightMm}mm; border:1.5px solid #000; padding:3mm;
-                  font-family:sans-serif; text-align:center; box-sizing:border-box; background:#fff;
+      <div style="width:${finalWidth}mm; height:${finalHeight}mm; border:2px solid #000; padding:3mm;
+                  font-family:sans-serif; text-align:${shelfAlign}; box-sizing:border-box; background:#fff;
                   display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;">
-        ${shelfShowShop ? `<div style="display:flex;justify-content:space-between;font-size:9px;font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;"><span>${shopName}</span><span style="color:green;">DISPO</span></div>` : ''}
-        ${shelfShowName ? `<p style="${nameStyle} margin:4px 0; line-height:1.2;">${product?.name_fr || product?.name_ar || ''}</p>` : ''}
-        ${shelfShowPrice ? `<div style="background:#000;color:#fff;padding:4px;${priceStyle}margin:4px 0;font-family:monospace;">${product?.sale_price?.toLocaleString() || '0'} DZD</div>` : ''}
-        ${shelfShowRef ? `<div style="display:flex;justify-content:space-between;font-size:${shelfRefSize}px;font-weight:bold;"><span>Ref: ${barcode}</span><span>TVA 19% Incl.</span></div>` : ''}
+        ${shelfShowShop ? `<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;"><span>${shopName}</span><span style="color:#059669; font-weight:900;">DISPO</span></div>` : ''}
+        ${shelfShowName ? `<p style="${nameStyle} margin:4px 0; line-height:1.2; width:100%;">${product?.name_fr || product?.name_ar || ''}</p>` : ''}
+        ${shelfShowPrice ? `<div style="background:#000;color:#fff;padding:6px;${priceStyle}margin:4px 0;font-family:monospace;border-radius:4px;width:100%;">${product?.sale_price?.toLocaleString() || '0'} DZD</div>` : ''}
+        ${shelfShowRef ? `<div style="display:flex;justify-content:space-between;font-size:${shelfRefSize}px;font-weight:bold;width:100%;"><span>Ref: ${barcode}</span><span>TVA 19% Incl.</span></div>` : ''}
       </div>
     `;
   }
@@ -198,17 +214,20 @@
 
         <!-- Preview Card -->
         {#if labelType === 'barcode'}
-          <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-center space-y-1 shadow-xs min-h-[120px]">
+          <div
+            style="text-align: {stickerAlign};"
+            class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col justify-center space-y-1.5 shadow-xs min-h-[130px] w-full"
+          >
             {#if stickerShowShop}
-              <span class="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{shopName}</span>
+              <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block" style="text-align: {stickerAlign};">{shopName}</span>
             {/if}
             {#if stickerShowName}
-              <p class="font-black text-slate-900 leading-tight line-clamp-2" style="font-size:{stickerNameSize}px; font-weight:{stickerNameBold ? '900' : '400'};">
+              <p class="text-slate-900 leading-tight line-clamp-2 block" style="font-size:{stickerNameSize}px; font-weight:{stickerNameBold ? '900' : '500'}; text-align: {stickerAlign};">
                 {product.name_fr || product.name_ar}
               </p>
             {/if}
             {#if stickerShowBarcode && barcode}
-              <div class="w-full flex justify-center py-0.5 overflow-hidden">
+              <div class="w-full flex py-0.5 overflow-hidden" style="justify-content: {getFlexAlign(stickerAlign)};">
                 {#if barcodeError}
                   <div class="font-mono text-sm tracking-[0.25em] font-black border-y border-slate-900 py-0.5 inline-block px-4">
                     ||| | |||| | |||<br/>
@@ -220,7 +239,7 @@
               </div>
             {/if}
             {#if stickerShowPrice}
-              <span class="font-black text-slate-900 font-mono" style="font-size:{stickerPriceSize}px; font-weight:{stickerPriceBold ? '900' : '400'};">
+              <span class="font-mono block" style="font-size:{stickerPriceSize}px; font-weight:{stickerPriceBold ? '900' : '700'}; text-align: {stickerAlign};">
                 {product.sale_price.toLocaleString()} DZD
               </span>
             {/if}
@@ -228,20 +247,23 @@
 
         {:else}
           <!-- Shelf Etiquette Preview -->
-          <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col justify-between text-center space-y-1.5 shadow-xs min-h-[120px]">
+          <div
+            style="text-align: {shelfAlign};"
+            class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col justify-between space-y-2 shadow-xs min-h-[140px] w-full"
+          >
             {#if shelfShowShop}
-              <div class="w-full flex justify-between text-[9px] font-bold text-slate-500 border-b border-slate-300 pb-0.5">
+              <div class="w-full flex justify-between text-[10px] font-bold text-slate-500 border-b border-slate-300 pb-0.5">
                 <span>{shopName}</span>
-                <span class="text-emerald-600">DISPO EN RAYON</span>
+                <span class="text-emerald-600 font-black">DISPO EN RAYON</span>
               </div>
             {/if}
             {#if shelfShowName}
-              <p class="font-black text-slate-900 leading-tight" style="font-size:{shelfNameSize}px; font-weight:{shelfNameBold ? '900' : '400'};">
+              <p class="text-slate-900 leading-tight block" style="font-size:{shelfNameSize}px; font-weight:{shelfNameBold ? '900' : '600'}; text-align: {shelfAlign};">
                 {product.name_fr || product.name_ar}
               </p>
             {/if}
             {#if shelfShowPrice}
-              <div class="w-full bg-slate-900 text-white font-mono font-black rounded py-1" style="font-size:{shelfPriceSize}px; font-weight:{shelfPriceBold ? '900' : '400'};">
+              <div class="w-full bg-slate-900 text-white font-mono font-black rounded py-1.5 px-3 block" style="font-size:{shelfPriceSize}px; font-weight:{shelfPriceBold ? '900' : '700'}; text-align: {shelfAlign};">
                 {product.sale_price.toLocaleString()} DZD
               </div>
             {/if}

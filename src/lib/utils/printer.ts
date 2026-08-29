@@ -116,18 +116,42 @@ export function buildReceiptHtml(options: {
   paymentMethod: string;
   isCredit?: boolean;
   copyLabel?: string;
+  headerFontSize?: number;
+  headerBold?: boolean;
+  bodyFontSize?: number;
+  bodyBold?: boolean;
+  totalFontSize?: number;
+  totalBold?: boolean;
+  footerFontSize?: number;
+  footerBold?: boolean;
+  headerAlign?: 'left' | 'center' | 'right';
+  footerAlign?: 'left' | 'center' | 'right';
+  receiptHeaderGreeting?: string;
+  receiptFooterNote?: string;
 }) {
   const qrData = encodeURIComponent(`SALE:${options.saleNumber}`);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${qrData}`;
 
+  const headerSize = options.headerFontSize || 14;
+  const headerBold = options.headerBold !== false;
+  const bodySize = options.bodyFontSize || 11;
+  const bodyBold = options.bodyBold === true;
+  const totalSize = options.totalFontSize || 14;
+  const totalBold = options.totalBold !== false;
+  const footerSize = options.footerFontSize || 9;
+  const footerBold = options.footerBold === true;
+  const headerAlign = options.headerAlign || 'center';
+  const footerAlign = options.footerAlign || 'center';
+
   return `
     ${options.isCredit ? '<div class="watermark">CREDIT / دين</div>' : ''}
-    <div class="text-center pb-2 border-b-dashed">
-      <h2 class="font-black text-sm uppercase">${options.shopName || 'TitaouPOS'}</h2>
-      <p class="text-xxs">${options.shopAddress || 'Alger, Algérie'}</p>
-      <p class="text-xxs">Tél: ${options.shopPhone || '0553444057'}</p>
-      ${options.shopRc ? `<p class="text-xxs">RC: ${options.shopRc} ${options.shopNif ? '| NIF: ' + options.shopNif : ''}</p>` : ''}
-      <p class="text-xxs mt-1">${options.saleDate}</p>
+    <div style="text-align: ${headerAlign};" class="pb-2 border-b-dashed">
+      <h2 style="font-size: ${headerSize}px; font-weight: ${headerBold ? '900' : 'normal'};" class="uppercase">${options.shopName || 'TitaouPOS'}</h2>
+      <p style="font-size: ${Math.max(8, bodySize - 2)}px;">${options.shopAddress || 'Alger, Algérie'}</p>
+      <p style="font-size: ${Math.max(8, bodySize - 2)}px;">Tél: ${options.shopPhone || '0553444057'}</p>
+      ${options.shopRc ? `<p style="font-size: ${Math.max(7, bodySize - 3)}px;">RC: ${options.shopRc} ${options.shopNif ? '| NIF: ' + options.shopNif : ''}</p>` : ''}
+      ${options.receiptHeaderGreeting ? `<p style="font-size: ${Math.max(8, bodySize - 2)}px; font-style: italic; font-weight: bold;">${options.receiptHeaderGreeting}</p>` : ''}
+      <p style="font-size: ${Math.max(8, bodySize - 2)}px; margin-top: 2px;">${options.saleDate}</p>
       ${options.copyLabel ? `<p class="font-black text-xxs mt-0.5 bg-black text-white px-1">[ ${options.copyLabel} ]</p>` : ''}
     </div>
 
@@ -144,12 +168,12 @@ export function buildReceiptHtml(options: {
     ` : ''}
 
     <div class="py-1 border-b-dashed">
-      <table>
+      <table style="font-size: ${bodySize}px; font-weight: ${bodyBold ? 'bold' : 'normal'};">
         <thead>
           <tr>
-            <th style="width: 50%;">Article</th>
-            <th class="text-center" style="width: 15%;">Qté</th>
-            <th class="text-end" style="width: 35%;">Total</th>
+            <th style="width: 50%; font-size: ${bodySize}px;">Article</th>
+            <th class="text-center" style="width: 15%; font-size: ${bodySize}px;">Qté</th>
+            <th class="text-end" style="width: 35%; font-size: ${bodySize}px;">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -157,9 +181,9 @@ export function buildReceiptHtml(options: {
             .map(
               (i) => `
             <tr>
-              <td class="font-bold">${i.name}</td>
+              <td style="font-weight: ${bodyBold ? '900' : 'bold'};">${i.name}</td>
               <td class="text-center font-mono">${i.quantity}</td>
-              <td class="text-end font-mono font-bold">${i.totalPrice.toLocaleString()} DZD</td>
+              <td class="text-end font-mono" style="font-weight: bold;">${i.totalPrice.toLocaleString()} DZD</td>
             </tr>
           `
             )
@@ -168,27 +192,29 @@ export function buildReceiptHtml(options: {
       </table>
     </div>
 
-    <div class="py-1 border-b-dashed text-xs space-y-1">
+    <div class="py-1 border-b-dashed space-y-1">
       ${options.discount > 0 ? `
-        <div class="flex justify-between text-xxs">
+        <div class="flex justify-between" style="font-size: ${Math.max(9, bodySize - 1)}px;">
           <span>Sous-Total:</span>
           <span class="font-mono">${options.subtotal.toLocaleString()} DZD</span>
         </div>
-        <div class="flex justify-between text-xxs">
+        <div class="flex justify-between" style="font-size: ${Math.max(9, bodySize - 1)}px;">
           <span>Remise:</span>
           <span class="font-mono text-rose-600">-${options.discount.toLocaleString()} DZD</span>
         </div>
       ` : ''}
-      <div class="flex justify-between font-black text-sm pt-0.5">
+      <div style="font-size: ${totalSize}px; font-weight: ${totalBold ? '900' : 'bold'};" class="flex justify-between pt-0.5">
         <span>TOTAL A PAYER:</span>
         <span class="font-mono">${options.grandTotal.toLocaleString()} DZD</span>
       </div>
     </div>
 
-    <div class="text-center pt-2 border-t-dashed">
+    <div style="text-align: ${footerAlign};" class="pt-2 border-t-dashed">
       <img src="${qrUrl}" alt="QR" class="qr-box" />
-      <p class="text-xxs text-gray-700">Scan QR to verify or lookup ticket</p>
-      <p class="text-xxs mt-1 font-bold">*** Merci pour votre visite ***</p>
+      <p style="font-size: ${Math.max(7, footerSize - 1)}px; color: #555;">Scan QR to verify or lookup ticket</p>
+      <p style="font-size: ${footerSize}px; font-weight: ${footerBold ? 'bold' : 'normal'}; margin-top: 3px;">
+        ${options.receiptFooterNote || '*** Merci pour votre visite ***'}
+      </p>
       <p class="text-[8px] text-gray-500 mt-1">TitaouPOS • Created by Titaou Bedreddine 0553444057</p>
     </div>
   `;

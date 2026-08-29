@@ -694,18 +694,20 @@
     const showFooter = settings.receipt_show_footer !== 'false';
     const showQr = settings.receipt_show_qr !== 'false';
 
-    const headerSize = settings.receipt_header_font_size || '14';
+    const headerSize = parseInt(settings.receipt_header_font_size || '14');
     const headerBold = settings.receipt_header_bold !== 'false';
-    const bodySize = settings.receipt_body_font_size || '10';
+    const bodySize = parseInt(settings.receipt_body_font_size || '11');
     const bodyBold = settings.receipt_body_bold === 'true';
-    const totalSize = settings.receipt_total_font_size || '13';
+    const totalSize = parseInt(settings.receipt_total_font_size || '14');
     const totalBold = settings.receipt_total_bold !== 'false';
-    const footerSize = settings.receipt_footer_font_size || '8';
+    const footerSize = parseInt(settings.receipt_footer_font_size || '9');
     const footerBold = settings.receipt_footer_bold === 'true';
+    const headerAlign = settings.receipt_header_align || 'center';
+    const footerAlign = settings.receipt_footer_align || 'center';
 
     const html = `
       <div style="font-family: ${fontFamily}; font-size: ${bodySize}px; font-weight: ${bodyBold ? 'bold' : 'normal'}; width: ${settings.receipt_paper_width === '58mm' ? '230px' : '300px'}; padding: 10px; background: #fff; color: #000; box-sizing: border-box;">
-        <div style="text-align: center; padding-bottom: 8px; border-bottom: 1px dashed #000;">
+        <div style="text-align: ${headerAlign}; padding-bottom: 8px; border-bottom: 1px dashed #000;">
           ${showShop ? `<h2 style="font-size: ${headerSize}px; font-weight: ${headerBold ? '900' : 'normal'}; margin: 0 0 2px 0;">${settings.shop_name_fr || 'TitaouPOS'}</h2>` : ''}
           ${showShop && settings.shop_name_ar ? `<p style="font-size: 11px; font-weight: bold; margin: 0;">${settings.shop_name_ar}</p>` : ''}
           ${showAddress ? `<p style="font-size: 9px; color: #444; margin: 1px 0;">${settings.shop_address || 'Alger, Algérie'}</p>` : ''}
@@ -719,7 +721,7 @@
           ${showCashier ? `<span>Caisse: ${$currentUser?.display_name || 'Admin'}</span>` : ''}
         </div>
         <div style="padding: 6px 0; border-bottom: 1px dashed #000;">
-          <table style="width: 100%; font-size: 9px;">
+          <table style="width: 100%; font-size: ${bodySize}px; font-weight: ${bodyBold ? 'bold' : 'normal'};">
             <thead>
               <tr style="border-bottom: 1px solid #ccc;"><th style="text-align: left;">Article</th><th style="text-align: center;">Qté</th><th style="text-align: right;">P.U</th><th style="text-align: right;">Total</th></tr>
             </thead>
@@ -735,7 +737,7 @@
         </div>
         ${showTax ? `<div style="font-size: 8px; color: #555; display: flex; justify-content: space-between; padding-bottom: 4px;"><span>Dont TVA (19%):</span><span>40 DZD</span></div>` : ''}
         ${showFooter ? `
-          <div style="text-align: center; padding-top: 6px; font-size: ${footerSize}px; font-weight: ${footerBold ? 'bold' : 'normal'}; border-top: 1px dashed #000; color: #444;">
+          <div style="text-align: ${footerAlign}; padding-top: 6px; font-size: ${footerSize}px; font-weight: ${footerBold ? 'bold' : 'normal'}; border-top: 1px dashed #000; color: #444;">
             ${settings.receipt_footer || '*** Merci de votre visite - شكراً لزيارتكم ***'}
           </div>
         ` : ''}
@@ -752,48 +754,57 @@
   }
 
   function testPrintBarcode() {
-    const w = parseInt(settings.barcode_label_width || '50');
-    const h = parseInt(settings.barcode_label_height || '30');
+    let w = parseInt(settings.barcode_label_width || '50');
+    let h = parseInt(settings.barcode_label_height || '30');
+    if (settings.sticker_orientation === 'portrait') {
+      const temp = w; w = h; h = temp;
+    }
     const showShop = settings.sticker_show_shop_name !== 'false';
     const showName = settings.sticker_show_product_name !== 'false';
     const showBarcode = settings.sticker_show_barcode !== 'false';
     const showPrice = settings.sticker_show_price !== 'false';
-    const nameSize = parseInt(settings.sticker_name_font_size || '9');
+    const nameSize = parseInt(settings.sticker_name_font_size || '12');
     const nameBold = settings.sticker_name_bold !== 'false';
-    const priceSize = parseInt(settings.sticker_price_font_size || '12');
+    const priceSize = parseInt(settings.sticker_price_font_size || '16');
     const priceBold = settings.sticker_price_bold !== 'false';
+    const align = settings.sticker_text_align || 'center';
+    const flexAlign = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
     const barcodeSvgHtml = settingsBarcodeSvgEl ? settingsBarcodeSvgEl.outerHTML : `<p style="font-family:monospace;font-size:10px;">${previewBarcodeNumber}</p>`;
 
     const html = `
-      <div style="width: ${w}mm; height: ${h}mm; text-align: center; font-family: sans-serif; padding: 2mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff;">
-        ${showShop ? `<p style="font-weight: bold; font-size: 8px; text-transform: uppercase; color: #555; margin: 0;">${settings.shop_name_fr || 'TitaouPOS'}</p>` : ''}
-        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 2px 0; overflow: hidden; white-space: nowrap; max-width: 100%;">${previewProductName}</p>` : ''}
-        ${showBarcode ? `<div style="max-width: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; margin: 1px 0;">${barcodeSvgHtml}</div>` : ''}
-        ${showPrice ? `<p style="font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; font-family: monospace; margin: 2px 0;">${previewPrice} DZD</p>` : ''}
+      <div style="width: ${w}mm; height: ${h}mm; text-align: ${align}; font-family: sans-serif; padding: 2mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: ${flexAlign}; justify-content: center; background: #fff;">
+        ${showShop ? `<p style="font-weight: bold; font-size: 10px; text-transform: uppercase; color: #444; margin: 0; width: 100%; text-align: ${align};">${settings.shop_name_fr || 'TitaouPOS'}</p>` : ''}
+        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 2px 0; overflow: hidden; white-space: nowrap; max-width: 100%; width: 100%; text-align: ${align};">${previewProductName}</p>` : ''}
+        ${showBarcode ? `<div style="max-width: 100%; overflow: hidden; display: flex; justify-content: ${flexAlign}; align-items: center; margin: 1px 0; width: 100%;">${barcodeSvgHtml}</div>` : ''}
+        ${showPrice ? `<p style="font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; font-family: monospace; margin: 2px 0; width: 100%; text-align: ${align};">${previewPrice} DZD</p>` : ''}
       </div>
     `;
     printHtmlDirectly(html, 'Test Barcode Sticker');
   }
 
   function testPrintShelfTag() {
-    const w = parseInt(settings.shelf_tag_width || '60');
-    const h = parseInt(settings.shelf_tag_height || '40');
+    let w = parseInt(settings.shelf_tag_width || '60');
+    let h = parseInt(settings.shelf_tag_height || '40');
+    if (settings.shelf_orientation === 'portrait') {
+      const temp = w; w = h; h = temp;
+    }
     const showShop = settings.shelf_show_shop_name !== 'false';
     const showName = settings.shelf_show_product_name !== 'false';
     const showPrice = settings.shelf_show_price !== 'false';
     const showRef = settings.shelf_show_ref !== 'false';
-    const nameSize = parseInt(settings.shelf_name_font_size || '11');
+    const nameSize = parseInt(settings.shelf_name_font_size || '16');
     const nameBold = settings.shelf_name_bold !== 'false';
-    const priceSize = parseInt(settings.shelf_price_font_size || '18');
+    const priceSize = parseInt(settings.shelf_price_font_size || '28');
     const priceBold = settings.shelf_price_bold !== 'false';
-    const refSize = parseInt(settings.shelf_ref_font_size || '8');
+    const refSize = parseInt(settings.shelf_ref_font_size || '10');
+    const align = settings.shelf_text_align || 'center';
 
     const html = `
-      <div style="width: ${w}mm; height: ${h}mm; border: 1.5px solid #000; padding: 3mm; font-family: sans-serif; text-align: center; box-sizing: border-box; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
-        ${showShop ? `<div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px;"><span>${settings.shop_name_fr || 'TitaouPOS'}</span><span style="color: green;">DISPO</span></div>` : ''}
-        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 4px 0; line-height: 1.2;">${previewProductName}</p>` : ''}
-        ${showPrice ? `<div style="background: #000; color: #fff; padding: 4px; font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; margin: 4px 0; font-family: monospace;">${previewPrice} DZD</div>` : ''}
-        ${showRef ? `<div style="display: flex; justify-content: space-between; font-size: ${refSize}px; font-weight: bold;"><span>Ref: ${previewBarcodeNumber}</span><span>TVA 19% Incl.</span></div>` : ''}
+      <div style="width: ${w}mm; height: ${h}mm; border: 2px solid #000; padding: 3mm; font-family: sans-serif; text-align: ${align}; box-sizing: border-box; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+        ${showShop ? `<div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; border-bottom: 1.5px solid #000; padding-bottom: 2px;"><span>${settings.shop_name_fr || 'TitaouPOS'}</span><span style="color: #059669; font-weight: 900;">DISPO</span></div>` : ''}
+        ${showName ? `<p style="font-size: ${nameSize}px; font-weight: ${nameBold ? '900' : 'normal'}; margin: 4px 0; line-height: 1.2; text-align: ${align}; width: 100%;">${previewProductName}</p>` : ''}
+        ${showPrice ? `<div style="background: #000; color: #fff; padding: 6px; font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; margin: 4px 0; font-family: monospace; border-radius: 4px; text-align: ${align}; width: 100%;">${previewPrice} DZD</div>` : ''}
+        ${showRef ? `<div style="display: flex; justify-content: space-between; font-size: ${refSize}px; font-weight: bold; width: 100%;"><span>Ref: ${previewBarcodeNumber}</span><span>TVA 19% Incl.</span></div>` : ''}
       </div>
     `;
     printHtmlDirectly(html, 'Test Shelf Tag');
@@ -1143,14 +1154,35 @@
             <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
               <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
                 <Type class="w-4 h-4 text-sky-500" />
-                <span>Font Sizing & Bold Formatting (حجم الخط والسمك)</span>
+                <span>Font Sizing, Bold Formatting & Alignment (حجم الخط والمحاذاة)</span>
               </h3>
+
+              <!-- Alignment row -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pb-1 border-b border-pos-border/40">
+                <div>
+                  <label class="block text-[11px] font-bold text-pos-muted mb-1">Header Alignment (محاذاة الرأس)</label>
+                  <select bind:value={settings.receipt_header_align} class="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
+                    <option value="center">Center / في الوسط</option>
+                    <option value="left">Left / محاذاة لليسار</option>
+                    <option value="right">Right / محاذاة لليمين</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-pos-muted mb-1">Footer Policy Alignment (محاذاة التذييل)</label>
+                  <select bind:value={settings.receipt_footer_align} class="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
+                    <option value="center">Center / في الوسط</option>
+                    <option value="left">Left / محاذاة لليسار</option>
+                    <option value="right">Right / محاذاة لليمين</option>
+                  </select>
+                </div>
+              </div>
+
               <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <!-- Header Font Size & Bold -->
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
                   <span class="text-[11px] font-bold text-pos-muted block">Shop Header</span>
                   <div class="flex items-center gap-1.5">
-                    <input type="number" min="8" max="24" bind:value={settings.receipt_header_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <input type="number" min="6" max="64" bind:value={settings.receipt_header_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
                     <span class="text-[10px] text-pos-muted">px</span>
                   </div>
                   <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
@@ -1163,7 +1195,7 @@
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
                   <span class="text-[11px] font-bold text-pos-muted block">Items & Rows</span>
                   <div class="flex items-center gap-1.5">
-                    <input type="number" min="8" max="18" bind:value={settings.receipt_body_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <input type="number" min="6" max="48" bind:value={settings.receipt_body_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
                     <span class="text-[10px] text-pos-muted">px</span>
                   </div>
                   <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
@@ -1176,7 +1208,7 @@
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
                   <span class="text-[11px] font-bold text-pos-muted block">Total Amount</span>
                   <div class="flex items-center gap-1.5">
-                    <input type="number" min="10" max="24" bind:value={settings.receipt_total_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <input type="number" min="6" max="64" bind:value={settings.receipt_total_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
                     <span class="text-[10px] text-pos-muted">px</span>
                   </div>
                   <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
@@ -1189,7 +1221,7 @@
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1.5">
                   <span class="text-[11px] font-bold text-pos-muted block">Footer Policy</span>
                   <div class="flex items-center gap-1.5">
-                    <input type="number" min="6" max="16" bind:value={settings.receipt_footer_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
+                    <input type="number" min="6" max="48" bind:value={settings.receipt_footer_font_size} class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold font-mono outline-none" />
                     <span class="text-[10px] text-pos-muted">px</span>
                   </div>
                   <label class="flex items-center gap-1.5 text-[11px] font-bold text-pos-text cursor-pointer pt-1">
@@ -1209,7 +1241,7 @@
               class="bg-white text-black p-3.5 shadow-md space-y-2 border border-slate-300 transition-all rounded-sm leading-tight"
             >
               <!-- Header -->
-              <div class="text-center pb-1 border-b border-dashed border-slate-400">
+              <div style="text-align: {settings.receipt_header_align || 'center'};" class="pb-1 border-b border-dashed border-slate-400">
                 {#if (settings.receipt_show_shop_name ?? 'true') !== 'false' && (settings.receipt_show_shop_name ?? true) !== false}
                   <p style="font-size: {settings.receipt_header_font_size || '14'}px; font-weight: {(settings.receipt_header_bold ?? 'true') !== 'false' && (settings.receipt_header_bold ?? true) !== false ? '900' : 'normal'};" class="leading-tight">
                     {settings.shop_name_fr || 'TitaouPOS'}
@@ -1272,8 +1304,8 @@
               <!-- Footer -->
               {#if (settings.receipt_show_footer ?? 'true') !== 'false' && (settings.receipt_show_footer ?? true) !== false}
                 <div
-                  style="font-size: {settings.receipt_footer_font_size || '8'}px; font-weight: {settings.receipt_footer_bold === 'true' || settings.receipt_footer_bold === true ? 'bold' : 'normal'};"
-                  class="text-center pt-1 text-gray-600 border-t border-dashed border-slate-400"
+                  style="font-size: {settings.receipt_footer_font_size || '8'}px; font-weight: {settings.receipt_footer_bold === 'true' || settings.receipt_footer_bold === true ? 'bold' : 'normal'}; text-align: {settings.receipt_footer_align || 'center'};"
+                  class="pt-1 text-gray-600 border-t border-dashed border-slate-400"
                 >
                   {settings.receipt_footer || '*** Merci de votre visite ***'}
                 </div>
@@ -1580,35 +1612,38 @@
               </div>
 
               <!-- Live Real Sticker Preview -->
-              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-center space-y-1 shadow-inner min-h-[140px]">
+              <div
+                style="text-align: {settings.sticker_text_align || 'center'};"
+                class="p-4 bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl flex flex-col justify-center space-y-1.5 shadow-inner min-h-[140px] w-full"
+              >
                 {#if (settings.sticker_show_shop_name ?? 'true') !== 'false' && (settings.sticker_show_shop_name ?? true) !== false}
-                  <span class="text-[8px] text-slate-500 font-bold uppercase">{settings.shop_name_fr || 'TitaouPOS Supermarché'}</span>
+                  <span class="text-[10px] text-slate-500 font-bold uppercase block" style="text-align: {settings.sticker_text_align || 'center'};">{settings.shop_name_fr || 'TitaouPOS Supermarché'}</span>
                 {/if}
                 {#if (settings.sticker_show_product_name ?? 'true') !== 'false' && (settings.sticker_show_product_name ?? true) !== false}
                   <p
-                    style="font-size: {settings.sticker_name_font_size || '9'}px; font-weight: {(settings.sticker_name_bold ?? 'true') !== 'false' && (settings.sticker_name_bold ?? true) !== false ? '900' : 'normal'};"
-                    class="text-slate-900 line-clamp-1 leading-tight"
+                    style="font-size: {settings.sticker_name_font_size || '12'}px; font-weight: {(settings.sticker_name_bold ?? 'true') !== 'false' && (settings.sticker_name_bold ?? true) !== false ? '900' : 'normal'}; text-align: {settings.sticker_text_align || 'center'};"
+                    class="text-slate-900 line-clamp-1 leading-tight block"
                   >
                     {previewProductName}
                   </p>
                 {/if}
                 {#if (settings.sticker_show_barcode ?? 'true') !== 'false' && (settings.sticker_show_barcode ?? true) !== false}
-                  <div class="w-full flex justify-center py-0.5 overflow-hidden">
+                  <div class="w-full flex py-0.5 overflow-hidden" style="justify-content: {settings.sticker_text_align === 'left' ? 'flex-start' : settings.sticker_text_align === 'right' ? 'flex-end' : 'center'};">
                     <svg bind:this={settingsBarcodeSvgEl} class="max-w-full"></svg>
                   </div>
                 {/if}
                 {#if (settings.sticker_show_price ?? 'true') !== 'false' && (settings.sticker_show_price ?? true) !== false}
                   <span
-                    style="font-size: {settings.sticker_price_font_size || '12'}px; font-weight: {(settings.sticker_price_bold ?? 'true') !== 'false' && (settings.sticker_price_bold ?? true) !== false ? '900' : 'normal'};"
-                    class="text-slate-900 font-mono leading-none"
+                    style="font-size: {settings.sticker_price_font_size || '16'}px; font-weight: {(settings.sticker_price_bold ?? 'true') !== 'false' && (settings.sticker_price_bold ?? true) !== false ? '900' : 'normal'}; text-align: {settings.sticker_text_align || 'center'};"
+                    class="text-slate-900 font-mono leading-none block"
                   >
                     {previewPrice} DZD
                   </span>
                 {/if}
               </div>
 
-              <!-- Dimensions -->
-              <div class="grid grid-cols-2 gap-2 text-xs">
+              <!-- Dimensions, Orientation & Alignment -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Width (mm)</label>
                   <input type="number" bind:value={settings.barcode_label_width} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
@@ -1616,6 +1651,21 @@
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Height (mm)</label>
                   <input type="number" bind:value={settings.barcode_label_height} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Orientation (الاتجاه)</label>
+                  <select bind:value={settings.sticker_orientation} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="landscape">Landscape (عرضي)</option>
+                    <option value="portrait">Portrait (طولي)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Alignment (المحاذاة)</label>
+                  <select bind:value={settings.sticker_text_align} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="center">Center / وسط</option>
+                    <option value="left">Left / يسار</option>
+                    <option value="right">Right / يمين</option>
+                  </select>
                 </div>
               </div>
 
@@ -1647,8 +1697,8 @@
                 <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Font Sizes & Bold Styling (الأحجام والخط)</span>
                 <div class="grid grid-cols-3 gap-2">
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Name Size</span>
-                    <input type="number" min="6" max="18" bind:value={settings.sticker_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Name Size (px)</span>
+                    <input type="number" min="4" max="72" bind:value={settings.sticker_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                     <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
                       <input type="checkbox" bind:checked={settings.sticker_name_bold} class="rounded text-sky-600" />
                       <span>Bold</span>
@@ -1656,8 +1706,8 @@
                   </div>
 
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Price Size</span>
-                    <input type="number" min="8" max="22" bind:value={settings.sticker_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Price Size (px)</span>
+                    <input type="number" min="4" max="72" bind:value={settings.sticker_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                     <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
                       <input type="checkbox" bind:checked={settings.sticker_price_bold} class="rounded text-sky-600" />
                       <span>Bold</span>
@@ -1665,8 +1715,8 @@
                   </div>
 
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Code Size</span>
-                    <input type="number" min="6" max="16" bind:value={settings.sticker_barcode_font_size} on:input={renderSettingsBarcode} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Code Size (px)</span>
+                    <input type="number" min="4" max="48" bind:value={settings.sticker_barcode_font_size} on:input={renderSettingsBarcode} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                   </div>
                 </div>
               </div>
@@ -1690,39 +1740,42 @@
               </div>
 
               <!-- Live Shelf Tag Preview -->
-              <div class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col items-center justify-between text-center space-y-1 shadow-inner min-h-[140px]">
+              <div
+                style="text-align: {settings.shelf_text_align || 'center'};"
+                class="p-4 bg-white text-slate-900 border-2 border-dashed border-emerald-300 rounded-xl flex flex-col justify-between space-y-2 shadow-inner min-h-[140px] w-full"
+              >
                 {#if (settings.shelf_show_shop_name ?? 'true') !== 'false' && (settings.shelf_show_shop_name ?? true) !== false}
-                  <div class="w-full flex justify-between text-[9px] font-bold text-slate-500 border-b pb-0.5">
+                  <div class="w-full flex justify-between text-[10px] font-bold text-slate-500 border-b pb-0.5">
                     <span>{settings.shop_name_fr || 'TitaouPOS'}</span>
                     <span class="text-emerald-600 font-bold">DISPO EN RAYON</span>
                   </div>
                 {/if}
                 {#if (settings.shelf_show_product_name ?? 'true') !== 'false' && (settings.shelf_show_product_name ?? true) !== false}
                   <h4
-                    style="font-size: {settings.shelf_name_font_size || '11'}px; font-weight: {(settings.shelf_name_bold ?? 'true') !== 'false' && (settings.shelf_name_bold ?? true) !== false ? '900' : 'normal'};"
-                    class="text-slate-900 leading-tight py-0.5"
+                    style="font-size: {settings.shelf_name_font_size || '16'}px; font-weight: {(settings.shelf_name_bold ?? 'true') !== 'false' && (settings.shelf_name_bold ?? true) !== false ? '900' : 'normal'}; text-align: {settings.shelf_text_align || 'center'};"
+                    class="text-slate-900 leading-tight py-0.5 block"
                   >
                     {previewProductName}
                   </h4>
                 {/if}
                 {#if (settings.shelf_show_price ?? 'true') !== 'false' && (settings.shelf_show_price ?? true) !== false}
                   <div
-                    style="font-size: {settings.shelf_price_font_size || '18'}px; font-weight: {(settings.shelf_price_bold ?? 'true') !== 'false' && (settings.shelf_price_bold ?? true) !== false ? '900' : 'normal'};"
-                    class="w-full bg-slate-900 text-white font-mono rounded py-0.5"
+                    style="font-size: {settings.shelf_price_font_size || '28'}px; font-weight: {(settings.shelf_price_bold ?? 'true') !== 'false' && (settings.shelf_price_bold ?? true) !== false ? '900' : 'normal'}; text-align: {settings.shelf_text_align || 'center'};"
+                    class="w-full bg-slate-900 text-white font-mono rounded py-1 px-2 block"
                   >
                     {previewPrice} DZD
                   </div>
                 {/if}
                 {#if (settings.shelf_show_ref ?? 'true') !== 'false' && (settings.shelf_show_ref ?? true) !== false}
-                  <div class="w-full flex justify-between font-bold text-slate-500 pt-0.5" style="font-size: {settings.shelf_ref_font_size || '8'}px;">
+                  <div class="w-full flex justify-between font-bold text-slate-500 pt-0.5" style="font-size: {settings.shelf_ref_font_size || '10'}px;">
                     <span>Ref: {previewBarcodeNumber}</span>
                     <span>TVA 19% Incl.</span>
                   </div>
                 {/if}
               </div>
 
-              <!-- Dimensions -->
-              <div class="grid grid-cols-2 gap-2 text-xs">
+              <!-- Dimensions, Orientation & Alignment -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Width (mm)</label>
                   <input type="number" bind:value={settings.shelf_tag_width} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
@@ -1730,6 +1783,21 @@
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">Height (mm)</label>
                   <input type="number" bind:value={settings.shelf_tag_height} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold font-mono outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Orientation (الاتجاه)</label>
+                  <select bind:value={settings.shelf_orientation} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="landscape">Landscape (عرضي)</option>
+                    <option value="portrait">Portrait (طولي)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Alignment (المحاذاة)</label>
+                  <select bind:value={settings.shelf_text_align} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="center">Center / وسط</option>
+                    <option value="left">Left / يسار</option>
+                    <option value="right">Right / يمين</option>
+                  </select>
                 </div>
               </div>
 
@@ -1761,8 +1829,8 @@
                 <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Font Sizes & Bold Styling (الأحجام والخط)</span>
                 <div class="grid grid-cols-3 gap-2">
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Name Size</span>
-                    <input type="number" min="8" max="22" bind:value={settings.shelf_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Name Size (px)</span>
+                    <input type="number" min="6" max="80" bind:value={settings.shelf_name_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                     <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
                       <input type="checkbox" bind:checked={settings.shelf_name_bold} class="rounded text-emerald-600" />
                       <span>Bold</span>
@@ -1770,8 +1838,8 @@
                   </div>
 
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Price Size</span>
-                    <input type="number" min="10" max="32" bind:value={settings.shelf_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Price Size (px)</span>
+                    <input type="number" min="8" max="96" bind:value={settings.shelf_price_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                     <label class="flex items-center gap-1 text-[10px] font-bold text-pos-text cursor-pointer pt-0.5">
                       <input type="checkbox" bind:checked={settings.shelf_price_bold} class="rounded text-emerald-600" />
                       <span>Bold</span>
@@ -1779,8 +1847,8 @@
                   </div>
 
                   <div class="p-2 bg-white dark:bg-slate-900 rounded-lg border border-pos-border space-y-1">
-                    <span class="text-[9px] font-bold text-pos-muted block">Ref Size</span>
-                    <input type="number" min="6" max="16" bind:value={settings.shelf_ref_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
+                    <span class="text-[9px] font-bold text-pos-muted block">Ref Size (px)</span>
+                    <input type="number" min="4" max="48" bind:value={settings.shelf_ref_font_size} class="w-full px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold font-mono outline-none" />
                   </div>
                 </div>
               </div>

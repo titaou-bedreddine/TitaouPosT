@@ -28,7 +28,7 @@
 
   async function handleNewSale() {
     if ($cartItems.length > 0) {
-      await holdCurrentSale('New Sale held cart');
+      await holdCurrentSale();
     } else {
       clearCart();
     }
@@ -36,7 +36,7 @@
 
   async function handleHoldClick() {
     if ($cartItems.length > 0) {
-      await holdCurrentSale('User held cart');
+      await holdCurrentSale();
     } else {
       onOpenHeldSales();
     }
