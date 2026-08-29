@@ -1,9 +1,12 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { cartItems, heldSalesList, refreshHeldSales, clearCart, holdCurrentSale } from '../stores/cart';
+  import {
+    cartItems, heldSalesList, refreshHeldSales, clearCart, holdCurrentSale,
+    globalDiscountMode, globalDiscountValue, computeCartDiscount, parseHeldCart,
+  } from '../stores/cart';
   import { currentUser } from '../stores/auth';
-  import type { HeldSale, CartItem } from '../types';
-  import { PauseCircle, Play, Trash2, X, ShoppingBag, Clock } from 'lucide-svelte';
+  import type { HeldSale } from '../types';
+  import { PauseCircle, Play, Trash2, X, ShoppingBag, Clock, Percent } from 'lucide-svelte';
 
   export let isOpen = false;
   export let onClose: () => void;
@@ -15,18 +18,19 @@
     refreshHeldSales();
   }
 
-  function getSaleDetails(sale: HeldSale): { total: number; count: number; preview: string } {
+  function getSaleDetails(sale: HeldSale): { total: number; count: number; preview: string; discount: number } {
     try {
-      const items: CartItem[] = JSON.parse(sale.cart_json);
-      const total = items.reduce((sum, i) => {
+      const { items, discountMode, discountValue } = parseHeldCart(sale.cart_json);
+      const subtotal = items.reduce((sum, i) => {
         const val = i.total_price || (i.quantity * (i.unit_price - (i.discount_amount || 0)));
         return i.is_refund ? sum - val : sum + val;
       }, 0);
+      const discount = computeCartDiscount(subtotal, discountMode, discountValue);
       const count = items.reduce((c, i) => c + i.quantity, 0);
       const preview = items.slice(0, 2).map(i => `${i.name_fr || i.name_ar} (x${i.quantity})`).join(', ') + (items.length > 2 ? '...' : '');
-      return { total, count, preview };
+      return { total: subtotal - discount, count, preview, discount };
     } catch {
-      return { total: 0, count: 0, preview: '' };
+      return { total: 0, count: 0, preview: '', discount: 0 };
     }
   }
 
@@ -47,11 +51,15 @@
 
   async function handleResume(sale: HeldSale) {
     try {
-      const items = JSON.parse(sale.cart_json);
+      // Restore items AND the saved cart-level remise; a fresh sale (nothing held)
+      // starts with no discount because resume/hold flows reset the stores.
+      const { items, discountMode, discountValue } = parseHeldCart(sale.cart_json);
       if ($cartItems.length > 0) {
         await holdCurrentSale();
       }
       $cartItems = items;
+      $globalDiscountMode = discountMode;
+      $globalDiscountValue = discountValue;
       await handleDelete(sale.id);
       onClose();
     } catch (e) {
@@ -124,6 +132,12 @@
                     <span class="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-pos-muted px-2 py-0.5 rounded-full font-mono">
                       {details.count} items
                     </span>
+                    {#if details.discount > 0}
+                      <span class="text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                        <Percent class="w-2.5 h-2.5" />
+                        Remise -{details.discount.toLocaleString()} DZD
+                      </span>
+                    {/if}
                     <span class="text-[10px] text-pos-muted font-mono flex items-center gap-1">
                       <Clock class="w-3 h-3" />
                       {sale.created_at}

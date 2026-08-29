@@ -13,7 +13,23 @@
   export let item: CartItem;
 
   let showDiscountInput = false;
-  let lineDiscountValue = item.discount_amount;
+  let lineDiscountValue: number | null = item.discount_amount;
+  let discountInputEl: HTMLInputElement;
+
+  // Re-seed from the live item each time the popover opens so an
+  // already-applied remise shows up ready to edit.
+  $: if (showDiscountInput) {
+    lineDiscountValue = item.discount_amount;
+  }
+
+  $: maxUnitDiscount = item.unit_price;
+  $: numericDiscount = lineDiscountValue === null || isNaN(lineDiscountValue as number) ? 0 : (lineDiscountValue as number);
+  $: discountInvalid = numericDiscount < 0 || numericDiscount > maxUnitDiscount;
+
+  function focusDiscountInput(el: HTMLInputElement) {
+    el.focus();
+    el.select();
+  }
 
   function decrement() {
     updateItemQuantity(item.product_id, item.is_refund, item.quantity - 1);
@@ -35,7 +51,15 @@
   }
 
   function applyDiscount() {
-    applyItemDiscount(item.product_id, item.is_refund, lineDiscountValue);
+    if (discountInvalid) return;
+    // Hard clamp: the per-unit remise can never exceed the unit price.
+    const clamped = Math.min(Math.max(0, numericDiscount), maxUnitDiscount);
+    applyItemDiscount(item.product_id, item.is_refund, clamped);
+    showDiscountInput = false;
+  }
+
+  function clearDiscount() {
+    applyItemDiscount(item.product_id, item.is_refund, 0);
     showDiscountInput = false;
   }
 
@@ -163,23 +187,39 @@
 
   <!-- Inline Discount Input Popover -->
   {#if showDiscountInput}
-    <div class="p-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-pos-border flex items-center gap-2 animate-in fade-in duration-100">
-      <span class="text-[10px] font-bold text-pos-muted">Discount DZD:</span>
+    <div class="p-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-pos-border flex items-center gap-2 animate-in fade-in duration-100 flex-wrap">
+      <span class="text-[10px] font-bold text-pos-muted">Discount DZD / unit:</span>
       <input
+        bind:this={discountInputEl}
+        use:focusDiscountInput
         type="number"
         bind:value={lineDiscountValue}
         min="0"
-        max={item.unit_price}
-        on:focus={(e) => (e.target as HTMLInputElement).select()}
-        class="w-20 px-2 py-1 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text"
+        max={maxUnitDiscount}
+        step="any"
+        on:keydown={(e) => e.key === 'Enter' && applyDiscount()}
+        class="w-20 px-2 py-1 bg-white dark:bg-slate-900 border rounded-lg text-xs font-mono font-bold text-pos-text {discountInvalid ? 'border-rose-500' : 'border-pos-border'}"
       />
+      <span class="text-[9px] font-bold {discountInvalid ? 'text-rose-600' : 'text-pos-muted'}">
+        {discountInvalid ? `Max ${maxUnitDiscount.toLocaleString()} DZD` : `Max ${maxUnitDiscount.toLocaleString()}`}
+      </span>
       <button
         type="button"
         on:click={applyDiscount}
-        class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-black rounded-lg cursor-pointer"
+        disabled={discountInvalid}
+        class="px-2 py-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black rounded-lg cursor-pointer"
       >
         Apply
       </button>
+      {#if item.discount_amount > 0}
+        <button
+          type="button"
+          on:click={clearDiscount}
+          class="px-2 py-1 text-[10px] font-bold text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+        >
+          Clear
+        </button>
+      {/if}
       <button
         type="button"
         on:click={() => (showDiscountInput = false)}

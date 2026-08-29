@@ -111,6 +111,12 @@
         <!-- Total Display -->
         <div class="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 text-center border border-pos-border">
           <span class="text-xs font-semibold text-pos-muted">{t('grand_total')}</span>
+          {#if $globalDiscountAmount > 0}
+            <div class="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center justify-center gap-1">
+              Remise: -{$globalDiscountAmount.toLocaleString()} DZD
+              <span class="text-pos-muted font-mono">({$cartSubtotal.toLocaleString()} DZD)</span>
+            </div>
+          {/if}
           <div class="text-3xl font-black text-sky-600 dark:text-sky-400 font-mono mt-0.5">
             {total.toLocaleString()} DZD
           </div>

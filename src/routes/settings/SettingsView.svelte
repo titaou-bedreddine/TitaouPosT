@@ -682,26 +682,37 @@
     triggerSaveNotification('HWID copied to clipboard!');
   }
 
+  // Settings can hold real booleans/numbers (fresh binding) or DB strings
+  // ("true"/"12"); normalize so test prints reflect unsaved changes too.
+  function toBool(v: any, dflt = true): boolean {
+    if (v === undefined || v === null || v === '') return dflt;
+    return v === true || v === 'true';
+  }
+  function toInt(v: any, dflt: number): number {
+    const n = parseInt(String(v), 10);
+    return isNaN(n) ? dflt : n;
+  }
+
   function testPrintReceipt() {
     const fontFamily = settings.receipt_font_family || 'monospace';
-    const showShop = settings.receipt_show_shop_name !== 'false';
-    const showAddress = settings.receipt_show_address !== 'false';
-    const showPhone = settings.receipt_show_phone !== 'false';
-    const showRcNif = settings.receipt_show_rc_nif !== 'false';
-    const showCashier = settings.receipt_show_cashier !== 'false';
-    const showDate = settings.receipt_show_date !== 'false';
-    const showTax = settings.receipt_show_tax !== 'false';
-    const showFooter = settings.receipt_show_footer !== 'false';
-    const showQr = settings.receipt_show_qr !== 'false';
+    const showShop = toBool(settings.receipt_show_shop_name);
+    const showAddress = toBool(settings.receipt_show_address);
+    const showPhone = toBool(settings.receipt_show_phone);
+    const showRcNif = toBool(settings.receipt_show_rc_nif);
+    const showCashier = toBool(settings.receipt_show_cashier);
+    const showDate = toBool(settings.receipt_show_date);
+    const showTax = toBool(settings.receipt_show_tax);
+    const showFooter = toBool(settings.receipt_show_footer);
+    const showQr = toBool(settings.receipt_show_qr);
 
-    const headerSize = parseInt(settings.receipt_header_font_size || '14');
-    const headerBold = settings.receipt_header_bold !== 'false';
-    const bodySize = parseInt(settings.receipt_body_font_size || '11');
-    const bodyBold = settings.receipt_body_bold === 'true';
-    const totalSize = parseInt(settings.receipt_total_font_size || '14');
-    const totalBold = settings.receipt_total_bold !== 'false';
-    const footerSize = parseInt(settings.receipt_footer_font_size || '9');
-    const footerBold = settings.receipt_footer_bold === 'true';
+    const headerSize = toInt(settings.receipt_header_font_size, 14);
+    const headerBold = toBool(settings.receipt_header_bold);
+    const bodySize = toInt(settings.receipt_body_font_size, 11);
+    const bodyBold = toBool(settings.receipt_body_bold, false);
+    const totalSize = toInt(settings.receipt_total_font_size, 14);
+    const totalBold = toBool(settings.receipt_total_bold);
+    const footerSize = toInt(settings.receipt_footer_font_size, 9);
+    const footerBold = toBool(settings.receipt_footer_bold, false);
     const headerAlign = settings.receipt_header_align || 'center';
     const footerAlign = settings.receipt_footer_align || 'center';
 
@@ -754,22 +765,41 @@
   }
 
   function testPrintBarcode() {
-    let w = parseInt(settings.barcode_label_width || '50');
-    let h = parseInt(settings.barcode_label_height || '30');
-    if (settings.sticker_orientation === 'portrait') {
+    let w = toInt(settings.barcode_label_width, 50);
+    let h = toInt(settings.barcode_label_height, 30);
+    const portrait = String(settings.sticker_orientation || '') === 'portrait';
+    if (portrait) {
       const temp = w; w = h; h = temp;
     }
-    const showShop = settings.sticker_show_shop_name !== 'false';
-    const showName = settings.sticker_show_product_name !== 'false';
-    const showBarcode = settings.sticker_show_barcode !== 'false';
-    const showPrice = settings.sticker_show_price !== 'false';
-    const nameSize = parseInt(settings.sticker_name_font_size || '12');
-    const nameBold = settings.sticker_name_bold !== 'false';
-    const priceSize = parseInt(settings.sticker_price_font_size || '16');
-    const priceBold = settings.sticker_price_bold !== 'false';
+    const showShop = toBool(settings.sticker_show_shop_name);
+    const showName = toBool(settings.sticker_show_product_name);
+    const showBarcode = toBool(settings.sticker_show_barcode);
+    const showPrice = toBool(settings.sticker_show_price);
+    const nameSize = toInt(settings.sticker_name_font_size, 12);
+    const nameBold = toBool(settings.sticker_name_bold);
+    const priceSize = toInt(settings.sticker_price_font_size, 16);
+    const priceBold = toBool(settings.sticker_price_bold);
+    const barcodeSize = toInt(settings.sticker_barcode_font_size, 10);
     const align = settings.sticker_text_align || 'center';
     const flexAlign = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
-    const barcodeSvgHtml = settingsBarcodeSvgEl ? settingsBarcodeSvgEl.outerHTML : `<p style="font-family:monospace;font-size:10px;">${previewBarcodeNumber}</p>`;
+
+    // Render the barcode straight into the print HTML with the current
+    // settings so unsaved font-size changes are reflected on the test.
+    let barcodeSvgHtml = '';
+    if (showBarcode) {
+      try {
+        const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        JsBarcode(tmp, previewBarcodeNumber, {
+          format: previewBarcodeNumber.length === 13 ? 'EAN13' : 'CODE128',
+          width: 1.8, height: 44, displayValue: true,
+          fontSize: barcodeSize, margin: 0,
+          background: '#ffffff', lineColor: '#000000',
+        });
+        barcodeSvgHtml = tmp.outerHTML;
+      } catch {
+        barcodeSvgHtml = `<p style="font-family:monospace;font-size:10px;">${previewBarcodeNumber}</p>`;
+      }
+    }
 
     const html = `
       <div style="width: ${w}mm; height: ${h}mm; text-align: ${align}; font-family: sans-serif; padding: 2mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: ${flexAlign}; justify-content: center; background: #fff;">
@@ -779,24 +809,24 @@
         ${showPrice ? `<p style="font-size: ${priceSize}px; font-weight: ${priceBold ? '900' : 'normal'}; font-family: monospace; margin: 2px 0; width: 100%; text-align: ${align};">${previewPrice} DZD</p>` : ''}
       </div>
     `;
-    printHtmlDirectly(html, 'Test Barcode Sticker');
+    printHtmlDirectly(html, 'Test Barcode Sticker', { widthMm: w, heightMm: h });
   }
 
   function testPrintShelfTag() {
-    let w = parseInt(settings.shelf_tag_width || '60');
-    let h = parseInt(settings.shelf_tag_height || '40');
-    if (settings.shelf_orientation === 'portrait') {
+    let w = toInt(settings.shelf_tag_width, 60);
+    let h = toInt(settings.shelf_tag_height, 40);
+    if (String(settings.shelf_orientation) === 'portrait') {
       const temp = w; w = h; h = temp;
     }
-    const showShop = settings.shelf_show_shop_name !== 'false';
-    const showName = settings.shelf_show_product_name !== 'false';
-    const showPrice = settings.shelf_show_price !== 'false';
-    const showRef = settings.shelf_show_ref !== 'false';
-    const nameSize = parseInt(settings.shelf_name_font_size || '16');
-    const nameBold = settings.shelf_name_bold !== 'false';
-    const priceSize = parseInt(settings.shelf_price_font_size || '28');
-    const priceBold = settings.shelf_price_bold !== 'false';
-    const refSize = parseInt(settings.shelf_ref_font_size || '10');
+    const showShop = toBool(settings.shelf_show_shop_name);
+    const showName = toBool(settings.shelf_show_product_name);
+    const showPrice = toBool(settings.shelf_show_price);
+    const showRef = toBool(settings.shelf_show_ref);
+    const nameSize = toInt(settings.shelf_name_font_size, 16);
+    const nameBold = toBool(settings.shelf_name_bold);
+    const priceSize = toInt(settings.shelf_price_font_size, 28);
+    const priceBold = toBool(settings.shelf_price_bold);
+    const refSize = toInt(settings.shelf_ref_font_size, 10);
     const align = settings.shelf_text_align || 'center';
 
     const html = `
@@ -807,7 +837,7 @@
         ${showRef ? `<div style="display: flex; justify-content: space-between; font-size: ${refSize}px; font-weight: bold; width: 100%;"><span>Ref: ${previewBarcodeNumber}</span><span>TVA 19% Incl.</span></div>` : ''}
       </div>
     `;
-    printHtmlDirectly(html, 'Test Shelf Tag');
+    printHtmlDirectly(html, 'Test Shelf Tag', { widthMm: w, heightMm: h });
   }
 
 </script>

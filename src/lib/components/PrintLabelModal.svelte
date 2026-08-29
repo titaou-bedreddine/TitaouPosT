@@ -114,6 +114,18 @@
     }
   });
 
+  // Re-fetch settings every time the modal opens so recent changes made in
+  // Settings (font sizes, bold, alignment...) are reflected without remount.
+  $: if (isOpen) {
+    invoke<Record<string, string>>('get_all_settings')
+      .then((fetched) => {
+        settings = { ...settings, ...fetched };
+        settingsLoaded = true;
+        if (labelType === 'barcode') tick().then(renderBarcode);
+      })
+      .catch(() => {});
+  }
+
   async function handleTabChange(type: 'barcode' | 'etiquette') {
     labelType = type;
     copies = type === 'barcode' ? initialQty : 1;
@@ -172,7 +184,19 @@
     for (let i = 0; i < copies; i++) {
       combinedHtml += `<div style="page-break-after:always; display:inline-block;">${singleHtml}</div>`;
     }
-    printHtmlDirectly(combinedHtml, labelType === 'barcode' ? 'Product Sticker' : 'Shelf Etiquette');
+    // Print on the exact configured label size so px font settings map 1:1
+    // to paper instead of being rescaled by the default 80mm receipt page.
+    const finalW = labelType === 'barcode'
+      ? (stickerOrientation === 'portrait' ? heightMm : widthMm)
+      : (shelfOrientation === 'portrait' ? heightMm : widthMm);
+    const finalH = labelType === 'barcode'
+      ? (stickerOrientation === 'portrait' ? widthMm : heightMm)
+      : (shelfOrientation === 'portrait' ? widthMm : heightMm);
+    printHtmlDirectly(
+      combinedHtml,
+      labelType === 'barcode' ? 'Product Sticker' : 'Shelf Etiquette',
+      { widthMm: finalW, heightMm: finalH }
+    );
   }
 </script>
 

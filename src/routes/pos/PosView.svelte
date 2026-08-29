@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, isRefundMode, addToCart, clearCart, cartItemOrder } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly, buildReceiptHtml } from '../../lib/utils/printer';
@@ -28,7 +28,7 @@
 
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
-    Store, Sparkles, AlertCircle, ArrowUpDown, Tag
+    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent
   } from 'lucide-svelte';
 
   let products: Product[] = [];
@@ -280,7 +280,7 @@
         change_amount: 0,
         tax_amount: 0,
         discount_amount: $globalDiscountAmount,
-        discount_percentage: 0,
+        discount_percentage: $globalDiscountPercent,
         payment_method: selectedPaymentMode,
         is_refund: $isRefundMode,
         notes: customerName ? `Credit Sale to ${customerName}` : undefined,
@@ -329,6 +329,8 @@
           quantity: i.quantity,
           unitPrice: i.unit_price,
           totalPrice: i.total_price,
+          discountPerUnit: i.discount_amount || 0,
+          isRefund: i.is_refund || false,
         }));
 
         if (selectedPaymentMode === 'credit') {
@@ -670,6 +672,26 @@
 
       <!-- Totals & Checkout Footer -->
       <div class="p-3.5 border-t border-pos-border bg-slate-50 dark:bg-slate-800/40 space-y-3">
+        {#if $globalDiscountAmount > 0}
+          <!-- Applied Remise row, above the total -->
+          <div class="flex items-center justify-between p-2.5 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200/70 dark:border-purple-800/60">
+            <div class="flex items-center gap-1.5">
+              <Percent class="w-3.5 h-3.5 text-purple-600" />
+              <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider">
+                Remise appliquée{$globalDiscountMode === 'percent' ? ` (${$globalDiscountValue}%)` : ''}
+              </span>
+            </div>
+            <div class="text-end">
+              <span class="text-base font-black font-mono text-purple-600 dark:text-purple-400">
+                -{$globalDiscountAmount.toLocaleString()} <span class="text-[10px] font-bold">DZD</span>
+              </span>
+              <span class="text-[10px] font-bold text-pos-muted block">
+                Sous-Total: {$cartSubtotal.toLocaleString()} DZD
+              </span>
+            </div>
+          </div>
+        {/if}
+
         <div class="flex items-center justify-between p-2.5 bg-sky-50/50 dark:bg-sky-950/30 rounded-xl border border-sky-200/60 dark:border-sky-800/60">
           <div>
             <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">TOTAL PAYABLE</span>

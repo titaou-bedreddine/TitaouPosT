@@ -5,8 +5,6 @@ import { invoke } from '@tauri-apps/api/core';
 export const cartItems = writable<CartItem[]>([]);
 export const globalDiscountMode = writable<'none' | 'percent' | 'amount'>('none');
 export const globalDiscountValue = writable<number>(0);
-export const globalDiscountAmount = writable<number>(0);
-export const globalDiscountPercent = writable<number>(0);
 export const selectedCustomerId = writable<number | null>(null);
 export const isRefundMode = writable<boolean>(false);
 export const heldSalesList = writable<HeldSale[]>([]);
@@ -114,10 +112,38 @@ export function clearCart() {
   cartItems.set([]);
   globalDiscountMode.set('none');
   globalDiscountValue.set(0);
-  globalDiscountAmount.set(0);
-  globalDiscountPercent.set(0);
   selectedCustomerId.set(null);
   isRefundMode.set(false);
+}
+
+// Effective cart-level discount in DZD; never exceeds the cart amount so the total can't go negative.
+export function computeCartDiscount(subtotal: number, mode: 'none' | 'percent' | 'amount', value: number): number {
+  const base = Math.max(0, subtotal);
+  if (mode === 'percent' && value > 0) {
+    return Math.min(base, Math.round((base * Math.min(100, value)) / 100));
+  }
+  if (mode === 'amount' && value > 0) {
+    return Math.min(base, Math.round(value));
+  }
+  return 0;
+}
+
+// Held carts saved with a cart-level remise store { items, discountMode, discountValue };
+// older rows are plain CartItem[] arrays, so parse both shapes.
+export function parseHeldCart(json: string): { items: CartItem[]; discountMode: 'none' | 'percent' | 'amount'; discountValue: number } {
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) {
+      return { items: parsed as CartItem[], discountMode: 'none', discountValue: 0 };
+    }
+    if (parsed && Array.isArray(parsed.items)) {
+      const mode = parsed.discountMode === 'percent' || parsed.discountMode === 'amount' ? parsed.discountMode : 'none';
+      return { items: parsed.items as CartItem[], discountMode: mode, discountValue: Number(parsed.discountValue) || 0 };
+    }
+    return { items: [], discountMode: 'none', discountValue: 0 };
+  } catch {
+    return { items: [], discountMode: 'none', discountValue: 0 };
+  }
 }
 
 export async function holdCurrentSale(note?: string): Promise<boolean> {
@@ -134,7 +160,11 @@ export async function holdCurrentSale(note?: string): Promise<boolean> {
 
     await invoke('hold_sale', {
       customerId,
-      cartDataJson: JSON.stringify(items),
+      cartDataJson: JSON.stringify({
+        items,
+        discountMode: get(globalDiscountMode),
+        discountValue: get(globalDiscountValue),
+      }),
       totalAmount: total,
       notes: finalNote,
     });
@@ -160,28 +190,27 @@ export async function refreshHeldSales() {
   }
 }
 
-export const cartSubtotal = derived(cartItems, ($items) => {
+function sumCartLines($items: CartItem[]): number {
   return $items.reduce((sum, item) => {
     const lineVal = item.total_price;
     return item.is_refund ? sum - lineVal : sum + lineVal;
   }, 0);
-});
+}
+
+export const cartSubtotal = derived(cartItems, ($items) => sumCartLines($items));
+
+// Cart-level remise actually applied, in DZD (clamped so it can never exceed the cart amount).
+export const globalDiscountAmount = derived(
+  [cartItems, globalDiscountMode, globalDiscountValue],
+  ([$items, $mode, $val]) => computeCartDiscount(sumCartLines($items), $mode, $val)
+);
+
+export const globalDiscountPercent = derived(
+  [globalDiscountMode, globalDiscountValue],
+  ([$mode, $val]) => ($mode === 'percent' && $val > 0 ? Math.min(100, $val) : 0)
+);
 
 export const cartGrandTotal = derived(
-  [cartItems, globalDiscountMode, globalDiscountValue],
-  ([$items, $mode, $val]) => {
-    let subtotal = $items.reduce((sum, item) => {
-      const lineVal = item.total_price;
-      return item.is_refund ? sum - lineVal : sum + lineVal;
-    }, 0);
-
-    if ($mode === 'percent' && $val > 0) {
-      const discount = Math.round((subtotal * Math.min(100, $val)) / 100);
-      subtotal -= discount;
-    } else if ($mode === 'amount' && $val > 0) {
-      subtotal -= $val;
-    }
-
-    return subtotal;
-  }
+  [cartItems, globalDiscountAmount],
+  ([$items, $discount]) => sumCartLines($items) - $discount
 );

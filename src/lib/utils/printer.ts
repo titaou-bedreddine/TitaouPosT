@@ -1,4 +1,8 @@
-export function printHtmlDirectly(htmlContent: string, title = 'Thermal Receipt') {
+export function printHtmlDirectly(
+  htmlContent: string,
+  title = 'Thermal Receipt',
+  paper?: { widthMm: number; heightMm: number }
+) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -16,6 +20,23 @@ export function printHtmlDirectly(htmlContent: string, title = 'Thermal Receipt'
     return;
   }
 
+  // Labels pass an exact page size so px font sizes print 1:1 instead of
+  // being rescaled by an 80mm receipt page.
+  const pageRule = paper
+    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm}mm; margin: 0mm; }`
+    : `@page { size: 80mm auto; margin: 0mm; }`;
+  const bodyRule = paper
+    ? `body { width: ${paper.widthMm}mm; margin: 0 auto; background: #fff; position: relative; }`
+    : `body {
+          width: 76mm;
+          margin: 2mm auto;
+          font-size: 11px;
+          line-height: 1.3;
+          background: #fff;
+          padding: 2mm;
+          position: relative;
+        }`;
+
   doc.open();
   doc.write(`
     <!DOCTYPE html>
@@ -24,10 +45,7 @@ export function printHtmlDirectly(htmlContent: string, title = 'Thermal Receipt'
         <title>${title}</title>
         <meta charset="utf-8" />
         <style>
-          @page {
-            size: 80mm auto;
-            margin: 0mm;
-          }
+          ${pageRule}
           * {
             box-sizing: border-box;
             margin: 0;
@@ -35,15 +53,7 @@ export function printHtmlDirectly(htmlContent: string, title = 'Thermal Receipt'
             font-family: 'Courier New', Courier, monospace, 'Segoe UI', Tahoma, sans-serif;
             color: #000;
           }
-          body {
-            width: 76mm;
-            margin: 2mm auto;
-            font-size: 11px;
-            line-height: 1.3;
-            background: #fff;
-            padding: 2mm;
-            position: relative;
-          }
+          ${bodyRule}
           .watermark {
             position: absolute;
             top: 40%;
@@ -109,7 +119,7 @@ export function buildReceiptHtml(options: {
   saleDate: string;
   cashierName: string;
   customerName?: string;
-  items: Array<{ name: string; quantity: number; unitPrice: number; totalPrice: number }>;
+  items: Array<{ name: string; quantity: number; unitPrice: number; totalPrice: number; discountPerUnit?: number; isRefund?: boolean }>;
   subtotal: number;
   discount: number;
   grandTotal: number;
@@ -181,7 +191,7 @@ export function buildReceiptHtml(options: {
             .map(
               (i) => `
             <tr>
-              <td style="font-weight: ${bodyBold ? '900' : 'bold'};">${i.name}</td>
+              <td style="font-weight: ${bodyBold ? '900' : 'bold'};">${i.name}${i.isRefund ? ' <span style="font-size:8px;">[RETOUR]</span>' : ''}${i.discountPerUnit && i.discountPerUnit > 0 ? `<div style="font-size: ${Math.max(8, bodySize - 2)}px; font-weight: normal;">Remise -${i.discountPerUnit.toLocaleString()} DZD/u</div>` : ''}</td>
               <td class="text-center font-mono">${i.quantity}</td>
               <td class="text-end font-mono" style="font-weight: bold;">${i.totalPrice.toLocaleString()} DZD</td>
             </tr>
