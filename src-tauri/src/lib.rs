@@ -78,6 +78,11 @@ pub fn run() {
             commands::backup_database,
             commands::restore_database,
             commands::get_app_version,
+            commands::get_all_users,
+            commands::get_all_roles,
+            commands::create_user,
+            commands::update_user,
+            commands::delete_user,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

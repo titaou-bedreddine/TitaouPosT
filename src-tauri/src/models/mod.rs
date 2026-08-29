@@ -13,6 +13,27 @@ pub struct User {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserAccount {
+    pub id: i64,
+    pub username: String,
+    pub display_name: String,
+    pub role_id: Option<i64>,
+    pub role_name: Option<String>,
+    pub max_discount_percent: f64,
+    pub is_active: bool,
+    pub last_login: Option<String>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_system: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Category {
     pub id: i64,
     pub parent_id: Option<i64>,

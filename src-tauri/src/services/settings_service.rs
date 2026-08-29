@@ -65,54 +65,89 @@ pub fn verify_license(db: &DbState, code: &str) -> Result<bool, String> {
 
 pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {
     let mut conn = db.conn.lock().unwrap();
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    
+    // Disable foreign keys temporarily during data wipe
+    conn.execute("PRAGMA foreign_keys = OFF;", []).map_err(|e| e.to_string())?;
 
-    match reset_type {
-        "transactions_only" => {
-            tx.execute("DELETE FROM sales", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM sale_items", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM sale_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM held_sales", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM cash_movements", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM cash_sessions", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM customer_debt_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM supplier_debt_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM purchases", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM purchase_items", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM expenses", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM inventory_movements", []).map_err(|e| e.to_string())?;
-            tx.execute(
-                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status) VALUES (1, 1, 0, 0, 'open')",
-                [],
-            ).map_err(|e| e.to_string())?;
-        }
-        "full_reset" => {
-            tx.execute("DELETE FROM sales", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM sale_items", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM sale_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM held_sales", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM cash_movements", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM cash_sessions", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM customer_debt_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM supplier_debt_payments", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM purchases", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM purchase_items", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM expenses", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM inventory_movements", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM products", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM product_barcodes", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM customers WHERE id > 1", []).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM suppliers", []).map_err(|e| e.to_string())?;
-            tx.execute(
-                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status) VALUES (1, 1, 0, 0, 'open')",
-                [],
-            ).map_err(|e| e.to_string())?;
-        }
-        _ => {}
-    }
+    let result = (|| -> Result<(), rusqlite::Error> {
+        let tx = conn.transaction()?;
 
-    tx.commit().map_err(|e| e.to_string())?;
-    Ok(())
+        match reset_type {
+            "transactions_only" => {
+                // Clear transaction tables
+                let _ = tx.execute("DELETE FROM sale_payments", []);
+                let _ = tx.execute("DELETE FROM sale_items", []);
+                let _ = tx.execute("DELETE FROM sales", []);
+                let _ = tx.execute("DELETE FROM held_sales", []);
+                let _ = tx.execute("DELETE FROM cash_movements", []);
+                let _ = tx.execute("DELETE FROM cash_sessions", []);
+                let _ = tx.execute("DELETE FROM customer_debt_payments", []);
+                let _ = tx.execute("DELETE FROM supplier_debt_payments", []);
+                let _ = tx.execute("DELETE FROM purchase_items", []);
+                let _ = tx.execute("DELETE FROM purchases", []);
+                let _ = tx.execute("DELETE FROM expenses", []);
+                let _ = tx.execute("DELETE FROM salary_advances", []);
+                let _ = tx.execute("DELETE FROM payrolls", []);
+                let _ = tx.execute("DELETE FROM inventory_movements", []);
+                let _ = tx.execute("DELETE FROM scale_sync_logs", []);
+                let _ = tx.execute("DELETE FROM product_price_history", []);
+                let _ = tx.execute("DELETE FROM notification_queue", []);
+
+                // Reset customer and supplier balances
+                let _ = tx.execute("UPDATE customers SET balance = 0", []);
+                let _ = tx.execute("UPDATE suppliers SET balance = 0", []);
+
+                // Ensure default open cash session exists
+                let _ = tx.execute(
+                    "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status) VALUES (1, 1, 0, 0, 'open')",
+                    [],
+                );
+            }
+            "full_reset" => {
+                // Wipe everything back to clean state
+                let _ = tx.execute("DELETE FROM sale_payments", []);
+                let _ = tx.execute("DELETE FROM sale_items", []);
+                let _ = tx.execute("DELETE FROM sales", []);
+                let _ = tx.execute("DELETE FROM held_sales", []);
+                let _ = tx.execute("DELETE FROM cash_movements", []);
+                let _ = tx.execute("DELETE FROM cash_sessions", []);
+                let _ = tx.execute("DELETE FROM customer_debt_payments", []);
+                let _ = tx.execute("DELETE FROM supplier_debt_payments", []);
+                let _ = tx.execute("DELETE FROM purchase_items", []);
+                let _ = tx.execute("DELETE FROM purchases", []);
+                let _ = tx.execute("DELETE FROM expenses", []);
+                let _ = tx.execute("DELETE FROM salary_advances", []);
+                let _ = tx.execute("DELETE FROM payrolls", []);
+                let _ = tx.execute("DELETE FROM employees", []);
+                let _ = tx.execute("DELETE FROM inventory_movements", []);
+                let _ = tx.execute("DELETE FROM scale_sync_logs", []);
+                let _ = tx.execute("DELETE FROM product_price_history", []);
+                let _ = tx.execute("DELETE FROM notification_queue", []);
+                let _ = tx.execute("DELETE FROM product_bundle_items", []);
+                let _ = tx.execute("DELETE FROM product_barcodes", []);
+                let _ = tx.execute("DELETE FROM products", []);
+                let _ = tx.execute("DELETE FROM suppliers", []);
+                let _ = tx.execute("DELETE FROM customers WHERE id > 1", []);
+                let _ = tx.execute("UPDATE customers SET balance = 0 WHERE id = 1", []);
+                let _ = tx.execute("DELETE FROM users WHERE id > 1", []);
+
+                // Ensure default open cash session exists
+                let _ = tx.execute(
+                    "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status) VALUES (1, 1, 0, 0, 'open')",
+                    [],
+                );
+            }
+            _ => {}
+        }
+
+        tx.commit()?;
+        Ok(())
+    })();
+
+    // Re-enable foreign keys
+    let _ = conn.execute("PRAGMA foreign_keys = ON;", []);
+
+    result.map_err(|e| e.to_string())
 }
 
 pub fn backup_database(destination_path: &str) -> Result<String, String> {

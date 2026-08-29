@@ -2,13 +2,13 @@ use crate::auth::authenticate_user;
 use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
-    Payroll, Product, ProductInput, Purchase, CreatePurchaseInput, Sale, Supplier, Unit, User,
+    Payroll, Product, ProductInput, Purchase, CreatePurchaseInput, Sale, Supplier, Unit, User, UserAccount, Role,
     CashMovement, CashSession, CreateSaleInput,
 };
 use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
     payroll_service, product_service, purchase_service, sales_service, settings_service,
-    supplier_service, scale_service, drawer_service,
+    supplier_service, scale_service, drawer_service, user_service,
 };
 use std::collections::HashMap;
 use tauri::State;
@@ -173,7 +173,7 @@ pub fn hold_sale(
     customer_id: Option<i64>,
     cart_json: Option<String>,
     cart_data_json: Option<String>,
-    total_amount: Option<i64>,
+    _total_amount: Option<i64>,
     note: Option<String>,
     notes: Option<String>,
 ) -> Result<i64, String> {
@@ -471,4 +471,55 @@ pub fn restore_database(source_backup_path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+// User & Role Management Commands
+#[tauri::command]
+pub fn get_all_users(db: State<'_, DbState>) -> Result<Vec<UserAccount>, String> {
+    user_service::get_all_users(&db)
+}
+
+#[tauri::command]
+pub fn get_all_roles(db: State<'_, DbState>) -> Result<Vec<Role>, String> {
+    user_service::get_all_roles(&db)
+}
+
+#[tauri::command]
+pub fn create_user(
+    db: State<'_, DbState>,
+    username: String,
+    display_name: String,
+    password: String,
+    role_id: Option<i64>,
+    max_discount_percent: f64,
+) -> Result<i64, String> {
+    user_service::create_user(&db, &username, &display_name, &password, role_id, max_discount_percent)
+}
+
+#[tauri::command]
+pub fn update_user(
+    db: State<'_, DbState>,
+    user_id: i64,
+    username: String,
+    display_name: String,
+    role_id: Option<i64>,
+    max_discount_percent: f64,
+    is_active: bool,
+    new_password: Option<String>,
+) -> Result<(), String> {
+    user_service::update_user(
+        &db,
+        user_id,
+        &username,
+        &display_name,
+        role_id,
+        max_discount_percent,
+        is_active,
+        new_password,
+    )
+}
+
+#[tauri::command]
+pub fn delete_user(db: State<'_, DbState>, user_id: i64) -> Result<(), String> {
+    user_service::delete_user(&db, user_id)
 }

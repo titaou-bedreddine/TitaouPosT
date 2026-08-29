@@ -1,0 +1,153 @@
+unit Main;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls,
+  //
+  ASSDKPubTypes, ASSDKPubIntf;
+
+const
+  m_User = WM_USER + 5;
+
+type
+  TfrmMain = class(TForm)
+    edtIP: TEdit;
+    lblIP: TLabel;
+    btnDownLoadPLU: TButton;
+    lblFile: TLabel;
+    edtFile: TEdit;
+    btnFile: TButton;
+    OpenDialog: TOpenDialog;
+    ProgressBar: TProgressBar;
+    lblDataType: TLabel;
+    edtDatatype: TEdit;
+    lblReadMe: TLabel;
+    lblReadMe2: TLabel;
+    procedure btnFileClick(Sender: TObject);
+    procedure btnDownLoadPLUClick(Sender: TObject);
+    procedure OnDllEvent(var msg: TMessage); message m_User;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  frmMain: TfrmMain;
+
+function MakeHostToDWord(sHost: string): Cardinal;
+
+implementation
+
+{$R *.dfm}
+
+procedure OnProgress(nErrorCode, AIndex, ATotal: Cardinal;
+lpUserData: Pointer); stdcall;
+begin
+  case nErrorCode of
+    ASSDK_Err_Success: // Complete
+      begin
+        ShowMessage('OK');
+      end;
+    ASSDK_Err_Progress: // Progress
+      begin
+        PostMessage(frmMain.Handle, m_User, AIndex, ATotal);
+      end;
+  else
+    begin
+      ShowMessage('false');// false
+    end;
+  end;
+end;
+
+procedure TfrmMain.btnDownLoadPLUClick(Sender: TObject);
+var
+  ASSDKDeviceInfo: TASSDKDeviceInfo; // DeviceInfo
+  iAddr: Integer;
+  DataType: Cardinal;
+begin
+  // 初始化
+  AclasSDK_Initialize;
+
+  // 数据类型。请参考文件ASSDKPubTypes
+  // ASSDK_DataType_PLU = $0000; PLU
+  // ASSDK_DataType_HotKey = $0003; 热键
+  DataType := StrToIntDef(edtDatatype.Text, -1);
+  if DataType = - 1 then
+  begin
+    ShowMessage('DataType ID Wrong!');
+    exit;
+  end;
+
+  iAddr := MakeHostToDWord(edtIP.Text);
+  ASSDKDeviceInfo := AclasSDK_GetDeviceInfo( //
+    iAddr, //
+    0, // 默认为 0
+    ASSDK_ProtocolType_None // 默认为 ASSDK_ProtocolType_None
+    );
+
+  if ASSDKDeviceInfo.ProtocolType = ASSDK_ProtocolType_None then
+    exit;  // 未找到设备
+
+  AclasSDK_ExecTask( //
+    ASSDKDeviceInfo.Addr, // 地址
+    ASSDKDeviceInfo.Port, // 端口
+    ASSDKDeviceInfo.ProtocolType, // 协议类型
+    ASSDK_ProcType_Down, // 操作类型
+    DataType, // 数据类型
+    PChar(edtFile.Text), // 下载的文件名
+    @OnProgress,
+    nil);
+
+  // 清除PLU写法
+  AclasSDK_ExecTask( //
+    ASSDKDeviceInfo.Addr, // 地址
+    ASSDKDeviceInfo.Port, // 端口
+    ASSDKDeviceInfo.ProtocolType, // 协议类型
+    ASSDK_ProcType_Del, // 操作类型
+    ASSDK_DataType_PLU, // 数据类型
+    PChar(string('*')), // 下载的文件名
+    @OnProgress,
+    nil);
+end;
+
+procedure TfrmMain.btnFileClick(Sender: TObject);
+begin
+  if OpenDialog.Execute then
+    edtFile.Text := OpenDialog.FileName;
+end;
+
+procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  AclasSDK_Initialize;
+  AclasSDK_Finalize;
+end;
+
+procedure TfrmMain.OnDllEvent(var msg: TMessage);
+begin
+  ProgressBar.Max := msg.LParam;
+  ProgressBar.Position := msg.WParam;
+end;
+
+function MakeHostToDWord(sHost: string): Cardinal;
+var
+  i: Integer;
+  Segment: TArray<string>;
+begin
+  Result := 0;
+  Segment := sHost.Split(['.']);
+  if Length(Segment) <> 4 then
+    Exit;
+  for i := 0 to Length(Segment) - 1 do
+  begin
+    if StrToIntDef(Segment[i], -1) in [0 .. 255] then
+      Result := Result + Cardinal(StrToInt(Segment[i]) shl ((3 - i) * 8))
+    else
+      Exit(0);
+  end;
+end;
+
+end.

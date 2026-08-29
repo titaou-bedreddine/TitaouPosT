@@ -9,7 +9,8 @@
     ShieldCheck, RefreshCw, AlertOctagon, Check, Copy, Key,
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
-    Scale, Bell, Send, CreditCard, Keyboard, Type, Bold, Eye
+    Scale, Bell, Send, CreditCard, Keyboard, Type, Bold, Eye,
+    Users, UserPlus, Edit2, Trash2, Shield, Lock
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -203,6 +204,41 @@
   let resetType = 'transactions_only';
   let resetConfirm = '';
 
+  // User Management State
+  interface UserAccountItem {
+    id: number;
+    username: string;
+    display_name: string;
+    role_id: number | null;
+    role_name: string | null;
+    max_discount_percent: number;
+    is_active: boolean;
+    last_login: string | null;
+    created_at: string | null;
+  }
+
+  interface RoleItem {
+    id: number;
+    name: string;
+    description: string | null;
+    is_system: boolean;
+  }
+
+  let userAccounts: UserAccountItem[] = [];
+  let allRoles: RoleItem[] = [];
+  let showUserModal = false;
+  let userModalMode: 'create' | 'edit' = 'create';
+  let editingUserId: number | null = null;
+  let userForm = {
+    username: '',
+    display_name: '',
+    password: '',
+    role_id: 2,
+    max_discount_percent: 10,
+    is_active: true,
+  };
+  let userFormError = '';
+
   onMount(async () => {
     try {
       const v = await invoke<string>('get_app_version');
@@ -215,6 +251,7 @@
     }
     await loadSettings();
     await loadScaleLogs();
+    await loadUsersAndRoles();
   });
 
   async function loadSettings() {
@@ -508,6 +545,108 @@
       window.location.reload();
     } catch (e) {
       console.error(e);
+      alert('Factory reset failed: ' + e);
+    }
+  }
+
+  async function loadUsersAndRoles() {
+    try {
+      userAccounts = await invoke<UserAccountItem[]>('get_all_users');
+      allRoles = await invoke<RoleItem[]>('get_all_roles');
+    } catch (e) {
+      console.error('Failed to load users or roles:', e);
+    }
+  }
+
+  function openCreateUserModal() {
+    userModalMode = 'create';
+    editingUserId = null;
+    userForm = {
+      username: '',
+      display_name: '',
+      password: '',
+      role_id: allRoles[0]?.id || 2,
+      max_discount_percent: 10,
+      is_active: true,
+    };
+    userFormError = '';
+    showUserModal = true;
+  }
+
+  function openEditUserModal(u: UserAccountItem) {
+    userModalMode = 'edit';
+    editingUserId = u.id;
+    userForm = {
+      username: u.username,
+      display_name: u.display_name,
+      password: '',
+      role_id: u.role_id || 2,
+      max_discount_percent: u.max_discount_percent,
+      is_active: u.is_active,
+    };
+    userFormError = '';
+    showUserModal = true;
+  }
+
+  async function saveUserModal() {
+    userFormError = '';
+    if (!userForm.username.trim()) {
+      userFormError = 'Username is required / اسم المستخدم مطلوب';
+      return;
+    }
+    if (!userForm.display_name.trim()) {
+      userFormError = 'Display Name is required / الاسم الظاهر مطلوب';
+      return;
+    }
+
+    try {
+      if (userModalMode === 'create') {
+        if (!userForm.password.trim()) {
+          userFormError = 'Password is required for new accounts / كلمة المرور مطلوبة للحسابات الجديدة';
+          return;
+        }
+        await invoke('create_user', {
+          username: userForm.username.trim(),
+          displayName: userForm.display_name.trim(),
+          password: userForm.password.trim(),
+          roleId: Number(userForm.role_id),
+          maxDiscountPercent: Number(userForm.max_discount_percent) || 0,
+        });
+        triggerSaveNotification('User created successfully / تم إنشاء الحساب بنجاح');
+      } else {
+        await invoke('update_user', {
+          userId: editingUserId,
+          username: userForm.username.trim(),
+          displayName: userForm.display_name.trim(),
+          roleId: Number(userForm.role_id),
+          maxDiscountPercent: Number(userForm.max_discount_percent) || 0,
+          isActive: userForm.is_active,
+          newPassword: userForm.password.trim() ? userForm.password.trim() : null,
+        });
+        triggerSaveNotification('User updated successfully / تم تحديث الحساب بنجاح');
+      }
+      showUserModal = false;
+      await loadUsersAndRoles();
+    } catch (e: any) {
+      userFormError = typeof e === 'string' ? e : e?.message || 'Error saving user';
+    }
+  }
+
+  async function deleteUserAccount(u: UserAccountItem) {
+    if (u.id === 1) {
+      alert('Primary Administrator account cannot be deleted / لا يمكن حذف المشرف الرئيسي');
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete user "${u.display_name}" (@${u.username})?`)) {
+      return;
+    }
+
+    try {
+      await invoke('delete_user', { userId: u.id });
+      triggerSaveNotification(`User "${u.display_name}" deleted / تم حذف المستخدم`);
+      await loadUsersAndRoles();
+    } catch (e: any) {
+      alert(typeof e === 'string' ? e : e?.message || 'Error deleting user');
     }
   }
 
@@ -740,11 +879,11 @@
 
       <button
         type="button"
-        on:click={() => (currentTab = 'account')}
+        on:click={() => { currentTab = 'account'; loadUsersAndRoles(); }}
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'account' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
-        <User class="w-4 h-4 mb-1" />
-        <span class="truncate">Account</span>
+        <Users class="w-4 h-4 mb-1" />
+        <span class="truncate">Users & Roles</span>
       </button>
 
       <button
@@ -2087,39 +2226,168 @@
         </div>
       </div>
 
-    <!-- 8. ACCOUNT TAB -->
+    <!-- 8. ACCOUNT & USER MANAGEMENT TAB -->
     {:else if currentTab === 'account'}
-      <div class="max-w-3xl space-y-6">
-        <div>
-          <h2 class="text-base font-black text-pos-text">Cashier & Staff Account Details</h2>
-          <p class="text-xs text-pos-muted">Manage active user credentials and password</p>
+      <div class="max-w-5xl space-y-6">
+        <!-- Tab Header -->
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-pos-text flex items-center gap-2">
+              <Users class="w-5 h-5 text-sky-600" />
+              <span>User Accounts & Access Roles / إدارة المستخدمين والأدوار</span>
+            </h2>
+            <p class="text-xs text-pos-muted">Manage system users, login credentials, assigned roles, and discount authorizations</p>
+          </div>
+          <button
+            on:click={openCreateUserModal}
+            class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md flex items-center gap-2 transition"
+          >
+            <UserPlus class="w-4 h-4" />
+            <span>Add User Account / إضافة مستخدم</span>
+          </button>
         </div>
 
-        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-          <div class="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <span class="text-pos-muted font-bold block mb-1">Display Name:</span>
-              <p class="text-sm font-black text-pos-text">{$currentUser?.display_name || 'Administrator'}</p>
+        <!-- Current Active Session Card -->
+        <div class="p-5 bg-gradient-to-r from-sky-500/10 via-sky-500/5 to-transparent rounded-2xl border border-sky-200 dark:border-sky-900/60 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-sky-600 text-white font-black flex items-center justify-center text-lg shadow-sm">
+                {($currentUser?.display_name || 'A')[0].toUpperCase()}
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-pos-text">{$currentUser?.display_name || 'Administrator'}</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+                    {$currentUser?.role_name || 'Administrator'}
+                  </span>
+                </div>
+                <p class="text-xs text-pos-muted">Active Session: <strong class="font-mono text-pos-text">@{$currentUser?.username || 'admin'}</strong> • Max Discount: <strong class="text-sky-600">{$currentUser?.max_discount_percent ?? 100}%</strong></p>
+              </div>
             </div>
-            <div>
-              <span class="text-pos-muted font-bold block mb-1">Assigned Role:</span>
-              <p class="text-sm font-black text-sky-600">{$currentUser?.role_name || 'Administrator'}</p>
-            </div>
-          </div>
 
-          <div class="pt-4 border-t border-pos-border space-y-3">
-            <h4 class="text-xs font-black text-pos-text">Change Password / PIN</h4>
-            <div class="flex items-center gap-2">
-              <input
-                type="password"
-                bind:value={newPassword}
-                placeholder="Enter new password or PIN"
-                class="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text"
-              />
-              <button on:click={handleChangePassword} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer">
-                Update Password
+            <!-- Quick Password Change for Active User -->
+            <div class="flex items-center gap-2 w-full md:w-auto">
+              <div class="relative flex-1 md:w-56">
+                <Lock class="w-3.5 h-3.5 text-pos-muted absolute start-3 top-2.5" />
+                <input
+                  type="password"
+                  bind:value={newPassword}
+                  placeholder="New password / PIN"
+                  class="w-full ps-8 pe-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text"
+                />
+              </div>
+              <button
+                on:click={handleChangePassword}
+                disabled={!newPassword}
+                class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition shrink-0"
+              >
+                Change My Password
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Users Table Card -->
+        <div class="bg-pos-card rounded-2xl border border-pos-border overflow-hidden shadow-xs">
+          <div class="p-4 border-b border-pos-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+            <h3 class="text-xs font-black text-pos-text flex items-center gap-2">
+              <Shield class="w-4 h-4 text-sky-600" />
+              <span>Registered System Users ({userAccounts.length})</span>
+            </h3>
+            <button
+              on:click={loadUsersAndRoles}
+              class="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <RefreshCw class="w-3.5 h-3.5" />
+              <span>Refresh List</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-start text-xs">
+              <thead class="bg-slate-100/60 dark:bg-slate-800/60 text-pos-muted font-black border-b border-pos-border">
+                <tr>
+                  <th class="p-3 text-start">User</th>
+                  <th class="p-3 text-start">Role / الدور</th>
+                  <th class="p-3 text-center">Max Discount</th>
+                  <th class="p-3 text-center">Status</th>
+                  <th class="p-3 text-start">Last Login</th>
+                  <th class="p-3 text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-pos-border">
+                {#if userAccounts.length === 0}
+                  <tr>
+                    <td colspan="6" class="p-8 text-center text-pos-muted font-bold">
+                      No user accounts found. Click "Add User Account" to create one.
+                    </td>
+                  </tr>
+                {:else}
+                  {#each userAccounts as u}
+                    <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                      <td class="p-3">
+                        <div class="flex items-center gap-2.5">
+                          <div class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-pos-text font-black flex items-center justify-center text-xs border border-pos-border">
+                            {u.display_name[0]?.toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <div class="font-black text-pos-text">{u.display_name}</div>
+                            <div class="font-mono text-[11px] text-pos-muted">@{u.username}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="p-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black {
+                          u.role_name === 'Administrator' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                          u.role_name === 'Manager' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                          u.role_name === 'Inventory Clerk' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300 dark:border-purple-800' :
+                          'bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
+                        }">
+                          {u.role_name || 'Standard Role'}
+                        </span>
+                      </td>
+                      <td class="p-3 text-center font-mono font-bold text-pos-text">
+                        {u.max_discount_percent}%
+                      </td>
+                      <td class="p-3 text-center">
+                        {#if u.is_active}
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                          </span>
+                        {:else}
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Disabled
+                          </span>
+                        {/if}
+                      </td>
+                      <td class="p-3 text-pos-muted font-mono text-[11px]">
+                        {u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : 'Never'}
+                      </td>
+                      <td class="p-3 text-end">
+                        <div class="inline-flex items-center gap-1">
+                          <button
+                            on:click={() => openEditUserModal(u)}
+                            class="p-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-600 rounded-lg cursor-pointer transition"
+                            title="Edit User Details / تعديل"
+                          >
+                            <Edit2 class="w-4 h-4" />
+                          </button>
+                          {#if u.id !== 1}
+                            <button
+                              on:click={() => deleteUserAccount(u)}
+                              class="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-rose-500 rounded-lg cursor-pointer transition"
+                              title="Delete User / حذف"
+                            >
+                              <Trash2 class="w-4 h-4" />
+                            </button>
+                          {/if}
+                        </div>
+                      </td>
+                    </tr>
+                  {/each}
+                {/if}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -2128,32 +2396,40 @@
     {:else if currentTab === 'danger'}
       <div class="max-w-3xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-rose-600">Factory Reset & Data Purge</h2>
+          <h2 class="text-base font-black text-rose-600 flex items-center gap-2">
+            <AlertOctagon class="w-5 h-5" />
+            <span>Factory Reset & Data Purge / تهيئة المصنع ومسح البيانات</span>
+          </h2>
           <p class="text-xs text-pos-muted">Irreversible operations. Please backup database before proceeding.</p>
         </div>
 
         <div class="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl space-y-4">
           <div class="space-y-2">
-            <label class="flex items-center gap-2 text-xs font-bold text-pos-text">
-              <input type="radio" bind:group={resetType} value="transactions_only" />
-              <span>Clear sales, cash movements & debts only (keep product catalog)</span>
+            <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer">
+              <input type="radio" bind:group={resetType} value="transactions_only" class="text-rose-600" />
+              <span>Clear sales, cash movements & debts only (keep product catalog) / مسح المبيعات والديون فقط</span>
             </label>
-            <label class="flex items-center gap-2 text-xs font-bold text-rose-600">
-              <input type="radio" bind:group={resetType} value="full_reset" />
-              <span>Full Factory Reset (Purge all products, sales, customers, and re-seed defaults)</span>
+            <label class="flex items-center gap-2.5 text-xs font-bold text-rose-600 cursor-pointer">
+              <input type="radio" bind:group={resetType} value="full_reset" class="text-rose-600" />
+              <span>Full Factory Reset (Purge all products, sales, customers, and clean database) / إعادة ضبط المصنع بالكامل</span>
             </label>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-rose-200 dark:border-rose-900">
-            <label class="block text-xs font-bold text-pos-muted">Type "RESET" to confirm</label>
+          <div class="space-y-2 pt-3 border-t border-rose-200 dark:border-rose-900">
+            <label class="block text-xs font-bold text-pos-muted">Type <span class="text-rose-600 font-mono font-black">RESET</span> to confirm execution:</label>
             <div class="flex items-center gap-2">
-              <input type="text" bind:value={resetConfirm} placeholder="RESET" class="w-48 px-3 py-2 bg-white dark:bg-slate-900 border border-rose-300 rounded-xl text-xs font-mono font-black" />
+              <input
+                type="text"
+                bind:value={resetConfirm}
+                placeholder="RESET"
+                class="w-48 px-3 py-2 bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-xl text-xs font-mono font-black text-rose-600"
+              />
               <button
                 on:click={handleFactoryReset}
                 disabled={resetConfirm !== 'RESET'}
-                class="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+                class="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
               >
-                Execute Reset
+                Execute Reset / تنفيذ المسح
               </button>
             </div>
           </div>
@@ -2161,6 +2437,117 @@
       </div>
     {/if}
   </div>
+
+  <!-- User Account Add / Edit Modal -->
+  {#if showUserModal}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4 animate-in zoom-in-95 duration-150">
+        <div class="flex items-center justify-between border-b border-pos-border pb-3">
+          <h3 class="font-black text-sm text-pos-text flex items-center gap-2">
+            {#if userModalMode === 'create'}
+              <UserPlus class="w-4 h-4 text-sky-600" />
+              <span>Add New User Account / إضافة حساب مستخدم</span>
+            {:else}
+              <Edit2 class="w-4 h-4 text-sky-600" />
+              <span>Edit User Account / تعديل الحساب</span>
+            {/if}
+          </h3>
+          <button on:click={() => (showUserModal = false)} class="text-pos-muted hover:text-pos-text text-sm font-bold">✕</button>
+        </div>
+
+        {#if userFormError}
+          <div class="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 rounded-xl text-xs font-bold">
+            {userFormError}
+          </div>
+        {/if}
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-bold text-pos-muted mb-1">Username / اسم الدخول <span class="text-rose-500">*</span></label>
+            <input
+              type="text"
+              bind:value={userForm.username}
+              placeholder="e.g. cashier_ahmed"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl font-mono text-pos-text"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-pos-muted mb-1">Display Name / الاسم الظاهر <span class="text-rose-500">*</span></label>
+            <input
+              type="text"
+              bind:value={userForm.display_name}
+              placeholder="e.g. Ahmed Benali"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-pos-text"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-pos-muted mb-1">Role / الدور</label>
+              <select
+                bind:value={userForm.role_id}
+                class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-pos-text font-bold"
+              >
+                {#each allRoles as r}
+                  <option value={r.id}>{r.name}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-bold text-pos-muted mb-1">Max Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                bind:value={userForm.max_discount_percent}
+                class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl font-mono text-pos-text font-bold"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-pos-muted mb-1">
+              {#if userModalMode === 'create'}
+                Password / كلمة المرور <span class="text-rose-500">*</span>
+              {:else}
+                New Password (leave empty to keep unchanged) / كلمة المرور الجديدة
+              {/if}
+            </label>
+            <input
+              type="password"
+              bind:value={userForm.password}
+              placeholder={userModalMode === 'create' ? 'Enter secure password' : '••••••••'}
+              class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-pos-text"
+            />
+          </div>
+
+          <div class="pt-2">
+            <label class="flex items-center gap-2 cursor-pointer font-bold text-pos-text">
+              <input type="checkbox" bind:checked={userForm.is_active} class="rounded text-sky-600" />
+              <span>Account is Active / الحساب مفعّل</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-pos-border">
+          <button
+            on:click={() => (showUserModal = false)}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel / إلغاء
+          </button>
+          <button
+            on:click={saveUserModal}
+            class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
+          >
+            {userModalMode === 'create' ? 'Create User / إنشاء' : 'Save Changes / حفظ'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- Bottom Global Developer Credit Footer -->
   <div class="pt-3 flex items-center justify-between text-xs text-pos-muted border-t border-pos-border mt-3 shrink-0">

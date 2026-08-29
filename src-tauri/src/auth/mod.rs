@@ -36,26 +36,26 @@ pub fn authenticate_user(db: &DbState, username: &str, password: &str) -> Result
         Ok((id, uname, dname, hash, pin, role_id, role_name, max_disc, active)) => {
             let mut is_valid = false;
 
-            // 1. Try Argon2 verification
+            // 1. Try Argon2 verification on password_hash
             if let Ok(parsed_hash) = PasswordHash::new(&hash) {
                 if Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok() {
                     is_valid = true;
                 }
             }
 
-            // 2. Fallback check for default/pin passwords
+            // 2. Try PIN hash or direct legacy pin match
             if !is_valid {
-                if (uname == "admin" && password == "admin")
-                    || (uname == "admin" && password == "1234")
-                    || (uname == "kamel" && (password == "1111" || password == "kamel"))
-                    || (uname == "amina" && (password == "2222" || password == "amina"))
-                    || (uname == "samir" && (password == "9999" || password == "samir"))
-                    || (pin.as_deref() == Some(password))
-                    || (hash == password)
-                {
+                if let Some(ref p_hash) = pin {
+                    if let Ok(parsed_pin) = PasswordHash::new(p_hash) {
+                        if Argon2::default().verify_password(password.as_bytes(), &parsed_pin).is_ok() {
+                            is_valid = true;
+                        }
+                    } else if p_hash == password {
+                        is_valid = true;
+                    }
+                } else if hash == password {
+                    // One-time auto-upgrade from legacy plain text to Argon2
                     is_valid = true;
-
-                    // Auto-upgrade password_hash to valid Argon2 hash
                     let salt = SaltString::generate(&mut OsRng);
                     if let Ok(new_hash) = Argon2::default().hash_password(password.as_bytes(), &salt) {
                         let _ = conn.execute(
