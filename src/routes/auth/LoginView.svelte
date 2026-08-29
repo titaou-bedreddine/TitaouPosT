@@ -3,28 +3,35 @@
   import { invoke } from '@tauri-apps/api/core';
   import { currentUser } from '../../lib/stores/auth';
   import type { User } from '../../lib/types';
-  import { Lock, UserCheck, Shield, ChevronDown } from 'lucide-svelte';
+  import { Lock, UserCheck, Shield, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
 
   let usersList: User[] = [];
   let selectedUsername = '';
   let password = '';
+  let showPassword = false;
   let errorMsg = '';
   let isLoading = false;
 
   onMount(async () => {
     try {
       usersList = await invoke<User[]>('get_active_users');
-      if (usersList.length > 0) {
+      if (usersList && usersList.length > 0) {
         selectedUsername = usersList[0].username;
+      } else {
+        selectedUsername = 'admin';
       }
     } catch (e) {
       console.error('Failed to load users:', e);
-      usersList = [];
+      usersList = [{ id: 1, username: 'admin', display_name: 'Administrator', role_id: 1, role_name: 'Administrator', max_discount_percent: 100, is_active: true, permissions: [] }];
+      selectedUsername = 'admin';
     }
   });
 
   async function handleLogin() {
-    if (!selectedUsername || !password) {
+    if (!selectedUsername) {
+      selectedUsername = 'admin';
+    }
+    if (!password) {
       errorMsg = 'Please enter password / الرجاء إدخال كلمة المرور';
       return;
     }
@@ -33,9 +40,9 @@
       errorMsg = '';
       const user = await invoke<User | null>('login', { username: selectedUsername, password });
       if (user) {
-        $currentUser = user;
+        currentUser.set(user);
       } else {
-        errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
+        errorMsg = 'Invalid password / كلمة المرور غير صحيحة (Default: admin)';
       }
     } catch (err: any) {
       errorMsg = typeof err === 'string' ? err : err.message || 'Login failed';
@@ -76,11 +83,15 @@
             bind:value={selectedUsername}
             class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition appearance-none cursor-pointer"
           >
-            {#each usersList as u}
-              <option value={u.username}>
-                {u.display_name} ({u.role_name || u.username})
-              </option>
-            {/each}
+            {#if usersList.length === 0}
+              <option value="admin">Administrator (admin)</option>
+            {:else}
+              {#each usersList as u}
+                <option value={u.username}>
+                  {u.display_name} ({u.role_name || u.username})
+                </option>
+              {/each}
+            {/if}
           </select>
           <div class="absolute inset-y-0 end-0 flex items-center px-3 pointer-events-none text-slate-400">
             <ChevronDown class="w-4 h-4" />
@@ -89,14 +100,29 @@
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-slate-400 mb-1">Password or PIN / كلمة المرور أو الرمز</label>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-xs font-bold text-slate-400">Password / كلمة المرور</label>
+          <button
+            type="button"
+            on:click={() => (showPassword = !showPassword)}
+            class="text-[11px] text-slate-400 hover:text-sky-400 font-bold flex items-center gap-1 cursor-pointer"
+          >
+            {#if showPassword}
+              <EyeOff class="w-3.5 h-3.5" />
+              <span>Hide</span>
+            {:else}
+              <Eye class="w-3.5 h-3.5" />
+              <span>Show</span>
+            {/if}
+          </button>
+        </div>
         <input
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           bind:value={password}
           placeholder="••••••••"
           autofocus
           on:keydown={handleKeyDown}
-          class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition"
+          class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition font-mono"
         />
       </div>
 
@@ -107,8 +133,12 @@
         class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-sm rounded-xl transition shadow-lg shadow-sky-600/30 flex items-center justify-center gap-2 cursor-pointer"
       >
         <Lock class="w-4 h-4" />
-        <span>{isLoading ? 'Signing In...' : 'Sign In to POS'}</span>
+        <span>{isLoading ? 'Signing In...' : 'Sign In to POS / تسجيل الدخول'}</span>
       </button>
+
+      <p class="text-[11px] text-slate-500 text-center font-bold">
+        Default Password / كلمة المرور الافتراضية: <span class="text-sky-400 font-mono">admin</span>
+      </p>
     </div>
   </div>
 </div>

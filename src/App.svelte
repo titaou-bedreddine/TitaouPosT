@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t, currentLocale } from './lib/i18n';
+  import { t, currentLocale, setLocale } from './lib/i18n';
   import { currentUser, isAuthenticated, logout } from './lib/stores/auth';
   import { activeSession } from './lib/stores/session';
   import { invoke } from '@tauri-apps/api/core';
