@@ -73,6 +73,53 @@ pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {
         let tx = conn.transaction()?;
 
         match reset_type {
+            "products_only" => {
+                // Clear all products and related child data
+                let _ = tx.execute("DELETE FROM sale_items", []);
+                let _ = tx.execute("DELETE FROM purchase_items", []);
+                let _ = tx.execute("DELETE FROM inventory_movements", []);
+                let _ = tx.execute("DELETE FROM scale_sync_logs", []);
+                let _ = tx.execute("DELETE FROM product_price_history", []);
+                let _ = tx.execute("DELETE FROM product_bundle_items", []);
+                let _ = tx.execute("DELETE FROM product_barcodes", []);
+                let _ = tx.execute("DELETE FROM products", []);
+            }
+            "categories_only" => {
+                // Reset categories back to default
+                let _ = tx.execute("DELETE FROM categories", []);
+                let _ = tx.execute(
+                    "INSERT INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (1, 'افتراضي (Default)', 'Général / Default', 'Default', '#0284c7', 1)",
+                    [],
+                );
+                let _ = tx.execute("UPDATE products SET category_id = 1", []);
+            }
+            "units_only" => {
+                // Reset units back to standard system units
+                let _ = tx.execute("DELETE FROM units", []);
+                let _ = tx.execute(
+                    "INSERT INTO units (id, name, short_name, allow_decimals) VALUES
+                     (1, 'Piece / Pièce / قطعة', 'pcs', 0),
+                     (2, 'Kilogram / Kilogramme / كيلوغرام', 'kg', 1),
+                     (3, 'Liter / Litre / لتر', 'L', 1),
+                     (4, 'Pack / Paquet / علبة', 'pck', 0),
+                     (5, 'Box / Carton / كرتون', 'box', 0)",
+                    [],
+                );
+                let _ = tx.execute("UPDATE products SET unit_id = 1", []);
+            }
+            "customers_only" => {
+                // Reset customers and customer debts
+                let _ = tx.execute("DELETE FROM customer_debt_payments", []);
+                let _ = tx.execute("DELETE FROM customers WHERE id > 1", []);
+                let _ = tx.execute("UPDATE customers SET balance = 0 WHERE id = 1", []);
+            }
+            "suppliers_only" => {
+                // Reset suppliers and supplier debts
+                let _ = tx.execute("DELETE FROM supplier_debt_payments", []);
+                let _ = tx.execute("DELETE FROM purchase_items", []);
+                let _ = tx.execute("DELETE FROM purchases", []);
+                let _ = tx.execute("DELETE FROM suppliers", []);
+            }
             "transactions_only" => {
                 // Clear transaction tables
                 let _ = tx.execute("DELETE FROM sale_payments", []);
@@ -130,6 +177,25 @@ pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {
                 let _ = tx.execute("DELETE FROM customers WHERE id > 1", []);
                 let _ = tx.execute("UPDATE customers SET balance = 0 WHERE id = 1", []);
                 let _ = tx.execute("DELETE FROM users WHERE id > 1", []);
+
+                // Reset categories to default
+                let _ = tx.execute("DELETE FROM categories", []);
+                let _ = tx.execute(
+                    "INSERT INTO categories (id, name_ar, name_fr, name_en, color, is_active) VALUES (1, 'افتراضي (Default)', 'Général / Default', 'Default', '#0284c7', 1)",
+                    [],
+                );
+
+                // Reset units to standard
+                let _ = tx.execute("DELETE FROM units", []);
+                let _ = tx.execute(
+                    "INSERT INTO units (id, name, short_name, allow_decimals) VALUES
+                     (1, 'Piece / Pièce / قطعة', 'pcs', 0),
+                     (2, 'Kilogram / Kilogramme / كيلوغرام', 'kg', 1),
+                     (3, 'Liter / Litre / لتر', 'L', 1),
+                     (4, 'Pack / Paquet / علبة', 'pck', 0),
+                     (5, 'Box / Carton / كرتون', 'box', 0)",
+                    [],
+                );
 
                 // Ensure default open cash session exists
                 let _ = tx.execute(

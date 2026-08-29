@@ -391,6 +391,21 @@
       return;
     }
 
+    if (!purchasePrice || Number(purchasePrice) <= 0) {
+      errorMsg = 'Purchase price is mandatory and must be > 0 / سعر الشراء إجباري وأكبر من الصفر';
+      return;
+    }
+
+    if (!salePrice || Number(salePrice) <= 0) {
+      errorMsg = 'Sale price is mandatory and must be > 0 / سعر البيع إجباري وأكبر من الصفر';
+      return;
+    }
+
+    if (Number(salePrice) < Number(purchasePrice)) {
+      errorMsg = 'Sale price cannot be less than purchase price / لا يمكن أن يكون سعر البيع أقل من سعر الشراء';
+      return;
+    }
+
     try {
       isSaving = true;
       errorMsg = '';
@@ -641,13 +656,16 @@
           <!-- Pricing, Margin Toggle & Stock Grid -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Purchase Cost (DZD)</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">
+                Purchase Cost (DZD) <span class="text-rose-500">*</span>
+              </label>
               <input
                 type="number"
                 min="0"
                 bind:value={purchasePrice}
                 on:input={handlePurchasePriceChange}
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+                placeholder="0"
+                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
 
@@ -687,13 +705,16 @@
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Sale Price (DZD) *</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">
+                Sale Price (DZD) <span class="text-rose-500">*</span>
+              </label>
               <input
                 type="number"
                 min="0"
                 bind:value={salePrice}
                 on:input={handleSalePriceChange}
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none"
+                placeholder="0"
+                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
 
@@ -703,10 +724,17 @@
                 type="number"
                 min="0"
                 bind:value={currentStock}
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
           </div>
+
+          {#if salePrice > 0 && purchasePrice > 0 && Number(salePrice) < Number(purchasePrice)}
+            <div class="p-2.5 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-xl flex items-center gap-2">
+              <AlertTriangle class="w-4 h-4 shrink-0 text-rose-600" />
+              <span>Sale price ({salePrice} DZD) cannot be lower than purchase cost ({purchasePrice} DZD) / لا يمكن أن يكون سعر البيع أقل من سعر الشراء!</span>
+            </div>
+          {/if}
 
           <!-- Expiry Date & Min Stock -->
           <div class="grid grid-cols-2 gap-3">

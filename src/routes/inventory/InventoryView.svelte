@@ -34,6 +34,7 @@
   // Custom Delete Confirmation Modal
   let isDeleteModalOpen = false;
   let productToDelete: Product | null = null;
+  let deleteConfirmText = '';
   let isDeleting = false;
 
   onMount(async () => {
@@ -145,6 +146,7 @@
   function promptDelete(p: Product, e?: Event) {
     if (e) e.stopPropagation();
     productToDelete = p;
+    deleteConfirmText = '';
     isDeleteModalOpen = true;
   }
 
@@ -562,23 +564,40 @@
   onClose={() => (isPrintLabelOpen = false)}
 />
 
-<!-- Delete Confirmation Modal (Replaces Native confirm) -->
+<!-- Delete Confirmation Modal (Requires typing DELETE) -->
 {#if isDeleteModalOpen && productToDelete}
   <div class="fixed inset-0 z-60 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
       <div class="flex items-center gap-3 text-rose-600">
         <AlertTriangle class="w-6 h-6 shrink-0" />
-        <h3 class="font-black text-sm text-pos-text">Confirm Product Deletion</h3>
+        <h3 class="font-black text-sm text-pos-text">Confirm Product Deletion / تأكيد حذف المنتج</h3>
       </div>
       <p class="text-xs text-pos-muted">
-        Are you sure you want to delete <strong class="text-pos-text">{productToDelete.name_fr || productToDelete.name_ar}</strong>? This action cannot be undone.
+        Are you sure you want to permanently delete <strong class="text-pos-text">{productToDelete.name_fr || productToDelete.name_ar}</strong>? This action cannot be undone.
       </p>
+
+      <div class="space-y-1">
+        <label class="block text-xs font-bold text-pos-muted">
+          Type <span class="text-rose-600 font-mono font-black">DELETE</span> to confirm:
+        </label>
+        <input
+          type="text"
+          bind:value={deleteConfirmText}
+          placeholder="DELETE"
+          class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500"
+        />
+      </div>
+
       <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
         <button on:click={() => (isDeleteModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
-          Cancel
+          Cancel / إلغاء
         </button>
-        <button on:click={confirmDelete} disabled={isDeleting} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
-          {isDeleting ? 'Deleting...' : 'Delete Product'}
+        <button
+          on:click={confirmDelete}
+          disabled={isDeleting || (deleteConfirmText.trim().toUpperCase() !== 'DELETE' && deleteConfirmText.trim() !== 'حذف')}
+          class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
+        >
+          {isDeleting ? 'Deleting...' : 'Delete Product / حذف'}
         </button>
       </div>
     </div>

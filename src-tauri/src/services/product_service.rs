@@ -110,6 +110,16 @@ pub fn search_products(
 }
 
 pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) -> Result<i64, String> {
+    if input.purchase_price <= 0 {
+        return Err("Purchase price must be greater than 0 / سعر الشراء إجباري وأكبر من الصفر".to_string());
+    }
+    if input.sale_price <= 0 {
+        return Err("Sale price must be greater than 0 / سعر البيع إجباري وأكبر من الصفر".to_string());
+    }
+    if input.sale_price < input.purchase_price {
+        return Err("Sale price cannot be less than purchase price / لا يمكن أن يكون سعر البيع أقل من سعر الشراء".to_string());
+    }
+
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 

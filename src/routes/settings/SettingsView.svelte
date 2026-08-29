@@ -2434,18 +2434,72 @@
             <AlertOctagon class="w-5 h-5" />
             <span>Factory Reset & Data Purge / تهيئة المصنع ومسح البيانات</span>
           </h2>
-          <p class="text-xs text-pos-muted">Irreversible operations. Please backup database before proceeding.</p>
+          <p class="text-xs text-pos-muted">Select an operation below. These actions cannot be undone. Please backup database before proceeding.</p>
         </div>
 
         <div class="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl space-y-4">
-          <div class="space-y-2">
-            <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer">
-              <input type="radio" bind:group={resetType} value="transactions_only" class="text-rose-600" />
-              <span>Clear sales, cash movements & debts only (keep product catalog) / مسح المبيعات والديون فقط</span>
+          <div class="grid grid-cols-1 gap-2.5">
+            <!-- 1. Delete All Products -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'products_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="products_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Delete All Products & Stock / حذف جميع المنتجات والمخزون</span>
+                <span class="text-[11px] text-pos-muted">Purges all products, barcodes, stock movements, and price history (keeps families, units, users).</span>
+              </div>
             </label>
-            <label class="flex items-center gap-2.5 text-xs font-bold text-rose-600 cursor-pointer">
-              <input type="radio" bind:group={resetType} value="full_reset" class="text-rose-600" />
-              <span>Full Factory Reset (Purge all products, sales, customers, and clean database) / إعادة ضبط المصنع بالكامل</span>
+
+            <!-- 2. Reset Families / Categories -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'categories_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="categories_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Reset Families & Categories / إعادة تعيين الفئات والعائلات</span>
+                <span class="text-[11px] text-pos-muted">Resets all categories back to clean "Default / Général" family.</span>
+              </div>
+            </label>
+
+            <!-- 3. Reset Units -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'units_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="units_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Reset Units of Measurement / إعادة تعيين وحدات القياس</span>
+                <span class="text-[11px] text-pos-muted">Resets custom units back to 5 standard system units (pcs, kg, L, pck, box).</span>
+              </div>
+            </label>
+
+            <!-- 4. Clear Sales & Transactions -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'transactions_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="transactions_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Clear Sales & Financial Transactions / مسح المبيعات والعمليات المالية</span>
+                <span class="text-[11px] text-pos-muted">Clears all sales, held sales, cash drawer movements, receipts, expenses, and resets debt balances to 0 (keeps products & catalog).</span>
+              </div>
+            </label>
+
+            <!-- 5. Reset Customers & Debts -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'customers_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="customers_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Reset Customers & Customer Debts / مسح الزبائن والديون</span>
+                <span class="text-[11px] text-pos-muted">Deletes all custom customer accounts and customer debt payment records.</span>
+              </div>
+            </label>
+
+            <!-- 6. Reset Suppliers & Purchases -->
+            <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'suppliers_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
+              <input type="radio" bind:group={resetType} value="suppliers_only" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-pos-text block">Reset Suppliers & Purchases / مسح الموردين وفواتير الشراء</span>
+                <span class="text-[11px] text-pos-muted">Deletes all supplier records, purchase invoices, and supplier debt payments.</span>
+              </div>
+            </label>
+
+            <!-- 7. Full Factory Reset -->
+            <label class="flex items-start gap-3 p-3 bg-rose-100/60 dark:bg-rose-950/80 border-2 border-rose-400 dark:border-rose-800 rounded-xl cursor-pointer transition {resetType === 'full_reset' ? 'ring-2 ring-rose-600' : ''}">
+              <input type="radio" bind:group={resetType} value="full_reset" class="mt-0.5 text-rose-600" />
+              <div class="flex-1">
+                <span class="text-xs font-black text-rose-700 dark:text-rose-300 block">Full Factory Reset (Comprehensive) / إعادة ضبط المصنع بالكامل</span>
+                <span class="text-[11px] text-rose-600/80 dark:text-rose-400/80">Complete system wipe: purges all products, resets families to Default, resets units to standard, clears sales, customers, suppliers, and extra users.</span>
+              </div>
             </label>
           </div>
 
@@ -2456,7 +2510,7 @@
                 type="text"
                 bind:value={resetConfirm}
                 placeholder="RESET"
-                class="w-48 px-3 py-2 bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-xl text-xs font-mono font-black text-rose-600"
+                class="w-48 px-3 py-2 bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-xl text-xs font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500"
               />
               <button
                 on:click={handleFactoryReset}
