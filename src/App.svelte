@@ -33,6 +33,9 @@
 
   let currentRoute = 'pos';
   let isDarkMode = false;
+  let newUpdateAvailable = false;
+  let updateTag = '';
+  let updateDownloadUrl = '';
 
   onMount(async () => {
     // Disable right-click context menu across Tauri POS desktop app
@@ -57,6 +60,20 @@
         console.error(err);
       }
     }
+
+    // Background automatic update check on startup
+    setTimeout(async () => {
+      try {
+        const update = await invoke<any>('check_github_update');
+        if (update && update.has_update) {
+          newUpdateAvailable = true;
+          updateTag = update.tag_name;
+          updateDownloadUrl = update.download_url || update.release_url;
+        }
+      } catch (e) {
+        console.warn('Auto update check note:', e);
+      }
+    }, 1500);
   });
 
   function toggleTheme() {
@@ -301,16 +318,45 @@
     </aside>
 
     <!-- MAIN ROUTE CONTENT -->
-    <main class="flex-1 overflow-hidden bg-pos-bg">
-      {#if currentRoute === 'pos'}
-        <PosView />
-      {:else if currentRoute === 'sales'}
-        <SalesView />
-      {:else if currentRoute === 'cash'}
-        <CashRegisterView />
-      {:else if currentRoute === 'purchases'}
-        <PurchasesView />
-      {:else if currentRoute === 'customers'}
+    <main class="flex-1 flex flex-col overflow-hidden bg-pos-bg">
+      {#if newUpdateAvailable}
+        <div class="bg-gradient-to-r from-sky-600 to-indigo-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md shrink-0 animate-in slide-in-from-top duration-200">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-white/20 rounded-md font-black">🚀 New Update</span>
+            <span>A new version ({updateTag}) is available! / يتوفر إصدار جديد من البرنامج</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              on:click={async () => {
+                try {
+                  const { open } = await import('@tauri-apps/plugin-shell');
+                  await open(updateDownloadUrl);
+                } catch {
+                  window.open(updateDownloadUrl, '_blank');
+                }
+              }}
+              class="px-3 py-1 bg-white text-sky-700 hover:bg-slate-100 rounded-lg text-xs font-black shadow-xs cursor-pointer transition flex items-center gap-1"
+            >
+              <span>Download & Install ({updateTag})</span>
+            </button>
+            <button on:click={() => (newUpdateAvailable = false)} class="p-1 hover:bg-white/20 rounded cursor-pointer font-mono text-xs">
+              ✕
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      <div class="flex-1 overflow-hidden">
+        {#if currentRoute === 'pos'}
+          <PosView />
+        {:else if currentRoute === 'sales'}
+          <SalesView />
+        {:else if currentRoute === 'cash'}
+          <CashRegisterView />
+        {:else if currentRoute === 'purchases'}
+          <PurchasesView />
+        {:else if currentRoute === 'customers'}
         <CustomersView />
       {:else if currentRoute === 'suppliers'}
         <SuppliersView />
@@ -329,6 +375,7 @@
       {:else if currentRoute === 'about'}
         <AboutView />
       {/if}
+      </div>
     </main>
   </div>
 {/if}
