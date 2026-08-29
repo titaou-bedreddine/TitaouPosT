@@ -42,7 +42,7 @@
       if (user) {
         currentUser.set(user);
       } else {
-        errorMsg = 'Invalid password / كلمة المرور غير صحيحة (Default: admin)';
+        errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
       }
     } catch (err: any) {
       errorMsg = typeof err === 'string' ? err : err.message || 'Login failed';
@@ -136,9 +136,6 @@
         <span>{isLoading ? 'Signing In...' : 'Sign In to POS / تسجيل الدخول'}</span>
       </button>
 
-      <p class="text-[11px] text-slate-500 text-center font-bold">
-        Default Password / كلمة المرور الافتراضية: <span class="text-sky-400 font-mono">admin</span>
-      </p>
     </div>
   </div>
 </div>
