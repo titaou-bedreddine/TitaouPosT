@@ -6,7 +6,7 @@
   import { Lock, UserCheck, Shield, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
 
   let usersList: User[] = [];
-  let selectedUsername = '';
+  let selectedUsername = 'admin';
   let password = '';
   let showPassword = false;
   let errorMsg = '';
@@ -14,10 +14,12 @@
 
   onMount(async () => {
     try {
-      usersList = await invoke<User[]>('get_active_users');
-      if (usersList && usersList.length > 0) {
-        selectedUsername = usersList[0].username;
+      const list = await invoke<User[]>('get_active_users');
+      if (list && list.length > 0) {
+        usersList = list;
+        selectedUsername = list[0].username;
       } else {
+        usersList = [{ id: 1, username: 'admin', display_name: 'Administrator', role_id: 1, role_name: 'Administrator', max_discount_percent: 100, is_active: true, permissions: [] }];
         selectedUsername = 'admin';
       }
     } catch (e) {
@@ -28,23 +30,23 @@
   });
 
   async function handleLogin() {
-    if (!selectedUsername) {
-      selectedUsername = 'admin';
-    }
-    if (!password) {
+    const uname = (selectedUsername || 'admin').trim();
+    const pwd = password.trim();
+    if (!pwd) {
       errorMsg = 'Please enter password / الرجاء إدخال كلمة المرور';
       return;
     }
     try {
       isLoading = true;
       errorMsg = '';
-      const user = await invoke<User | null>('login', { username: selectedUsername, password });
+      const user = await invoke<User | null>('login', { username: uname, password: pwd });
       if (user) {
         currentUser.set(user);
       } else {
         errorMsg = 'Invalid password / كلمة المرور غير صحيحة';
       }
     } catch (err: any) {
+      console.error('Login invocation error:', err);
       errorMsg = typeof err === 'string' ? err : err.message || 'Login failed';
     } finally {
       isLoading = false;

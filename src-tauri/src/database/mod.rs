@@ -132,7 +132,7 @@ impl DbState {
         Ok(())
     }
 
-    fn seed_default_admin(&self) -> Result<()> {
+    pub fn seed_default_admin(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         
         let _ = conn.execute(
