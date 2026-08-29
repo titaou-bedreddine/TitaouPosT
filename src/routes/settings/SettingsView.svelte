@@ -464,52 +464,79 @@
   let latestDownloadUrl = '';
   let latestReleaseUrl = '';
 
+  interface AppUpdateResult {
+    has_update: boolean;
+    current_version: string;
+    latest_version: string;
+    tag_name: string;
+    release_name: string;
+    release_notes: string;
+    release_url: string;
+    download_url: string;
+    published_at: string;
+  }
+
+  async function openUrlInBrowser(url: string) {
+    if (!url) return;
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(url);
+    } catch {
+      window.open(url, '_blank');
+    }
+  }
+
   async function checkForUpdates() {
     try {
       isCheckingUpdate = true;
       updateStatus = 'Querying GitHub releases for TitaouPOS...';
-      const res = await fetch('https://api.github.com/repos/titaou-bedreddine/TitaouPosT/releases', {
-        headers: { 'Accept': 'application/vnd.github.v3+json' }
-      });
-      if (!res.ok) {
-        throw new Error(`GitHub API returned status ${res.status}`);
+
+      let updateResult: AppUpdateResult;
+      try {
+        updateResult = await invoke<AppUpdateResult>('check_github_update');
+      } catch (invErr: any) {
+        console.warn('Backend check_github_update error, attempting fetch fallback:', invErr);
+        const res = await fetch('https://api.github.com/repos/titaou-bedreddine/TitaouPosT/releases', {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!res.ok) throw new Error(`GitHub API HTTP ${res.status}`);
+        const releases = await res.json();
+        const latest = releases[0] || {};
+        const latestTag = (latest.tag_name || '').trim();
+        const cleanCurrent = appVersion.replace(/^v/, '').trim();
+        const cleanLatest = latestTag.replace(/^v/, '').trim();
+        const setupAsset = (latest.assets || []).find((a: any) => a.name?.endsWith('.exe') || a.name?.endsWith('.msi'));
+
+        updateResult = {
+          has_update: cleanLatest !== cleanCurrent && !!latestTag,
+          current_version: appVersion,
+          latest_version: cleanLatest,
+          tag_name: latestTag,
+          release_name: latest.name || latestTag,
+          release_notes: latest.body || '',
+          release_url: latest.html_url || 'https://github.com/titaou-bedreddine/TitaouPosT/releases',
+          download_url: setupAsset ? setupAsset.browser_download_url : (latest.html_url || ''),
+          published_at: latest.published_at || '',
+        };
       }
-      const releases = await res.json();
-      if (!Array.isArray(releases) || releases.length === 0) {
+
+      latestReleaseInfo = updateResult;
+      latestReleaseUrl = updateResult.release_url;
+      latestDownloadUrl = updateResult.download_url;
+
+      if (!updateResult.has_update) {
         updateStatus = `TitaouPOS is up to date (${appVersion} is the latest release).`;
         updateAvailable = false;
         triggerSaveNotification('System is up to date!');
-        return;
-      }
-
-      const latest = releases[0];
-      latestReleaseInfo = latest;
-      const latestTag = (latest.tag_name || '').trim();
-      latestReleaseUrl = latest.html_url || 'https://github.com/titaou-bedreddine/TitaouPosT/releases';
-      
-      const setupAsset = (latest.assets || []).find((a: any) => a.name.endsWith('.exe') || a.name.endsWith('.msi'));
-      if (setupAsset) {
-        latestDownloadUrl = setupAsset.browser_download_url;
       } else {
-        latestDownloadUrl = latestReleaseUrl;
-      }
-
-      const cleanCurrent = appVersion.replace(/^v/, '').trim();
-      const cleanLatest = latestTag.replace(/^v/, '').trim();
-
-      if (cleanCurrent === cleanLatest || latestTag === appVersion) {
-        updateStatus = `TitaouPOS is up to date (${appVersion} is the latest release).`;
-        updateAvailable = false;
-        triggerSaveNotification('System is up to date!');
-      } else {
-        updateStatus = `🚀 New Update Available: ${latestTag} (${latest.name || 'New Release'})`;
+        updateStatus = `🚀 New Update Available: ${updateResult.tag_name} (${updateResult.release_name || 'Latest Release'})`;
         updateAvailable = true;
-        triggerSaveNotification(`New update ${latestTag} available!`);
+        triggerSaveNotification(`New update ${updateResult.tag_name} available!`);
       }
     } catch (e: any) {
       console.warn('Update check note:', e);
-      updateStatus = `TitaouPOS ${appVersion} is installed. Checked against GitHub.`;
-      triggerSaveNotification('Checked successfully');
+      updateStatus = `Failed to query GitHub: ${e?.message || e}`;
+      triggerSaveNotification('Check failed');
     } finally {
       isCheckingUpdate = false;
     }
@@ -2200,14 +2227,21 @@
             </button>
 
             {#if updateAvailable && latestDownloadUrl}
-              <a
-                href={latestDownloadUrl}
-                target="_blank"
+              <button
+                type="button"
+                on:click={() => openUrlInBrowser(latestDownloadUrl)}
                 class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition animate-pulse"
               >
                 <Download class="w-4 h-4" />
                 <span>Download {latestReleaseInfo?.tag_name || 'Update'} (تحميل التحديث)</span>
-              </a>
+              </button>
+              <button
+                type="button"
+                on:click={() => openUrlInBrowser(latestReleaseUrl)}
+                class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <span>View Release Notes</span>
+              </button>
             {/if}
 
             <button

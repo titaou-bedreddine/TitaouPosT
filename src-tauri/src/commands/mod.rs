@@ -523,3 +523,96 @@ pub fn update_user(
 pub fn delete_user(db: State<'_, DbState>, user_id: i64) -> Result<(), String> {
     user_service::delete_user(&db, user_id)
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AppUpdateResult {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub tag_name: String,
+    pub release_name: String,
+    pub release_notes: String,
+    pub release_url: String,
+    pub download_url: String,
+    pub published_at: String,
+}
+
+#[tauri::command]
+pub async fn check_github_update(app_handle: tauri::AppHandle) -> Result<AppUpdateResult, String> {
+    let current_version = app_handle.package_info().version.to_string();
+
+    let client = reqwest::Client::builder()
+        .user_agent("TitaouPOS-Desktop")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+
+    let res = client
+        .get("https://api.github.com/repos/titaou-bedreddine/TitaouPosT/releases")
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach GitHub: {}", e))?;
+
+    if !res.status().is_success() {
+        return Err(format!("GitHub API returned HTTP {}", res.status()));
+    }
+
+    let releases: Vec<serde_json::Value> = res
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse GitHub response: {}", e))?;
+
+    if releases.is_empty() {
+        return Ok(AppUpdateResult {
+            has_update: false,
+            current_version: current_version.clone(),
+            latest_version: current_version.clone(),
+            tag_name: format!("v{}", current_version),
+            release_name: "No releases found".to_string(),
+            release_notes: "".to_string(),
+            release_url: "https://github.com/titaou-bedreddine/TitaouPosT/releases".to_string(),
+            download_url: "".to_string(),
+            published_at: "".to_string(),
+        });
+    }
+
+    let latest = &releases[0];
+    let tag_name = latest["tag_name"].as_str().unwrap_or("").trim().to_string();
+    let clean_latest = tag_name.trim_start_matches('v').trim();
+    let clean_current = current_version.trim_start_matches('v').trim();
+
+    let release_name = latest["name"].as_str().unwrap_or(&tag_name).to_string();
+    let release_notes = latest["body"].as_str().unwrap_or("").to_string();
+    let release_url = latest["html_url"]
+        .as_str()
+        .unwrap_or("https://github.com/titaou-bedreddine/TitaouPosT/releases")
+        .to_string();
+    let published_at = latest["published_at"].as_str().unwrap_or("").to_string();
+
+    let mut download_url = release_url.clone();
+    if let Some(assets) = latest["assets"].as_array() {
+        if let Some(asset) = assets.iter().find(|a| {
+            let name = a["name"].as_str().unwrap_or("");
+            name.ends_with(".exe") || name.ends_with(".msi")
+        }) {
+            if let Some(browser_url) = asset["browser_download_url"].as_str() {
+                download_url = browser_url.to_string();
+            }
+        }
+    }
+
+    let has_update = clean_latest != clean_current && !tag_name.is_empty();
+
+    Ok(AppUpdateResult {
+        has_update,
+        current_version,
+        latest_version: clean_latest.to_string(),
+        tag_name,
+        release_name,
+        release_notes,
+        release_url,
+        download_url,
+        published_at,
+    })
+}

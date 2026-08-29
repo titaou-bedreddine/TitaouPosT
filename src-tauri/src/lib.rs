@@ -83,6 +83,7 @@ pub fn run() {
             commands::create_user,
             commands::update_user,
             commands::delete_user,
+            commands::check_github_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
