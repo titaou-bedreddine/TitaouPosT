@@ -46,7 +46,7 @@
   let autoDrawerEnabled = true;
   let isFastCheckingOut = false;
 
-  let isPaymentModalOpen = false;
+  let isPaymentOpen = false;
   let isCashDrawerOpen = false;
   let isCategoryManagerOpen = false;
   let isHeldSalesOpen = false;
