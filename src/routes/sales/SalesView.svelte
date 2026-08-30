@@ -518,9 +518,9 @@
   </div>
 {/if}
 
-<!-- Protected Delete Modal -->
+<!-- Protected Delete Modal (z-index above the sale-detail modal it opens from) -->
 {#if isDeleteModalOpen && selectedSale}
-  <div class="fixed inset-0 z-60 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
       <div class="flex items-center gap-3 text-rose-600">
         <ShieldAlert class="w-6 h-6 shrink-0" />

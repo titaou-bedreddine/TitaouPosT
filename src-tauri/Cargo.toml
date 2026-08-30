@@ -1,6 +1,6 @@
 [package]
 name = "titaou-post"
-version = "0.3.7"
+version = "0.3.8"
 description = "Windows Offline-First Point of Sale Application"
 edition = "2021"
 
@@ -31,6 +31,12 @@ parking_lot = "0.12"
 thiserror = "1.0"
 libloading = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_UI_Shell",
+    "Win32_Foundation",
+] }
 
 [profile.dev]
 debug = 1

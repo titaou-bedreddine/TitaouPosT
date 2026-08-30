@@ -4,7 +4,7 @@
   import type { CashMovement, CashSession, Customer } from '../../lib/types';
   import { activeSession } from '../../lib/stores/session';
   import { currentUser } from '../../lib/stores/auth';
-  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
+  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
 
   let currentTab: 'current' | 'history' = 'current';
   let movements: CashMovement[] = [];

@@ -141,6 +141,11 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
     tx.commit().map_err(|e| e.to_string())?;
 
+    // Release the connection lock BEFORE the notifier: notify_if_enabled
+    // reads settings through the same DbState and would self-deadlock on
+    // the non-reentrant mutex — after commit, freezing the invoke forever.
+    drop(conn);
+
     // Telegram "each sale" alert (fire-and-forget on a background thread).
     crate::services::notifier_service::notify_if_enabled(
         db,
@@ -334,4 +339,116 @@ pub fn delete_sale(db: &DbState, sale_id: i64) -> Result<(), String> {
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::SalePaymentInput;
+    use rusqlite::Connection;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    fn create_test_db() -> DbState {
+        let conn = Connection::open_in_memory().unwrap();
+        let state = DbState { conn: std::sync::Mutex::new(conn) };
+        state.run_migrations().unwrap();
+        state.seed_default_admin().unwrap();
+        // An open cash session for the sale's session_id.
+        {
+            let conn = state.conn.lock().unwrap();
+            let _ = conn.execute(
+                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status)
+                 VALUES (1, 1, 0, 0, 'open')",
+                [],
+            );
+        }
+        state
+    }
+
+    fn sample_sale_input(db: &DbState) -> CreateSaleInput {
+        let conn = db.conn.lock().unwrap();
+        // A sellable product with stock, and an open cash session.
+        conn.execute(
+            "INSERT INTO products (sku, name_ar, name_fr, name_en, sale_price, current_stock)
+             VALUES ('TEST-1', 'اختبار', 'Test', 'Test', 100, 10)",
+            [],
+        )
+        .unwrap();
+        let product_id = conn.last_insert_rowid();
+        let session_id: i64 = conn
+            .query_row("SELECT id FROM cash_sessions WHERE status='open'", [], |r| r.get(0))
+            .unwrap();
+        drop(conn);
+
+        CreateSaleInput {
+            session_id,
+            user_id: 1,
+            customer_id: None,
+            items: vec![CartItem {
+                product_id,
+                sku: None, barcode: None, name_ar: None, name_fr: None,
+                name_en: None, image_path: None,
+                unit_price: 100, quantity: 1.0, discount_amount: 0,
+                tax_amount: 0, total_price: 100, is_refund: false,
+            }],
+            subtotal: 100,
+            discount_amount: 0,
+            discount_percentage: 0.0,
+            discount_reason: None,
+            tax_amount: 0,
+            total_amount: 100,
+            paid_amount: 100,
+            change_amount: 0,
+            payments: vec![SalePaymentInput { payment_method: "cash".into(), amount: 100, reference_code: None }],
+            payment_method: Some("cash".into()),
+            is_refund: None,
+            notes: None,
+            skip_stock: false,
+        }
+    }
+
+    // process_sale must never re-enter the db lock: it used to call the
+    // Telegram notifier (which reads settings) while still holding the
+    // connection mutex, self-deadlocking AFTER commit — the sale landed but
+    // the invoke never returned, freezing the POS UI. This runs it on a
+    // worker thread with a hard timeout so a regression hangs the test, not
+    // the suite.
+    #[test]
+    fn test_process_sale_completes_without_deadlock() {
+        let db = std::sync::Arc::new(create_test_db());
+        let input = sample_sale_input(&db);
+
+        let (tx, rx) = mpsc::channel();
+        let db2 = std::sync::Arc::clone(&db);
+        let handle = std::thread::spawn(move || {
+            let result = process_sale(&db2, input);
+            let _ = tx.send(result);
+        });
+
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(Ok(sale_number)) => {
+                handle.join().unwrap();
+                // Sale fully landed: sale row + payment + stock movement.
+                let conn = db.conn.lock().unwrap();
+                let sales: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM sales", [], |r| r.get(0))
+                    .unwrap();
+                let payments: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM sale_payments", [], |r| r.get(0))
+                    .unwrap();
+                let stock: f64 = conn
+                    .query_row("SELECT current_stock FROM products LIMIT 1", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(sales, 1, "sale row missing");
+                assert_eq!(payments, 1, "payment row missing");
+                assert!((stock - 9.0).abs() < f64::EPSILON, "stock not decremented, got {}", stock);
+                assert!(sale_number.starts_with("POS-"));
+            }
+            Ok(Err(e)) => panic!("process_sale failed: {}", e),
+            Err(_) => {
+                // Do NOT join: the worker is parked on the mutex forever.
+                panic!("DEADLOCK in process_sale: invoke never returned (notifier re-locked db.conn after commit)");
+            }
+        }
+    }
 }

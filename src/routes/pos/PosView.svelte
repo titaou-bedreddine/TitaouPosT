@@ -45,7 +45,7 @@
   let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
   let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' | 'best_sellers' | 'worst_sellers' = 'name_asc';
 
-  let selectedPaymentMode: 'cash' | 'card' | 'credit' | 'versement' = 'cash';
+  let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   let autoPrintEnabled = true;
   let autoDrawerEnabled = true;
   let isFastCheckingOut = false;
@@ -185,26 +185,10 @@
 
       products = list;
 
-      if (searchQuery.trim().length >= 6 && searchType === 'barcode') {
-        const queryCode = searchQuery.trim();
-        const matched = list.find(p => p.barcodes?.includes(queryCode) || p.sku === queryCode);
-        if (matched) {
-          addToCart(matched, 1, $isRefundMode);
-          searchQuery = '';
-          await loadProducts();
-        } else {
-          unknownScannedBarcode = queryCode;
-          isUnknownBarcodeModalOpen = true;
-          searchQuery = '';
-        }
-      } else if (searchQuery.trim().length >= 8 && searchType === 'all' && products.length === 1) {
-        const exactMatch = products[0].barcodes?.includes(searchQuery.trim()) || products[0].sku === searchQuery.trim();
-        if (exactMatch) {
-          addToCart(products[0], 1, $isRefundMode);
-          searchQuery = '';
-          await loadProducts();
-        }
-      }
+      // Scanned-barcode auto-add is handled ONLY by the window-level Enter
+      // handler (rapid-input detection): adding here too made one scan fire
+      // twice — once mid-typing (input event) and once on Enter — so the
+      // quantity jumped by 2 per scan. Live search just filters.
     } catch (e) {
       console.error(e);
     }

@@ -100,18 +100,28 @@
       }
     });
 
-    if ($currentUser) {
-      try {
-        const session = await invoke<CashSession | null>('get_active_cash_session', { userId: $currentUser.id });
-        $activeSession = session;
-        // Session left open from a previous day: prompt close + fresh open.
-        if (session && (session as any).is_stale) {
-          isCashDrawerOpen = true;
-        }
-      } catch (err) {
-        console.error(err);
+  // Load the open cash session once the user is logged in. A session left
+  // open from a previous calendar day is auto-closed at midnight by the
+  // backend; on login we re-read so the register never starts on a stale
+  // or missing session. Closing the APP never closes the session.
+  async function loadActiveSession() {
+    if (!$currentUser) return;
+    try {
+      const session = await invoke<CashSession | null>('get_active_cash_session', { userId: $currentUser.id });
+      $activeSession = session;
+      // Session left open from a previous day (edge case the auto-close
+      // missed, e.g. app closed before midnight tick): prompt to close it.
+      if (session && (session as any).is_stale) {
+        isCashDrawerOpen = true;
       }
+    } catch (err) {
+      console.error(err);
     }
+  }
+
+  $: if ($currentUser) {
+    loadActiveSession();
+  }
 
     // Background automatic update check on startup
     setTimeout(async () => {

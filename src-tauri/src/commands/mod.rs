@@ -69,15 +69,108 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
 
 #[cfg(windows)]
 fn print_pdf_windows(path: &std::path::Path) -> bool {
+    // Layered silent printing: each step falls back to the next so a stock
+    // Windows machine (Edge as default PDF app, no print verb registered)
+    // still prints without any dialog.
+    //
+    // 1. ShellExecute "print" verb — works when Adobe/SumatraPDF is the
+    //    default handler (they register the print verb).
+    // 2. SumatraPDF -print-to-default -silent — the standard POS silent
+    //    printer; checked at its common install paths.
+    // 3. Adobe Reader /p /h — prints to default printer, hidden window.
+    if shell_execute_print(path) {
+        return true;
+    }
+    if sumatra_print(path) {
+        return true;
+    }
+    adobe_print(path)
+}
+
+#[cfg(windows)]
+fn shell_execute_print(path: &std::path::Path) -> bool {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    // SW_HIDE = 0: don't flash a window for the print handler.
+    const SW_HIDE: i32 = 0;
+
+    let file: Vec<u16> = path
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let verb: Vec<u16> = "print\0".encode_utf16().collect();
+
+    // ShellExecuteW returns a value > 32 on success. Edge as the default
+    // PDF app does not register a "print" verb and yields SE_ERR_NOASSOC.
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_HIDE,
+        )
+    };
+    result as usize > 32
+}
+
+#[cfg(windows)]
+fn sumatra_print(path: &std::path::Path) -> bool {
     use std::os::windows::process::CommandExt;
-    // cmd start with the print verb launches the associated app's print
-    // command (SumatraPDF/Adobe/Microsoft Print to PDF all support /p /s).
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", "/B"])
-        .arg(path)
-        .creation_flags(0x08000000) // CREATE_NO_WINDOW
-        .spawn()
-        .is_ok()
+    let candidates = [
+        "C:\\Program Files\\SumatraPDF\\SumatraPDF.exe".to_string(),
+        "C:\\Program Files (x86)\\SumatraPDF\\SumatraPDF.exe".to_string(),
+        format!(
+            "{}\\SumatraPDF\\SumatraPDF.exe",
+            std::env::var("LOCALAPPDATA").unwrap_or_default()
+        ),
+    ];
+    for exe in candidates {
+        if !std::path::Path::new(&exe).exists() {
+            continue;
+        }
+        let ok = std::process::Command::new(&exe)
+            .arg("-print-to-default")
+            .arg("-silent")
+            .arg(path)
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+fn adobe_print(path: &std::path::Path) -> bool {
+    use std::os::windows::process::CommandExt;
+    let candidates = [
+        "C:\\Program Files\\Adobe\\Acrobat DC\\Acrobat\\Acrobat.exe".to_string(),
+        "C:\\Program Files (x86)\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe".to_string(),
+        "C:\\Program Files\\Adobe\\Acrobat Reader DC\\Reader\\AcroRd32.exe".to_string(),
+    ];
+    for exe in candidates {
+        if !std::path::Path::new(&exe).exists() {
+            continue;
+        }
+        let ok = std::process::Command::new(&exe)
+            .arg("/p")
+            .arg("/h")
+            .arg(path)
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(not(windows))]

@@ -158,16 +158,49 @@
     updateTotals();
   }
 
+  // Invoice fields are DZD integers: swallow non-digit keys outright.
+  function digitsOnly(e: KeyboardEvent) {
+    if (
+      e.key.length === 1 &&
+      !/[0-9]/.test(e.key) &&
+      !e.ctrlKey && !e.metaKey && !e.altKey
+    ) {
+      e.preventDefault();
+    }
+  }
+
+  // Keep the bound numeric value clean even on paste/autofill.
+  function sanitizeNumber(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const digits = input.value.replace(/[^0-9]/g, '');
+    if (input.value !== digits) {
+      input.value = digits;
+      input.dispatchEvent(new Event('input'));
+    }
+  }
+
   function updateTotals() {
     items = items.map(i => ({ ...i, total: i.quantity * i.unit_cost }));
-    paidAmount = subtotal;
+    // Paid-to-supplier tracks the invoice total until the cashier edits it
+    // manually (typing or a preset); after that their choice sticks.
+    if (!paidManuallyEdited) {
+      paidAmount = subtotal;
+    }
   }
 
   $: subtotal = items.reduce((sum, i) => sum + i.total, 0);
   $: total = subtotal;
 
+  // Cashier overrides the paid default by typing or picking a preset.
+  let paidManuallyEdited = false;
+
   function setPaidPercent(pct: number) {
+    paidManuallyEdited = true;
     paidAmount = Math.round((total * pct) / 100);
+  }
+
+  function markPaidEdited() {
+    paidManuallyEdited = true;
   }
 
   async function handleCreatePurchase() {
@@ -209,6 +242,7 @@
       items = [];
       invoiceNumber = '';
       paidAmount = 0;
+      paidManuallyEdited = false;
       await loadData();
     } catch (e: any) {
       errorMsg = typeof e === 'string' ? e : e.message || 'Failed to save purchase';
@@ -245,7 +279,7 @@
 
     <button
       type="button"
-      on:click={() => { isCreateOpen = true; errorMsg = ''; }}
+      on:click={() => { isCreateOpen = true; errorMsg = ''; paidManuallyEdited = false; paidAmount = 0; }}
       class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
@@ -419,9 +453,10 @@
                         id={`qty-${idx}`}
                         type="number"
                         min="1"
+                        inputmode="numeric"
                         bind:value={item.quantity}
                         on:input={updateTotals}
-                        on:keydown={(e) => handleQtyKeyDown(e, idx)}
+                        on:keydown={(e) => { digitsOnly(e); handleQtyKeyDown(e, idx); }}
                         class="w-20 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-black text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
@@ -430,9 +465,10 @@
                         id={`cost-${idx}`}
                         type="number"
                         min="0"
+                        inputmode="numeric"
                         bind:value={item.unit_cost}
                         on:input={updateTotals}
-                        on:keydown={(e) => handleCostKeyDown(e, idx)}
+                        on:keydown={(e) => { digitsOnly(e); handleCostKeyDown(e, idx); }}
                         class="w-24 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
@@ -441,8 +477,9 @@
                         id={`sale-${idx}`}
                         type="number"
                         min="0"
+                        inputmode="numeric"
                         bind:value={item.sale_price}
-                        on:keydown={(e) => handleSaleKeyDown(e, idx)}
+                        on:keydown={(e) => { digitsOnly(e); handleSaleKeyDown(e, idx); }}
                         class="w-24 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg font-mono font-bold text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </td>
@@ -470,7 +507,11 @@
                 type="number"
                 min="0"
                 max={total}
+                inputmode="numeric"
                 bind:value={paidAmount}
+                on:input={markPaidEdited}
+                on:keydown={digitsOnly}
+                on:blur={sanitizeNumber}
                 class="w-36 px-3 py-1.5 bg-pos-card border border-pos-border rounded-xl text-sm font-mono font-black text-emerald-600 outline-none"
               />
               <div class="flex items-center gap-1">

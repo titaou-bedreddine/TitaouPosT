@@ -159,7 +159,7 @@
         type="button"
         on:click={onOpenOtherArticle}
         class="flex flex-col items-center justify-center w-20 h-14 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 text-amber-900 dark:text-amber-200 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-        title="Other Article / مقال حر (Divers - Fast Price Entry)"
+        title="Other Product / منتج حر (Divers - Fast Price Entry)"
       >
         <DollarSign class="w-4 h-4 text-amber-600 mb-0.5" />
         <span class="text-[10px] font-black leading-tight">Divers</span>

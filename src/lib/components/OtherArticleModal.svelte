@@ -57,7 +57,7 @@
             <Tag class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-sm text-pos-text">Other Article / مقال حر خارج قائمة المبيعات (Article Hors Liste)</h3>
+            <h3 class="font-black text-sm text-pos-text">Other Product / منتج حر خارج قائمة المبيعات (Article Hors Liste)</h3>
             <p class="text-[11px] text-pos-muted">Quick-sell item without barcode</p>
           </div>
         </div>

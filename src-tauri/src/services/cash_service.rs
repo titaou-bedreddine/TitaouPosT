@@ -15,7 +15,7 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
         )
         .map_err(|e| e.to_string())?;
 
-    let session = stmt.query_row([], |row| {
+    let session = match stmt.query_row([], |row| {
         Ok(CashSession {
             id: row.get(0)?,
             register_id: row.get(1)?,
@@ -34,18 +34,51 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
             notes: row.get(11)?,
             is_stale: None,
         })
-    });
+    }) {
+        Ok(s) => Some(s),
+        Err(rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(e) => return Err(e.to_string()),
+    };
+    drop(stmt);
+    drop(conn);
 
     match session {
-        Ok(mut s) => {
+        Some(mut s) => {
             // A session left open from a previous calendar day is stale: the
-            // caller should prompt to close it and open today's session.
-            let opened_date = chrono::DateTime::parse_from_rfc3339(&s.opened_at)
-                .map(|d| d.date_naive())
-                .unwrap_or_else(|_| chrono::Local::now().date_naive());
-            s.is_stale = Some(opened_date < chrono::Local::now().date_naive());
+            // POS day ends at midnight, so it auto-closes here (cash counted
+            // as expected) and the caller opens today's fresh session.
+            // Closing the app must NEVER close a session. opened_at is
+            // stored as "YYYY-MM-DD HH:MM:SS", not RFC3339 — parse both.
+            let opened_date = chrono::NaiveDateTime::parse_from_str(
+                &s.opened_at,
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .map(|d| d.date())
+            .or_else(|_| {
+                chrono::DateTime::parse_from_rfc3339(&s.opened_at)
+                    .map(|d| d.with_timezone(&chrono::Local).date_naive())
+            })
+            .unwrap_or_else(|_| chrono::Local::now().date_naive());
+            let is_stale = opened_date < chrono::Local::now().date_naive();
+
+            if is_stale {
+                // Previous-day session: close it now (midnight rollover);
+                // the caller sees no active session and opens a fresh one.
+                let conn = db.conn.lock().unwrap();
+                let _ = conn.execute(
+                    "UPDATE cash_sessions
+                     SET closed_at = CURRENT_TIMESTAMP, actual_cash = expected_cash,
+                         difference = 0, status = 'closed',
+                         notes = COALESCE(notes, '') || ' | Auto-closed at midnight'
+                     WHERE id = ?1 AND status = 'open'",
+                    [s.id],
+                );
+                return Ok(None);
+            }
+            s.is_stale = Some(false);
 
             // Calculate total sales and expenses for this session
+            let conn = db.conn.lock().unwrap();
             let sales_sum: i64 = conn.query_row(
                 "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE session_id = ?1 AND type = 'cash_sale'",
                 [s.id],
@@ -62,9 +95,8 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
             s.total_expenses = Some(exp_sum.abs());
             s.current_balance = Some(s.expected_cash);
             Ok(Some(s))
-        },
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.to_string()),
+        }
+        None => Ok(None),
     }
 }
 
@@ -233,4 +265,61 @@ pub fn list_session_history(db: &DbState) -> Result<Vec<CashSession>, String> {
 
     let list: Vec<CashSession> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn test_db_with_open_session(opened_at: &str) -> DbState {
+        let conn = Connection::open_in_memory().unwrap();
+        let state = DbState { conn: std::sync::Mutex::new(conn) };
+        state.run_migrations().unwrap();
+        state.seed_default_admin().unwrap();
+        {
+            let conn = state.conn.lock().unwrap();
+            let _ = conn.execute(
+                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, opened_at)
+                 VALUES (1, 1, 500, 500, 'open', ?1)",
+                [opened_at],
+            );
+        }
+        state
+    }
+
+    // A same-day session MUST be returned open: closing/reopening the app
+    // never closes the register. Regression: the app used to force-close
+    // still-valid sessions on every restart.
+    #[test]
+    fn same_day_session_survives() {
+        let db = test_db_with_open_session("2026-08-30 09:00:00");
+        let s = get_active_session(&db, 1).unwrap().expect("session must be open");
+        assert_eq!(s.status, "open");
+        assert_eq!(s.is_stale, Some(false));
+    }
+
+    // A previous-day session is auto-closed at the midnight rollover so the
+    // cashier starts a fresh one.
+    #[test]
+    fn previous_day_session_auto_closes() {
+        let db = test_db_with_open_session("2026-08-29 23:00:00");
+        let s = get_active_session(&db, 1).unwrap();
+        assert!(s.is_none(), "stale session must be closed (None)");
+        let conn = db.conn.lock().unwrap();
+        let status: String = conn
+            .query_row("SELECT status FROM cash_sessions WHERE opened_at = '2026-08-29 23:00:00'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(status, "closed");
+    }
+
+    // No open session at all returns None (not an error) so the UI can offer
+    // "Open New Session".
+    #[test]
+    fn no_open_session_returns_none() {
+        let conn = Connection::open_in_memory().unwrap();
+        let state = DbState { conn: std::sync::Mutex::new(conn) };
+        state.run_migrations().unwrap();
+        state.seed_default_admin().unwrap();
+        assert!(get_active_session(&state, 1).unwrap().is_none());
+    }
 }

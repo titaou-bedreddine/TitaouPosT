@@ -98,26 +98,6 @@
     <Edit2 class="w-3.5 h-3.5" />
   </button>
 
-  <!-- Print Sticker & Shelf Tag (Top Start, under Edit) -->
-  <div class="absolute top-9 start-2 z-20 flex flex-col gap-1">
-    <button
-      type="button"
-      on:click={openPrintSticker}
-      class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
-      title="Print Barcode Sticker (x{Math.max(1, Math.floor(product.current_stock || 0))})"
-    >
-      <QrCode class="w-3.5 h-3.5" />
-    </button>
-    <button
-      type="button"
-      on:click={openPrintShelf}
-      class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-emerald-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
-      title="Print Shelf Tag (x1)"
-    >
-      <Tag class="w-3.5 h-3.5" />
-    </button>
-  </div>
-
   <!-- Stock & Expiry Status Badges (Top End) -->
   <div class="absolute top-2 end-2 z-10 flex flex-col items-end gap-1">
     <!-- Expiry Pill -->
@@ -183,9 +163,27 @@
   <!-- Price Footer -->
   <div class="mt-2 pt-1 border-t border-pos-border/60 flex items-center justify-between w-full">
     <span class="text-[10px] text-pos-muted font-bold">{displayUnit}</span>
-    <span class="text-sm font-black text-sky-600 dark:text-sky-400 font-mono">
-      {product.sale_price.toLocaleString()} DZD
-    </span>
+    <div class="flex items-center gap-1.5">
+      <button
+        type="button"
+        on:click={openPrintSticker}
+        class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        title="Print Barcode Sticker (x{Math.max(1, Math.floor(product.current_stock || 0))})"
+      >
+        <QrCode class="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        on:click={openPrintShelf}
+        class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-emerald-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        title="Print Shelf Tag (x1)"
+      >
+        <Tag class="w-3.5 h-3.5" />
+      </button>
+      <span class="text-sm font-black text-sky-600 dark:text-sky-400 font-mono">
+        {product.sale_price.toLocaleString()} DZD
+      </span>
+    </div>
   </div>
 </div>
 <!-- Label Print Modal (sticker = stock qty, shelf = 1) -->
