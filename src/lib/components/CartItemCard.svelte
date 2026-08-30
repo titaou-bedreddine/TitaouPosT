@@ -7,6 +7,9 @@
     toggleItemRefund,
     removeFromCart,
     lastAddedProductId,
+    qtyEditTarget,
+    itemKey,
+    stopQtyEdit,
   } from '../stores/cart';
   import { Minus, Plus, Trash2, Undo2, Percent, Package } from 'lucide-svelte';
 
@@ -15,6 +18,7 @@
   let showDiscountInput = false;
   let lineDiscountValue: number | null = item.discount_amount;
   let discountInputEl: HTMLInputElement;
+  let qtyInputEl: HTMLInputElement;
 
   // Re-seed from the live item each time the popover opens so an
   // already-applied remise shows up ready to edit.
@@ -25,6 +29,15 @@
   $: maxUnitDiscount = item.unit_price;
   $: numericDiscount = lineDiscountValue === null || isNaN(lineDiscountValue as number) ? 0 : (lineDiscountValue as number);
   $: discountInvalid = numericDiscount < 0 || numericDiscount > maxUnitDiscount;
+
+  // F6 quantity-edit mode: when this line is the active target, focus and
+  // select the quantity so the user can just type a new value.
+  $: myKey = itemKey(item);
+  $: isQtyEditTarget = $qtyEditTarget === myKey;
+  $: if (isQtyEditTarget && qtyInputEl) {
+    qtyInputEl.focus();
+    qtyInputEl.select();
+  }
 
   function focusDiscountInput(el: HTMLInputElement) {
     el.focus();
@@ -77,6 +90,8 @@
     ? 'border-amber-500 bg-amber-500/5'
     : 'border-pos-border'} {isJustAdded
     ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 scale-[1.01]'
+    : ''} {isQtyEditTarget
+    ? 'ring-2 ring-sky-500 border-sky-400'
     : ''}"
 >
   <div class="flex items-center gap-3">
@@ -132,12 +147,21 @@
       </button>
 
       <input
+        bind:this={qtyInputEl}
         type="number"
         min="1"
         value={item.quantity}
         on:input={handleQtyChange}
         on:focus={(e) => (e.target as HTMLInputElement).select()}
-        class="w-10 text-center bg-transparent border-0 font-mono font-black text-xs text-pos-text outline-none p-0"
+        on:keydown={(e) => {
+          if (e.key === 'Enter') {
+            // PosView's global handler advances to the next cart line.
+            e.preventDefault();
+          } else if (e.key === 'Escape') {
+            stopQtyEdit();
+          }
+        }}
+        class="w-10 text-center bg-transparent border-0 font-mono font-black text-xs text-pos-text outline-none p-0 {isQtyEditTarget ? 'ring-2 ring-sky-400 rounded-md' : ''}"
       />
 
       <button

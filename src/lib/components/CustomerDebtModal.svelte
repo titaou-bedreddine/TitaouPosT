@@ -49,7 +49,8 @@
           <div style="text-align:center; font-family:monospace; font-size:10px; width:72mm; margin:0 auto; padding:2mm;">
             <p style="font-size:14px; font-weight:900;">PAYMENT RECEIPT / وصل دفع</p>
             <hr style="border-top:1px dashed #000; margin:4px 0;" />
-            <p>Amount: <strong>${amount} DZD</strong></p>
+            <p>Client: <strong>${customer.name}</strong></p>
+            <p>Amount: <strong>${paymentAmount.toLocaleString()} DZD</strong></p>
             <p>Method: <strong>${paymentMethod.toUpperCase()}</strong></p>
             ${reference ? `<p>Ref: ${reference}</p>` : ''}
             ${notes ? `<p>Notes: ${notes}</p>` : ''}

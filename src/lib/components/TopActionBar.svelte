@@ -10,7 +10,7 @@
   import {
     PlusCircle, Trash2, Undo2, Percent, CreditCard,
     PauseCircle, Printer, DollarSign, Languages, Check,
-    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet
+    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet, Coins
   } from 'lucide-svelte';
 
   export let onOpenPayment: () => void;
@@ -21,6 +21,7 @@
   export let onQuickPurchase: () => void;
   export let onReturnDamaged: () => void;
   export let onOpenOtherArticle: () => void = () => {};
+  export let onCheckout: () => void;
 
   export let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   export let autoPrintEnabled: boolean = true;
@@ -226,13 +227,13 @@
 
       <button
         type="button"
-        on:click={kickDrawer}
+        on:click={onCheckout}
         class="flex flex-col items-center justify-center w-20 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-        title="F10 - Open Cash Drawer (فتح الدرج)"
+        title="Checkout (F2) — Select customer, enter amount, get change/reste"
       >
-        <CreditCard class="w-4 h-4 mb-0.5" />
-        <span class="text-[10px] font-black leading-tight">Drawer</span>
-        <span class="text-[8px] bg-black/25 px-1 rounded font-mono font-normal mt-0.5">F10</span>
+        <Coins class="w-4 h-4 mb-0.5" />
+        <span class="text-[10px] font-black leading-tight">Checkout</span>
+        <span class="text-[8px] bg-black/25 px-1 rounded font-mono font-normal mt-0.5">F2</span>
       </button>
     </div>
 

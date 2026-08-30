@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly, buildReceiptHtml } from '../../lib/utils/printer';
@@ -24,6 +24,7 @@
   import ReturnDamagedModal from '../../lib/components/ReturnDamagedModal.svelte';
   import CreditCustomerModal from '../../lib/components/CreditCustomerModal.svelte';
   import VersementCustomerModal from '../../lib/components/VersementCustomerModal.svelte';
+  import CheckoutModal from '../../lib/components/CheckoutModal.svelte';
   import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
   import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
 
@@ -61,6 +62,7 @@
   let isReturnDamagedOpen = false;
   let isCreditCustomerOpen = false;
   let isVersementOpen = false;
+  let isCheckoutOpen = false;
   let isCustomerSelectorOpen = false;
   let isOtherArticleOpen = false;
 
@@ -275,15 +277,51 @@
     await executeCheckout(null, undefined);
   }
 
+  // Unified Checkout dialog (TopBar Checkout / F2): customer + amount +
+  // reste/change; amount < total lets the cashier pick credit vs versement.
+  function handleOpenCheckout() {
+    if ($cartItems.length === 0) return;
+    if (!$activeSession) {
+      isCashDrawerOpen = true;
+      return;
+    }
+    isCheckoutOpen = true;
+  }
+
+  function handleCheckoutConfirm(result: {
+    customerId: number;
+    customerName: string;
+    paidAmount: number;
+    mode: 'direct' | 'credit' | 'versement';
+  }) {
+    $selectedCustomerId = result.customerId;
+    const change = Math.max(0, result.paidAmount - $cartGrandTotal);
+    executeCheckout(result.customerId, result.customerName, {
+      mode: result.mode,
+      paidAmount: result.paidAmount,
+      changeAmount: change,
+    });
+  }
+
   async function executeCheckout(
     customerId: number | null,
     customerName?: string,
-    versement?: { paidAmount: number; remaining: number }
+    options?: {
+      mode?: 'direct' | 'credit' | 'versement';
+      paidAmount?: number;
+      changeAmount?: number;
+    }
   ) {
     try {
       const saleNumber = 'VTE-' + Date.now().toString().slice(-6);
       const saleDate = new Date().toLocaleString();
       const cashier = $currentUser?.display_name || 'Admin';
+
+      const mode = options?.mode || 'direct';
+      const paid = mode === 'direct' ? $cartGrandTotal : (options?.paidAmount ?? 0);
+      const change = mode === 'direct' ? 0 : (options?.changeAmount ?? 0);
+      const reste = Math.max(0, $cartGrandTotal - paid);
+      const effectiveMethod = mode === 'versement' ? 'versement' : mode === 'credit' ? 'credit' : selectedPaymentMode;
 
       const saleInput = {
         session_id: $activeSession?.id || 1,
@@ -291,25 +329,28 @@
         user_id: $currentUser?.id || 1,
         subtotal: $cartSubtotal,
         total_amount: $cartGrandTotal,
-        paid_amount: versement ? versement.paidAmount : $cartGrandTotal,
-        change_amount: 0,
+        paid_amount: paid,
+        change_amount: change,
         tax_amount: 0,
         discount_amount: $globalDiscountAmount,
         discount_percentage: $globalDiscountPercent,
-        payment_method: selectedPaymentMode,
+        payment_method: effectiveMethod,
         is_refund: $isRefundMode,
-        notes: versement
-          ? `Versement Sale to ${customerName} — Paid ${versement.paidAmount} DZD, Reste ${versement.remaining} DZD (goods at shop)`
-          : customerName
-            ? `Credit Sale to ${customerName}`
-            : undefined,
-        skip_stock: !!versement,
+        notes:
+          mode === 'versement'
+            ? `Versement Sale to ${customerName} — Paid ${paid} DZD, Reste ${reste} DZD (goods at shop)`
+            : mode === 'credit'
+              ? `Credit Sale to ${customerName} — Paid ${paid} DZD, Reste ${reste} DZD`
+              : customerName
+                ? `Direct Sale to ${customerName}`
+                : undefined,
+        skip_stock: mode === 'versement',
         payments: [
           {
             // Record only what was actually handed over now; the remainder is
             // tracked on the customer's account for credit AND versement.
-            payment_method: versement ? 'versement' : selectedPaymentMode,
-            amount: versement ? versement.paidAmount : $cartGrandTotal,
+            payment_method: effectiveMethod,
+            amount: paid,
             reference_code: null,
           }
         ],
@@ -355,9 +396,9 @@
           isRefund: i.is_refund || false,
         }));
 
-        if (selectedPaymentMode === 'credit') {
+        if (mode === 'credit') {
           // Print 2 Copies: Store Copy + Client Copy
-          const copy1 = buildReceiptHtml({
+          const creditReceiptOpts = {
             shopName,
             shopAddress,
             shopPhone,
@@ -373,30 +414,14 @@
             grandTotal: $cartGrandTotal,
             paymentMethod: 'CREDIT (دين)',
             isCredit: true,
-            copyLabel: 'COPIE MAGASIN / STORE COPY',
-          });
-
-          const copy2 = buildReceiptHtml({
-            shopName,
-            shopAddress,
-            shopPhone,
-            shopRc,
-            shopNif,
-            saleNumber,
-            saleDate,
-            cashierName: cashier,
-            customerName: customerName || 'Client Crédit',
-            items: receiptItems,
-            subtotal: $cartSubtotal,
-            discount: $globalDiscountAmount,
-            grandTotal: $cartGrandTotal,
-            paymentMethod: 'CREDIT (دين)',
-            isCredit: true,
-            copyLabel: 'COPIE CLIENT / CUSTOMER COPY',
-          });
-
-          printHtmlDirectly(copy1 + '<div style="page-break-after:always;"></div>' + copy2, 'Credit Receipts');
-        } else if (selectedPaymentMode === 'versement' && versement) {
+          };
+          printHtmlDirectly(
+            buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' }) +
+              '<div style="page-break-after:always;"></div>' +
+              buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
+            'Credit Receipts'
+          );
+        } else if (mode === 'versement') {
           // Layaway ticket: deposit paid now, remainder tracked on the customer.
           const receipt = buildReceiptHtml({
             shopName,
@@ -413,8 +438,8 @@
             discount: $globalDiscountAmount,
             grandTotal: $cartGrandTotal,
             paymentMethod: 'VERSEMENT (تسبقة)',
-            versementPaid: versement.paidAmount,
-            versementRemaining: versement.remaining,
+            versementPaid: paid,
+            versementRemaining: reste,
             copyLabel: 'VERSEMENT / تسبقة',
           });
           printHtmlDirectly(receipt, 'Versement Receipt #' + saleNumber);
@@ -428,18 +453,19 @@
             saleNumber,
             saleDate,
             cashierName: cashier,
+            customerName: customerName || undefined,
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,
             grandTotal: $cartGrandTotal,
-            paymentMethod: selectedPaymentMode.toUpperCase(),
+            paymentMethod: effectiveMethod.toUpperCase(),
           });
           printHtmlDirectly(receipt, 'Sale Receipt #' + saleNumber);
         }
       }
 
       // Auto-kick cash drawer
-      if (autoDrawerEnabled && selectedPaymentMode === 'cash') {
+      if (autoDrawerEnabled && mode === 'direct' && effectiveMethod === 'cash') {
         try {
           const settings = await invoke<Record<string, string>>('get_all_settings');
           const port = parseInt(settings['drawer_com_port'] || '1');
@@ -463,8 +489,40 @@
     }
   }
 
+  // Quantity-edit mode navigation: start on the first cart line (F6), then
+  // Enter jumps to the next line, ESC leaves the mode entirely.
+  function advanceQtyEdit() {
+    const keys = $cartItems.map(itemKey);
+    if (keys.length === 0) return;
+    const currentIdx = keys.indexOf($qtyEditTarget);
+    const nextIdx = currentIdx < 0 ? 0 : currentIdx + 1;
+    if (nextIdx < keys.length) {
+      qtyEditTarget.set(keys[nextIdx]);
+    } else {
+      // Past the last line: exit edit mode.
+      stopQtyEdit();
+    }
+  }
+
   // Global Keyboard Shortcuts
   function handleGlobalKeyDown(e: KeyboardEvent) {
+    // While editing quantities, Enter advances to the next cart line and
+    // ESC exits the mode. Swallow both so they never trigger other actions.
+    if ($qtyEditTarget) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        advanceQtyEdit();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        stopQtyEdit();
+        return;
+      }
+    }
+
     // Barcode scanner rapid input detection
     const now = Date.now();
     if (now - lastKeyTime > 100) {
@@ -499,11 +557,13 @@
       isRemiseOpen = true;
     } else if (e.key === 'F6') {
       e.preventDefault();
-      // Focus quantity on first cart item input
-      const qtyInput = document.querySelector('input[type="number"]') as HTMLInputElement;
-      if (qtyInput) {
-        qtyInput.focus();
-        qtyInput.select();
+      // Enter quantity-edit mode on the first cart line (or the next one if
+      // already editing).
+      if ($cartItems.length === 0) return;
+      if ($qtyEditTarget) {
+        advanceQtyEdit();
+      } else {
+        qtyEditTarget.set(itemKey($cartItems[0]));
       }
     } else if (e.key === 'F7') {
       e.preventDefault();
@@ -532,6 +592,7 @@
     bind:autoPrintEnabled
     bind:autoDrawerEnabled
     onOpenPayment={handleFastCheckout}
+    onCheckout={handleOpenCheckout}
     onOpenCashDrawer={() => (isCashDrawerOpen = true)}
     onOpenRemise={() => (isRemiseOpen = true)}
     onOpenHeldSales={() => (isHeldSalesOpen = true)}
@@ -880,7 +941,10 @@
     isOpen={isCreditCustomerOpen}
     totalAmount={$cartGrandTotal}
     onClose={() => (isCreditCustomerOpen = false)}
-    onConfirmCredit={(cId, cName, paid, remaining) => executeCheckout(cId, cName, { paidAmount: paid, remaining: Math.max(0, remaining) })}
+    onConfirmCredit={(cId, cName, paid, remaining) => {
+      $selectedCustomerId = cId;
+      executeCheckout(cId, cName, { mode: 'credit', paidAmount: paid, changeAmount: 0, });
+    }}
   />
 
   <VersementCustomerModal
@@ -891,8 +955,15 @@
       // Versement reserves the cart for the customer: their selection follows
       // the sale so the remainder is tracked on their account.
       $selectedCustomerId = cId;
-      executeCheckout(cId, cName, { paidAmount: paid, remaining: Math.max(0, remaining) });
+      executeCheckout(cId, cName, { mode: 'versement', paidAmount: paid, changeAmount: 0 });
     }}
+  />
+
+  <CheckoutModal
+    isOpen={isCheckoutOpen}
+    totalAmount={$cartGrandTotal}
+    onClose={() => (isCheckoutOpen = false)}
+    onConfirmCheckout={handleCheckoutConfirm}
   />
 
   <OtherArticleModal

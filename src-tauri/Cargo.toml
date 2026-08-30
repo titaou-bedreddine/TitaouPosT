@@ -1,6 +1,6 @@
 [package]
 name = "titaou-post"
-version = "0.3.4"
+version = "0.3.5"
 description = "Windows Offline-First Point of Sale Application"
 edition = "2021"
 
@@ -16,6 +16,7 @@ tauri = { version = "2.0.0", features = ["devtools"] }
 tauri-plugin-shell = "2.0.0"
 tauri-plugin-updater = "2.0.0"
 tauri-plugin-process = "2.0.0"
+tauri-plugin-single-instance = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.36", features = ["full"] }

@@ -35,7 +35,50 @@
   let isDarkMode = false;
   let newUpdateAvailable = false;
   let updateTag = '';
-  let updateDownloadUrl = '';
+  let updateStatus: '' | 'downloading' | 'ready' | 'restarting' | 'error' = '';
+  let updateProgress = 0;
+  let updateError = '';
+
+  // Download the signed update package in-app, install it, and relaunch —
+  // no browser, no separate installer window.
+  async function installUpdate() {
+    try {
+      updateStatus = 'downloading';
+      updateError = '';
+      updateProgress = 0;
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      const update = await check();
+      if (!update) {
+        updateStatus = '';
+        newUpdateAvailable = false;
+        return;
+      }
+      updateTag = update.version;
+      let downloaded = 0;
+      let total = 0;
+      await update.downloadAndInstall((event) => {
+        switch (event.event) {
+          case 'Started':
+            total = event.data.contentLength ?? 0;
+            break;
+          case 'Progress':
+            downloaded += event.data.chunkLength;
+            updateProgress = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+            break;
+          case 'Finished':
+            updateProgress = 100;
+            break;
+        }
+      });
+      updateStatus = 'restarting';
+      await relaunch();
+    } catch (e: any) {
+      console.error('Auto-update failed:', e);
+      updateStatus = 'error';
+      updateError = typeof e === 'string' ? e : e?.message || 'Update failed';
+    }
+  }
 
   onMount(async () => {
     // Disable right-click context menu across Tauri POS desktop app
@@ -68,7 +111,6 @@
         if (update && update.has_update) {
           newUpdateAvailable = true;
           updateTag = update.tag_name;
-          updateDownloadUrl = update.download_url || update.release_url;
         }
       } catch (e) {
         console.warn('Auto update check note:', e);
@@ -323,26 +365,46 @@
         <div class="bg-gradient-to-r from-sky-600 to-indigo-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md shrink-0 animate-in slide-in-from-top duration-200">
           <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 bg-white/20 rounded-md font-black">🚀 New Update</span>
-            <span>A new version ({updateTag}) is available! / يتوفر إصدار جديد من البرنامج</span>
+            {#if updateStatus === 'downloading'}
+              <span>Downloading {updateTag}… {updateProgress}%</span>
+            {:else if updateStatus === 'restarting'}
+              <span>Installing update — the app will restart automatically…</span>
+            {:else if updateStatus === 'error'}
+              <span class="text-rose-200">Update failed: {updateError}</span>
+            {:else}
+              <span>A new version ({updateTag}) is available! / يتوفر إصدار جديد من البرنامج</span>
+            {/if}
           </div>
           <div class="flex items-center gap-2">
-            <button
-              type="button"
-              on:click={async () => {
-                try {
-                  const { open } = await import('@tauri-apps/plugin-shell');
-                  await open(updateDownloadUrl);
-                } catch {
-                  window.open(updateDownloadUrl, '_blank');
-                }
-              }}
-              class="px-3 py-1 bg-white text-sky-700 hover:bg-slate-100 rounded-lg text-xs font-black shadow-xs cursor-pointer transition flex items-center gap-1"
-            >
-              <span>Download & Install ({updateTag})</span>
-            </button>
-            <button on:click={() => (newUpdateAvailable = false)} class="p-1 hover:bg-white/20 rounded cursor-pointer font-mono text-xs">
-              ✕
-            </button>
+            {#if updateStatus === 'downloading'}
+              <div class="w-40 h-2 bg-white/25 rounded-full overflow-hidden">
+                <div class="h-full bg-white transition-all" style="width: {updateProgress}%"></div>
+              </div>
+            {:else if updateStatus === 'error'}
+              <button
+                type="button"
+                on:click={installUpdate}
+                class="px-3 py-1 bg-white text-sky-700 hover:bg-slate-100 rounded-lg text-xs font-black shadow-xs cursor-pointer transition"
+              >
+                Retry
+              </button>
+              <button on:click={() => { newUpdateAvailable = false; updateStatus = ''; }} class="p-1 hover:bg-white/20 rounded cursor-pointer font-mono text-xs">
+                ✕
+              </button>
+            {:else if updateStatus === 'restarting'}
+              <span class="animate-pulse">⏳</span>
+            {:else}
+              <button
+                type="button"
+                on:click={installUpdate}
+                class="px-3 py-1 bg-white text-sky-700 hover:bg-slate-100 rounded-lg text-xs font-black shadow-xs cursor-pointer transition flex items-center gap-1"
+              >
+                <span>Update Now ({updateTag})</span>
+              </button>
+              <button on:click={() => (newUpdateAvailable = false)} class="p-1 hover:bg-white/20 rounded cursor-pointer font-mono text-xs">
+                ✕
+              </button>
+            {/if}
           </div>
         </div>
       {/if}

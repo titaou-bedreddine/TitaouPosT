@@ -12,6 +12,22 @@ export const lastAddedProductId = writable<number | null>(null);
 export const heldNotification = writable<string | null>(null);
 export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
 
+// Quantity-edit mode (F6): the cart line currently being edited, keyed by
+// "productId[_ref]". null = not editing.
+export const qtyEditTarget = writable<string | null>(null);
+
+export function itemKey(item: { product_id: number; is_refund?: boolean }): string {
+  return `${item.product_id}${item.is_refund ? '_ref' : ''}`;
+}
+
+export function startQtyEdit(item: { product_id: number; is_refund?: boolean }) {
+  qtyEditTarget.set(itemKey(item));
+}
+
+export function stopQtyEdit() {
+  qtyEditTarget.set(null);
+}
+
 // Kept for backward compatibility: the canonical store now lives in ./customers.
 export { selectedCustomerId };
 
@@ -118,6 +134,7 @@ export function clearCart() {
   // New sale resets to the walk-in customer, not "no customer".
   selectedCustomerId.set(DEFAULT_WALKIN_CUSTOMER_ID);
   isRefundMode.set(false);
+  stopQtyEdit();
 }
 
 // Effective cart-level discount in DZD; never exceeds the cart amount so the total can't go negative.
