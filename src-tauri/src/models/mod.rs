@@ -84,6 +84,10 @@ pub struct Product {
     /// Lifetime units sold (sales minus refunds) for best/worst sorting.
     #[serde(default)]
     pub total_sold: Option<f64>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub pin_order: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -320,6 +324,23 @@ pub struct PurchaseItemInput {
     pub expiry_date: Option<String>,
     #[serde(default)]
     pub batch_number: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PurchaseItem {
+    pub id: i64,
+    pub purchase_id: i64,
+    pub product_id: i64,
+    pub product_name: Option<String>,
+    pub product_name_ar: Option<String>,
+    pub quantity: f64,
+    pub unit_cost: i64,
+    #[serde(default)]
+    pub discount: i64,
+    #[serde(default)]
+    pub tax: i64,
+    #[serde(default)]
+    pub total: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

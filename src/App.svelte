@@ -20,7 +20,6 @@
   import SettingsView from './routes/settings/SettingsView.svelte';
   import NotificationsView from './routes/notifications/NotificationsView.svelte';
   import LoginView from './routes/auth/LoginView.svelte';
-  import AboutView from './routes/about/AboutView.svelte';
   import CashDrawerModal from './lib/components/CashDrawerModal.svelte';
 
   import { printHtmlDirectly } from './lib/utils/printer';
@@ -29,7 +28,7 @@
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Info
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -82,28 +81,13 @@
     }
   }
 
-  onMount(async () => {
-    // Disable right-click context menu across Tauri POS desktop app
-    window.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // Auto-select text on input focus for fast barcode/number replacement.
-    // Fields marked data-no-autoselect (e.g. invoice numbers the user edits
-    // mid-string) are skipped so the caret never jumps.
-    window.addEventListener('focusin', (e) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        if (target.hasAttribute('data-no-autoselect')) return;
-        const input = target as HTMLInputElement;
-        if (input.type === 'number' || input.type === 'text') {
-          setTimeout(() => input.select(), 10);
-        }
-      }
-    });
-
   // Load the open cash session once the user is logged in. A session left
   // open from a previous calendar day is auto-closed at midnight by the
   // backend; on login we re-read so the register never starts on a stale
-  // or missing session. Closing the APP never closes the session.
+  // or missing session. Closing the APP never closes a session.
+  // NOTE: must stay OUTSIDE onMount — a `$:` inside it is a dead JS label
+  // that runs once (before login, user null) and never again, leaving the
+  // POS showing "cash session closed" until the register page is visited.
   async function loadActiveSession() {
     if (!$currentUser) return;
     try {
@@ -122,6 +106,24 @@
   $: if ($currentUser) {
     loadActiveSession();
   }
+
+  onMount(async () => {
+    // Disable right-click context menu across Tauri POS desktop app
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Auto-select text on input focus for fast barcode/number replacement.
+    // Fields marked data-no-autoselect (e.g. invoice numbers the user edits
+    // mid-string) are skipped so the caret never jumps.
+    window.addEventListener('focusin', (e) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        if (target.hasAttribute('data-no-autoselect')) return;
+        const input = target as HTMLInputElement;
+        if (input.type === 'number' || input.type === 'text') {
+          setTimeout(() => input.select(), 10);
+        }
+      }
+    });
 
     // Background automatic update check on startup
     setTimeout(async () => {
@@ -302,15 +304,6 @@
           <Settings class="w-4 h-4" />
           <span>{t('nav_settings', $currentLocale)}</span>
         </button>
-
-        <button
-          type="button"
-          on:click={() => currentRoute = 'about'}
-          class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'about' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
-        >
-          <Info class="w-4 h-4 text-sky-500" />
-          <span>About TitaouPOS (عن البرنامج)</span>
-        </button>
       </nav>
 
       <!-- Bottom User Profile & Network Status -->
@@ -473,11 +466,9 @@
       {:else if currentRoute === 'dashboard'}
         <DashboardView />
       {:else if currentRoute === 'notifications'}
-        <NotificationsView />
+        <NotificationsView onRequestRoute={(r) => (currentRoute = r)} />
       {:else if currentRoute === 'settings'}
         <SettingsView />
-      {:else if currentRoute === 'about'}
-        <AboutView />
       {/if}
       </div>
     </main>

@@ -83,17 +83,37 @@
       : $currentLocale === 'fr'
       ? item.name_fr || item.name_en
       : item.name_en || item.name_fr || item.name_ar;
+
+  // Expired item: the cashier must see it the moment it lands in the cart,
+  // before checkout — same urgency as the refund badge on the catalog card.
+  $: isExpired = (() => {
+    if (!item.expiry_date) return false;
+    const exp = new Date(item.expiry_date).getTime();
+    return !isNaN(exp) && exp < Date.now();
+  })();
 </script>
 
 <div
-  class="bg-pos-card border rounded-2xl p-2.5 shadow-xs transition-all duration-200 flex flex-col gap-2 {item.is_refund
+  class="relative bg-pos-card border rounded-2xl p-2.5 shadow-xs transition-all duration-200 flex flex-col gap-2 {item.is_refund
     ? 'border-amber-500 bg-amber-500/5'
     : 'border-pos-border'} {isJustAdded
     ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 scale-[1.01]'
     : ''} {isQtyEditTarget
     ? 'ring-2 ring-sky-500 border-sky-400'
+    : ''} {isExpired
+    ? 'border-rose-500 bg-rose-500/5'
     : ''}"
 >
+  {#if isExpired}
+    <div class="absolute inset-0 rounded-2xl pointer-events-none flex items-center justify-center overflow-hidden z-10">
+      <span class="text-rose-600/25 font-black text-lg tracking-widest uppercase select-none" style="transform: rotate(-12deg);">
+        EXPIRED / منتهي
+      </span>
+    </div>
+    <span class="absolute top-1 end-1 z-20 inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-mono shadow-xs">
+      EXPIRED
+    </span>
+  {/if}
   <div class="flex items-center gap-3">
     <!-- Thumbnail Image -->
     <div

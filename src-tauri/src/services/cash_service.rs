@@ -168,6 +168,28 @@ pub fn add_cash_movement(db: &DbState, session_id: i64, user_id: i64, movement_t
     )
     .map_err(|e| e.to_string())?;
 
+    // A withdrawal from the drawer (POS drawer modal or register page) is
+    // money leaving the shop: book it as an expense too, so the Expenses
+    // page and dashboard statistics include it. Without this, cash_out
+    // only showed on the register page.
+    if movement_type == "cash_out" && amount > 0 {
+        let now = chrono::Local::now();
+        let expense_number = format!("EXP-{}", now.format("%Y%m%d%H%M%S"));
+        tx.execute(
+            "INSERT INTO expenses (expense_number, category_id, amount, payment_method, session_id, user_id, recipient, receipt_reference, date, notes)
+             VALUES (?1, 6, ?2, 'cash', ?3, ?4, 'Cash Register', NULL, ?5, ?6)",
+            rusqlite::params![
+                expense_number,
+                amount,
+                session_id,
+                user_id,
+                now.format("%Y-%m-%d").to_string(),
+                reason.unwrap_or_else(|| "Cash withdrawal from drawer / سحب نقدي من الصندوق".to_string()),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -292,7 +314,11 @@ mod tests {
     // still-valid sessions on every restart.
     #[test]
     fn same_day_session_survives() {
-        let db = test_db_with_open_session("2026-08-30 09:00:00");
+        // Dynamic "this morning" date — a hardcoded one goes stale past midnight.
+        let this_morning = chrono::Local::now()
+            .format("%Y-%m-%d 09:00:00")
+            .to_string();
+        let db = test_db_with_open_session(&this_morning);
         let s = get_active_session(&db, 1).unwrap().expect("session must be open");
         assert_eq!(s.status, "open");
         assert_eq!(s.is_stale, Some(false));
@@ -302,12 +328,16 @@ mod tests {
     // cashier starts a fresh one.
     #[test]
     fn previous_day_session_auto_closes() {
-        let db = test_db_with_open_session("2026-08-29 23:00:00");
+        // Dynamic "yesterday evening" so the test never expires.
+        let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
+            .format("%Y-%m-%d 23:00:00")
+            .to_string();
+        let db = test_db_with_open_session(&yesterday);
         let s = get_active_session(&db, 1).unwrap();
         assert!(s.is_none(), "stale session must be closed (None)");
         let conn = db.conn.lock().unwrap();
         let status: String = conn
-            .query_row("SELECT status FROM cash_sessions WHERE opened_at = '2026-08-29 23:00:00'", [], |r| r.get(0))
+            .query_row("SELECT status FROM cash_sessions ORDER BY id DESC LIMIT 1", [], |r| r.get(0))
             .unwrap();
         assert_eq!(status, "closed");
     }

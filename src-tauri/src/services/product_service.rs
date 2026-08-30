@@ -17,7 +17,7 @@ pub fn search_products(
                 p.current_stock, p.min_stock, p.max_stock, p.image_path, p.expiry_date,
                 COALESCE(p.is_scalable, 0), p.scale_code, p.scale_plu, COALESCE(p.scale_barcode_type, 97),
                 COALESCE(p.scale_department_id, 1), COALESCE(p.scale_sync_status, 'pending'),
-                p.is_bundle, p.is_active
+                p.is_bundle, p.is_active, COALESCE(p.pinned, 0), COALESCE(p.pin_order, 0)
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
          LEFT JOIN units u ON p.unit_id = u.id
@@ -51,7 +51,7 @@ pub fn search_products(
         }
     }
 
-    sql.push_str(" ORDER BY p.id ASC LIMIT 1000");
+    sql.push_str(" ORDER BY COALESCE(p.pinned, 0) DESC, COALESCE(p.pin_order, 0) ASC, p.id ASC LIMIT 1000");
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
@@ -87,6 +87,8 @@ pub fn search_products(
                 is_active: row.get(25)?,
                 barcodes: Vec::new(),
                 total_sold: None,
+                pinned: row.get::<_, i64>(26)? == 1,
+                pin_order: row.get(27)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -411,4 +413,40 @@ pub fn save_unit(db: &DbState, name: &str, short_name: &str, allow_decimals: boo
         .map_err(|e| e.to_string())?;
         Ok(conn.last_insert_rowid())
     }
+}
+/// Pin/unpin a product. Pinned products float to the top of the catalog
+/// and of their family.
+pub fn toggle_product_pin(db: &DbState, product_id: i64, pinned: bool) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    if pinned {
+        // New pin goes last among the pinned.
+        let max_order: i64 = conn
+            .query_row("SELECT COALESCE(MAX(pin_order), 0) FROM products WHERE pinned = 1", [], |r| r.get(0))
+            .unwrap_or(0);
+        conn.execute(
+            "UPDATE products SET pinned = 1, pin_order = ?1 WHERE id = ?2",
+            rusqlite::params![max_order + 1, product_id],
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE products SET pinned = 0, pin_order = 0 WHERE id = ?1",
+            [product_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Reorder the manually pinned products: ordered_ids is the desired order.
+pub fn reorder_pinned_products(db: &DbState, ordered_ids: Vec<i64>) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    for (idx, id) in ordered_ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE products SET pin_order = ?1 WHERE id = ?2 AND pinned = 1",
+            rusqlite::params![(idx + 1) as i64, id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

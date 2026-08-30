@@ -66,6 +66,7 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
         tax_amount: 0,
         total_price: product.sale_price * quantity,
         is_refund: asRefund,
+        expiry_date: (product as any).expiry_date,
       };
       
       const order = get(cartItemOrder);
@@ -185,9 +186,12 @@ export async function restoreActiveCart() {
 
 function mirrorCartToDb() {
   const items = get(cartItems);
-  if (items.length === 0) {
-    clearPersistedCart();
-  } else {
+  // Only mirror a NON-EMPTY cart. The empty case must NOT wipe here: a
+  // Svelte subscribe fires immediately with the current value, so at app
+  // startup this ran with [] and the async clear landed BEFORE
+  // restoreActiveCart could read the setting — wiping the persisted cart
+  // on every restart. clearCart() wipes persistence explicitly.
+  if (items.length > 0) {
     persistActiveCart();
   }
 }

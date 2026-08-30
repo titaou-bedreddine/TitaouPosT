@@ -63,6 +63,10 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_barcode_type INTEGER DEFAULT 97;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_department_id INTEGER DEFAULT 1;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_sync_status TEXT DEFAULT 'pending';", []);
+        // Pinning: pinned products float to the top of the catalog and of
+        // their family; pin_order is the manual arrangement among pinned.
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN pinned INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE products ADD COLUMN pin_order INTEGER DEFAULT 0;", []);
 
         let _ = conn.execute(
             "CREATE TABLE IF NOT EXISTS scale_sync_logs (

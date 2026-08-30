@@ -112,6 +112,7 @@
     <input
       bind:this={searchInput}
       type="text"
+      data-scanner-input
       bind:value={query}
       on:input={() => { resetIdleTimer(); onSearch(); }}
       on:keydown={handleKeyDown}

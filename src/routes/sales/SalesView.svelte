@@ -4,6 +4,7 @@
   import type { Sale, User } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import { cartItems, clearCart } from '../../lib/stores/cart';
   import { selectedCustomerId } from '../../lib/stores/customers';
   import {
@@ -282,6 +283,11 @@
         <p class="text-base font-black font-mono text-amber-600">{totalDueCredit.toLocaleString()} DZD</p>
       </div>
     </div>
+  </div>
+
+  <!-- Quick Date Presets -->
+  <div class="flex items-center justify-between shrink-0">
+    <DateQuickFilters bind:startDate bind:endDate onChange={loadSales} />
   </div>
 
   <!-- Filter Bar -->

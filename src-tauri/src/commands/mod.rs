@@ -2,7 +2,7 @@ use crate::auth::authenticate_user;
 use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
-    Payroll, Product, ProductInput, Purchase, CreatePurchaseInput, Sale, Supplier, Unit, User, UserAccount, Role,
+    Payroll, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, Unit, User, UserAccount, Role,
     CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry,
 };
 use crate::services::{
@@ -305,6 +305,16 @@ pub fn get_units(db: State<'_, DbState>) -> Result<Vec<Unit>, String> {
     product_service::get_units(&db)
 }
 
+#[tauri::command]
+pub fn toggle_product_pin(db: State<'_, DbState>, product_id: i64, pinned: bool) -> Result<(), String> {
+    product_service::toggle_product_pin(&db, product_id, pinned)
+}
+
+#[tauri::command]
+pub fn reorder_pinned_products(db: State<'_, DbState>, ordered_ids: Vec<i64>) -> Result<(), String> {
+    product_service::reorder_pinned_products(&db, ordered_ids)
+}
+
 // Sales & Held Sales
 #[tauri::command]
 pub fn process_sale(db: State<'_, DbState>, input: CreateSaleInput) -> Result<String, String> {
@@ -429,6 +439,16 @@ pub fn delete_supplier(db: State<'_, DbState>, supplier_id: i64) -> Result<(), S
 #[tauri::command]
 pub fn create_purchase(db: State<'_, DbState>, input: CreatePurchaseInput) -> Result<String, String> {
     purchase_service::create_purchase(&db, input)
+}
+
+#[tauri::command]
+pub fn get_purchase_items(db: State<'_, DbState>, purchase_id: i64) -> Result<Vec<PurchaseItem>, String> {
+    purchase_service::get_purchase_items(&db, purchase_id)
+}
+
+#[tauri::command]
+pub fn delete_purchase(db: State<'_, DbState>, purchase_id: i64) -> Result<(), String> {
+    purchase_service::delete_purchase(&db, purchase_id)
 }
 
 #[tauri::command]
@@ -868,4 +888,64 @@ pub async fn check_github_update(app_handle: tauri::AppHandle) -> Result<AppUpda
         download_url,
         published_at,
     })
+}
+/// Launch TitaouPOS automatically when Windows starts (HKCU Run key -
+/// per-user, no admin rights needed).
+#[tauri::command]
+pub fn set_autostart(enable: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+
+        let output = if enable {
+            std::process::Command::new("reg")
+                .args(["add", KEY, "/v", "TitaouPOS", "/t", "REG_SZ", "/d", &exe, "/f"])
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .output()
+                .map_err(|e| e.to_string())?
+        } else {
+            std::process::Command::new("reg")
+                .args(["delete", KEY, "/v", "TitaouPOS", "/f"])
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .output()
+                .map_err(|e| e.to_string())?
+        };
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Autostart registry update failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = enable;
+        Err("Autostart is only supported on Windows".to_string())
+    }
+}
+
+/// Read the current autostart state for the settings toggle.
+#[tauri::command]
+pub fn get_autostart() -> Result<bool, String> {
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("reg")
+            .args(["query", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "TitaouPOS"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        Ok(output.status.success()
+            && String::from_utf8_lossy(&output.stdout).contains("TitaouPOS"))
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(false)
+    }
 }

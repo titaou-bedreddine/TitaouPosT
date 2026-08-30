@@ -54,6 +54,39 @@
   let currentBarcodeTyped = '';
   let editingTokenIndex: number | null = null;
 
+  // Live duplicate-barcode warning: checked while the cashier types so a
+  // conflict surfaces BEFORE the save attempt, not as a rejected save.
+  let duplicateBarcodeWarning = '';
+  let barcodeCheckTimer: any = null;
+
+  function checkBarcodeDuplicate() {
+    clearTimeout(barcodeCheckTimer);
+    const code = currentBarcodeTyped.trim().replace(/,/g, '');
+    if (!code) {
+      duplicateBarcodeWarning = '';
+      return;
+    }
+    barcodeCheckTimer = setTimeout(async () => {
+      try {
+        const list = await invoke<any[]>('search_products', {
+          query: code,
+          categoryId: null,
+          searchType: 'barcode',
+        });
+        const owner = list.find((p) => p.barcodes?.includes(code) || p.sku === code);
+        // Editing a product: its own barcodes are of course fine.
+        const ownId = product?.id ?? null;
+        if (owner && owner.id !== ownId) {
+          duplicateBarcodeWarning = `Barcode ${code} is already used by "${owner.name_fr || owner.name_ar}" — save will be rejected / الباركود مستعمل من قبل منتج آخر`;
+        } else {
+          duplicateBarcodeWarning = '';
+        }
+      } catch {
+        duplicateBarcodeWarning = '';
+      }
+    }, 250);
+  }
+
   // Profit / Margin Mode
   let marginMode: 'percent' | 'amount' = 'percent';
   let profitMarginPercent = 20;
@@ -430,6 +463,7 @@
       }
     }
     currentBarcodeTyped = '';
+    duplicateBarcodeWarning = '';
   }
 
   function handleBarcodeKeyDown(e: KeyboardEvent) {
@@ -826,10 +860,17 @@
                 type="text"
                 bind:value={currentBarcodeTyped}
                 on:keydown={handleBarcodeKeyDown}
+                on:input={checkBarcodeDuplicate}
                 placeholder={barcodeTokens.length === 0 ? "Scan or type barcode & Enter..." : "+ Add barcode..."}
                 class="flex-1 min-w-[140px] bg-transparent border-0 text-xs font-mono font-bold text-pos-text outline-none px-2"
               />
             </div>
+            {#if duplicateBarcodeWarning}
+              <p class="text-[10px] text-rose-600 font-bold flex items-center gap-1">
+                <AlertTriangle class="w-3 h-3 shrink-0" />
+                {duplicateBarcodeWarning}
+              </p>
+            {/if}
             {#if copyFeedback}
               <p class="text-[10px] text-emerald-600 font-bold">{copyFeedback}</p>
             {/if}
@@ -923,16 +964,6 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Current Stock (في المخزن)</label>
-                <input
-                  type="number"
-                  min="0"
-                  bind:value={baselineStock}
-                  on:input={handleBaselineStockChange}
-                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-              <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">
                   New Quantity (تضيف الآن) <span class="text-emerald-600 font-black">+</span>
                 </label>
@@ -943,6 +974,16 @@
                   on:input={handleNewStockChange}
                   placeholder="0"
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Current Stock (في المخزن)</label>
+                <input
+                  type="number"
+                  min="0"
+                  bind:value={baselineStock}
+                  on:input={handleBaselineStockChange}
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
               <div>

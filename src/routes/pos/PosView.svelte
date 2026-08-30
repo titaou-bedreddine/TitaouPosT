@@ -268,6 +268,12 @@
       }
       initialBarcodeForNewProduct = '';
       editingProductWithExtraBarcode = '';
+    } else {
+      // Product created via the + card: do NOT add it to the cart; just
+      // make sure the search bar no longer holds the half-typed query so
+      // the next scan starts clean.
+      searchQuery = '';
+      await loadProducts();
     }
   }
 
@@ -620,6 +626,20 @@
       }
     }
 
+    // Barcode scanners type into whatever field has focus. When that field
+    // is a modal input (product editor, checkout, etc.) — anything that is
+    // NOT the POS search bar — the characters belong to that field: don't
+    // accumulate them in the scanner buffer, or Enter in the modal would
+    // pop the unknown-barcode dialog over it.
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') &&
+      !active.hasAttribute('data-scanner-input')
+    ) {
+      return;
+    }
+
     // Barcode scanner rapid input detection
     const now = Date.now();
     if (now - lastKeyTime > 100) {
@@ -796,6 +816,8 @@
               {product}
               categoryColor={cat?.color || '#0284c7'}
               onEditProduct={handleOpenEdit}
+              onPinned={loadProducts}
+              pinnedIds={products.filter(p => p.pinned).map(p => p.id)}
             />
           {/each}
         </div>
@@ -1051,7 +1073,15 @@
     units={units}
     initialBarcode={initialBarcodeForNewProduct}
     extraBarcode={editingProductWithExtraBarcode}
-    onClose={() => (isProductEditOpen = false)}
+    onClose={() => {
+      isProductEditOpen = false;
+      // Cancelling the editor never adds to the cart; also drop any
+      // half-typed search so the next scan starts clean.
+      if (!initialBarcodeForNewProduct && !editingProductWithExtraBarcode && searchQuery.trim()) {
+        searchQuery = '';
+        loadProducts();
+      }
+    }}
     onSaved={handleProductSaved}
   />
 

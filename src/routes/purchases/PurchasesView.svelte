@@ -4,10 +4,11 @@
   import type { Purchase, Supplier, Product } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import {
     FileSpreadsheet, Plus, Trash2, CheckCircle2, Search, Package,
     Printer, Eye, Edit3, X, Tag, DollarSign, ArrowRight, Truck,
-    TrendingUp, AlertCircle
+    TrendingUp, AlertCircle, ShieldAlert
   } from 'lucide-svelte';
 
   let purchases: Purchase[] = [];
@@ -41,6 +42,24 @@
   let isSaving = false;
   let errorMsg = '';
   let previewPurchase: Purchase | null = null;
+
+  // Quick date-range filter for the loaded purchase list.
+  let filterStartDate = '';
+  let filterEndDate = '';
+
+  // Invoice details preview: items + delete-with-password.
+  let previewItems: any[] = [];
+  let isLoadingPreview = false;
+  let isDeletePurchaseOpen = false;
+  let deletePassword = '';
+  let deleteErrorMsg = '';
+  let isDeletingPurchase = false;
+
+  $: filteredPurchases = purchases.filter((p) => {
+    if (filterStartDate && p.date < filterStartDate) return false;
+    if (filterEndDate && p.date > filterEndDate) return false;
+    return true;
+  });
 
   onMount(async () => {
     await loadData();
@@ -251,6 +270,69 @@
     }
   }
 
+  async function openPreview(pur: Purchase) {
+    previewPurchase = pur;
+    previewItems = [];
+    try {
+      isLoadingPreview = true;
+      previewItems = await invoke<any[]>('get_purchase_items', { purchaseId: pur.id });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      isLoadingPreview = false;
+    }
+  }
+
+  function promptDeletePurchase() {
+    deleteErrorMsg = '';
+    deletePassword = '';
+    isDeletePurchaseOpen = true;
+  }
+
+  async function executeDeletePurchase() {
+    if (!previewPurchase) return;
+    try {
+      isDeletingPurchase = true;
+      deleteErrorMsg = '';
+      // Deleting an invoice reverses stock — admin authorization required.
+      const ok = await invoke<boolean>('verify_admin_password', { password: deletePassword });
+      if (!ok) {
+        deleteErrorMsg = 'Invalid password / كلمة المرور غير صحيحة';
+        return;
+      }
+      await invoke('delete_purchase', { purchaseId: previewPurchase.id });
+      isDeletePurchaseOpen = false;
+      previewPurchase = null;
+      await loadData();
+    } catch (e: any) {
+      deleteErrorMsg = typeof e === 'string' ? e : e.message || 'Failed to delete invoice';
+    } finally {
+      isDeletingPurchase = false;
+    }
+  }
+
+  // Barcode scan into the purchase search: Enter on a matching product adds
+  // the line immediately (same behavior as the POS cart).
+  async function handleSearchEnter() {
+    const code = searchQuery.trim();
+    if (!code) return;
+    try {
+      const list = await invoke<Product[]>('search_products', {
+        query: code,
+        categoryId: null,
+        searchType: 'barcode',
+      });
+      const matched = list.find((p) => p.barcodes?.includes(code) || p.sku === code);
+      if (matched) {
+        searchQuery = '';
+        isSearchDropdownOpen = false;
+        await addItemAndFocus(matched);
+      }
+    } catch (e) {
+      console.error('Purchase scan lookup failed:', e);
+    }
+  }
+
   function printLabelsForPurchase() {
     if (items.length === 0) return;
     const html = items.map(i => `
@@ -287,6 +369,9 @@
     </button>
   </div>
 
+  <!-- Quick Date Presets -->
+  <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} />
+
   <!-- Purchases List Table -->
   <div class="flex-1 overflow-y-auto bg-pos-card border border-pos-border rounded-2xl shadow-xs">
     <table class="w-full text-start text-xs border-collapse">
@@ -307,7 +392,7 @@
             <td colspan="7" class="p-8 text-center text-pos-muted">No purchase invoices recorded yet.</td>
           </tr>
         {:else}
-          {#each purchases as pur}
+          {#each filteredPurchases as pur}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-mono font-bold text-sky-600">#{pur.invoice_number}</td>
               <td class="p-3 font-mono text-pos-muted">{pur.date}</td>
@@ -321,7 +406,7 @@
               </td>
               <td class="p-3 text-end">
                 <div class="flex items-center justify-end gap-1">
-                  <button on:click={() => (previewPurchase = pur)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="View Details">
+                  <button on:click={() => openPreview(pur)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="View Details">
                     <Eye class="w-4 h-4" />
                   </button>
                 </div>
@@ -391,8 +476,10 @@
             <input
               id="purchase-omni-input"
               type="text"
+              data-scanner-input
               bind:value={searchQuery}
-              placeholder="Search by typing 1 letter, digit, barcode, or name (Ex: 'c', 'lait', '2')..."
+              on:keydown={(e) => e.key === 'Enter' && handleSearchEnter()}
+              placeholder="Search or scan a barcode + Enter to add directly..."
               class="w-full bg-transparent border-0 text-xs font-bold text-pos-text outline-none"
             />
             {#if searchQuery}
@@ -555,6 +642,101 @@
             <span>{isSaving ? 'Saving...' : 'Save Invoice (حفظ الفاتورة)'}</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+{/if}
+<!-- Purchase Invoice Preview Modal -->
+{#if previewPurchase}
+  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
+        <div>
+          <h3 class="font-black text-base text-pos-text">Purchase Invoice #{previewPurchase.invoice_number}</h3>
+          <p class="text-xs text-pos-muted">{previewPurchase.date} • {previewPurchase.supplier_name || '—'} • Total {previewPurchase.total.toLocaleString()} DZD (Paid {previewPurchase.paid_amount.toLocaleString()})</p>
+        </div>
+        <button on:click={() => (previewPurchase = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto flex-1">
+        <table class="w-full text-start text-xs border-collapse">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
+            <tr>
+              <th class="p-2.5 text-start">Product</th>
+              <th class="p-2.5 text-center">Qty</th>
+              <th class="p-2.5 text-end">Unit Cost</th>
+              <th class="p-2.5 text-end">Line Total</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-pos-border/40">
+            {#if isLoadingPreview}
+              <tr><td colspan="4" class="p-6 text-center text-pos-muted">Loading items...</td></tr>
+            {:else if previewItems.length === 0}
+              <tr><td colspan="4" class="p-6 text-center text-pos-muted">No line items recorded.</td></tr>
+            {:else}
+              {#each previewItems as it}
+                <tr>
+                  <td class="p-2.5 font-bold text-pos-text">{it.product_name || it.product_name_ar || '#' + it.product_id}</td>
+                  <td class="p-2.5 text-center font-mono font-bold">{it.quantity}</td>
+                  <td class="p-2.5 text-end font-mono">{it.unit_cost.toLocaleString()} DZD</td>
+                  <td class="p-2.5 text-end font-mono font-black">{it.total.toLocaleString()} DZD</td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
+        <button
+          type="button"
+          on:click={promptDeletePurchase}
+          class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+        >
+          <Trash2 class="w-4 h-4" />
+          <span>Delete Invoice (حذف)</span>
+        </button>
+        <button on:click={() => (previewPurchase = null)} class="px-5 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Protected Purchase Delete Modal (above the preview) -->
+{#if isDeletePurchaseOpen && previewPurchase}
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
+      <div class="flex items-center gap-3 text-rose-600">
+        <ShieldAlert class="w-6 h-6 shrink-0" />
+        <h3 class="font-black text-sm text-pos-text">Protected Purchase Deletion</h3>
+      </div>
+      <p class="text-xs text-pos-muted">
+        Delete invoice <strong class="text-pos-text">#{previewPurchase.invoice_number}</strong>?
+        Its stock is returned and the supplier balance is reversed.
+      </p>
+      <div>
+        <label class="block text-xs font-bold text-pos-muted mb-1">Enter Admin Authorization Password *</label>
+        <input
+          type="password"
+          bind:value={deletePassword}
+          placeholder="Password"
+          class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono outline-none"
+        />
+      </div>
+      {#if deleteErrorMsg}
+        <div class="p-2 bg-rose-100 text-rose-800 text-xs font-bold rounded-lg">{deleteErrorMsg}</div>
+      {/if}
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (isDeletePurchaseOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
+          Cancel
+        </button>
+        <button on:click={executeDeletePurchase} disabled={isDeletingPurchase} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
+          {isDeletingPurchase ? 'Deleting...' : 'Confirm Delete'}
+        </button>
       </div>
     </div>
   </div>

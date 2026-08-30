@@ -96,6 +96,9 @@ export interface CartItem {
   tax_amount: number;
   total_price: number;
   is_refund: boolean;
+  // Carried from the product so the cart line can show an EXPIRED badge
+  // the moment an expired item is added.
+  expiry_date?: string;
 }
 
 export interface CashSession {

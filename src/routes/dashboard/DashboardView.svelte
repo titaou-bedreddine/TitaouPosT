@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { DashboardStats } from '../../lib/types';
   import { TrendingUp, ShoppingBag, AlertTriangle, ArrowDownRight, DollarSign, Wallet, Trophy, RefreshCw, Layers } from 'lucide-svelte';
+  import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
 
   let stats: DashboardStats | null = null;
   let fromDate = new Date().toISOString().split('T')[0];
@@ -42,6 +43,9 @@
       </button>
     </div>
   </div>
+
+  <!-- Quick Date Presets -->
+  <DateQuickFilters bind:startDate={fromDate} bind:endDate={toDate} onChange={loadStats} />
 
   {#if stats}
     <!-- Top 6 Metric Cards matching photo_2026-08-27_18-52-00.jpg -->

@@ -5,6 +5,7 @@
   import { activeSession } from '../../lib/stores/session';
   import { currentUser } from '../../lib/stores/auth';
   import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
+  import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
 
   let currentTab: 'current' | 'history' = 'current';
   let movements: CashMovement[] = [];
@@ -366,6 +367,7 @@
   {:else}
     <!-- Session History matching screenshot -->
     <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs space-y-4">
+      <DateQuickFilters bind:startDate={fromDate} bind:endDate={toDate} onChange={loadData} />
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
         <div>
           <label class="block text-xs font-bold text-pos-muted mb-1">From</label>

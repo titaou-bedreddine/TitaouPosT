@@ -1,5 +1,5 @@
 use crate::database::DbState;
-use crate::models::{CreatePurchaseInput, Purchase};
+use crate::models::{CreatePurchaseInput, Purchase, PurchaseItem};
 use rusqlite::Result;
 
 pub fn create_purchase(db: &DbState, input: CreatePurchaseInput) -> Result<String, String> {
@@ -98,4 +98,91 @@ pub fn list_purchases(db: &DbState) -> Result<Vec<Purchase>, String> {
 
     let list: Vec<Purchase> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+/// Purchase items for the view/details modal.
+pub fn get_purchase_items(db: &DbState, purchase_id: i64) -> Result<Vec<PurchaseItem>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT pi.id, pi.purchase_id, pi.product_id, p.name_fr, p.name_ar,
+                    pi.quantity, pi.unit_cost, pi.discount, pi.tax, pi.total
+             FROM purchase_items pi
+             LEFT JOIN products p ON pi.product_id = p.id
+             WHERE pi.purchase_id = ?1 ORDER BY pi.id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([purchase_id], |row| {
+            Ok(PurchaseItem {
+                id: row.get(0)?,
+                purchase_id: row.get(1)?,
+                product_id: row.get(2)?,
+                product_name: row.get(3)?,
+                product_name_ar: row.get(4)?,
+                quantity: row.get(5)?,
+                unit_cost: row.get(6)?,
+                discount: row.get(7)?,
+                tax: row.get(8)?,
+                total: row.get(9)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Delete a purchase invoice: returns the stock it added, reverses the
+/// supplier balance for the unpaid part, and removes its movements.
+pub fn delete_purchase(db: &DbState, purchase_id: i64) -> Result<(), String> {
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // Reverse stock & remove inventory movements line by line.
+    let items: Vec<(i64, f64)> = {
+        let mut stmt = tx
+            .prepare("SELECT product_id, quantity FROM purchase_items WHERE purchase_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([purchase_id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    for (product_id, qty) in items {
+        tx.execute(
+            "UPDATE products SET current_stock = current_stock - ?1 WHERE id = ?2",
+            rusqlite::params![qty, product_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.execute(
+        "DELETE FROM inventory_movements WHERE reference_type = 'purchase' AND reference_id = ?1",
+        [purchase_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Reverse the unpaid part still on the supplier's balance.
+    let (total, paid, supplier_id): (i64, i64, i64) = tx
+        .query_row(
+            "SELECT total, paid_amount, supplier_id FROM purchases WHERE id = ?1",
+            [purchase_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .map_err(|e| e.to_string())?;
+    let remaining = (total - paid).max(0);
+    if remaining > 0 {
+        tx.execute(
+            "UPDATE suppliers SET balance = balance - ?1 WHERE id = ?2",
+            rusqlite::params![remaining, supplier_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.execute("DELETE FROM purchases WHERE id = ?1", [purchase_id])
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
 }

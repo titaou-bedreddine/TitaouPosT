@@ -3,11 +3,42 @@
   import { t, currentLocale } from '../i18n';
   import { addToCart, isRefundMode } from '../stores/cart';
   import PrintLabelModal from './PrintLabelModal.svelte';
-  import { Package, Plus, Edit2, AlertTriangle, AlertOctagon, QrCode, Tag } from 'lucide-svelte';
+  import { Package, Plus, Edit2, AlertTriangle, AlertOctagon, QrCode, Tag, Pin, PinOff, ChevronUp, ChevronDown } from 'lucide-svelte';
+  import { invoke } from '@tauri-apps/api/core';
 
   export let product: Product;
   export let categoryColor: string = '#0284c7';
   export let onEditProduct: ((p: Product) => void) | undefined = undefined;
+  // Re-fetch the catalog after a pin toggle so the new ordering applies.
+  export let onPinned: (() => void) | undefined = undefined;
+  // For rearranging pinned products: the full pinned list in display order.
+  export let pinnedIds: number[] = [];
+
+  // Move this pinned product one slot up/down among the pinned group.
+  async function movePinned(e: MouseEvent, dir: -1 | 1) {
+    e.stopPropagation();
+    const ids = [...pinnedIds];
+    const idx = ids.indexOf(product.id);
+    const swapWith = idx + dir;
+    if (idx < 0 || swapWith < 0 || swapWith >= ids.length) return;
+    [ids[idx], ids[swapWith]] = [ids[swapWith], ids[idx]];
+    try {
+      await invoke('reorder_pinned_products', { orderedIds: ids });
+      onPinned?.();
+    } catch (err) {
+      console.warn('Reorder failed:', err);
+    }
+  }
+
+  async function togglePin(e: MouseEvent) {
+    e.stopPropagation();
+    try {
+      await invoke('toggle_product_pin', { productId: product.id, pinned: !product.pinned });
+      onPinned?.();
+    } catch (err) {
+      console.warn('Pin toggle failed:', err);
+    }
+  }
 
   let isClicked = false;
   let isPrintLabelOpen = false;
@@ -86,17 +117,49 @@
   tabindex="0"
   on:click={handleClick}
   on:keydown={(e) => { if (e.key === 'Enter') handleClick(); }}
-  class="flex flex-col text-start bg-pos-card border border-pos-border hover:border-slate-400 dark:hover:border-slate-600 rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''} {expiryStatus === 'expired' ? 'bg-rose-500/10' : expiryStatus === 'near' ? 'bg-amber-500/5' : ''}"
+  class="flex flex-col text-start bg-pos-card border {product.pinned ? 'border-amber-400 ring-1 ring-amber-400/60' : 'border-pos-border hover:border-slate-400 dark:hover:border-slate-600'} rounded-2xl p-2.5 transition-all duration-150 shadow-xs hover:shadow-md cursor-pointer group relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500 active:scale-95 {isClicked ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''} {expiryStatus === 'expired' ? 'bg-rose-500/10' : expiryStatus === 'near' ? 'bg-amber-500/5' : ''}"
 >
-  <!-- Edit Pen Icon (Top Start) -->
-  <button
-    type="button"
-    on:click={handleEditClick}
-    class="absolute top-2 start-2 z-20 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-pos-muted hover:text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
-    title="Edit Product Details"
-  >
-    <Edit2 class="w-3.5 h-3.5" />
-  </button>
+  <!-- Edit Pen + Pin (Top Start) -->
+  <div class="absolute top-2 start-2 z-20 flex items-center gap-1">
+    <button
+      type="button"
+      on:click={handleEditClick}
+      class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-pos-muted hover:text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+      title="Edit Product Details"
+    >
+      <Edit2 class="w-3.5 h-3.5" />
+    </button>
+    <button
+      type="button"
+      on:click={togglePin}
+      class="w-6 h-6 rounded-lg shadow-xs flex items-center justify-center cursor-pointer transition hover:scale-110 {product.pinned ? 'bg-amber-500 text-white' : 'bg-white/90 dark:bg-slate-800/90 text-pos-muted hover:text-amber-500'}"
+      title={product.pinned ? 'Unpin (إلغاء التثبيت)' : 'Pin to top (تثبيت في الأعلى)'}
+    >
+      {#if product.pinned}
+        <PinOff class="w-3.5 h-3.5" />
+      {:else}
+        <Pin class="w-3.5 h-3.5" />
+      {/if}
+    </button>
+    {#if product.pinned}
+      <button
+        type="button"
+        on:click={(e) => movePinned(e, -1)}
+        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        title="Move pinned up (تقديم)"
+      >
+        <ChevronUp class="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        on:click={(e) => movePinned(e, 1)}
+        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        title="Move pinned down (تأخير)"
+      >
+        <ChevronDown class="w-3.5 h-3.5" />
+      </button>
+    {/if}
+  </div>
 
   <!-- Stock & Expiry Status Badges (Top End) -->
   <div class="absolute top-2 end-2 z-10 flex flex-col items-end gap-1">

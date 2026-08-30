@@ -7,6 +7,9 @@
     Package, Trash2, X, Check, Filter
   } from 'lucide-svelte';
 
+  // Clicking a notification jumps to the page where it can be acted on.
+  export let onRequestRoute: (route: string) => void = () => {};
+
   interface NotificationLog {
     id: number;
     type: 'sale' | 'refund' | 'expiry' | 'stock' | 'system';
@@ -168,7 +171,11 @@
       </div>
     {:else}
       {#each filteredNotifications as log}
-        <div class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}">
+        <div
+          class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md cursor-pointer {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}"
+          on:click={() => onRequestRoute(log.type === 'sale' ? 'sales' : 'inventory')}
+          title="Open relevant page"
+        >
           <div class="flex items-start gap-3 min-w-0">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 {log.type === 'expiry' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950' : log.type === 'stock' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950' : 'bg-sky-100 text-sky-600 dark:bg-sky-950'}">
               {#if log.type === 'expiry'}
