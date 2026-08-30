@@ -62,6 +62,8 @@
     notify_each_refund: 'true',
     notify_expiry: 'true',
     notify_low_stock: 'true',
+    notify_recap_enabled: 'false',
+    recap_interval_minutes: '60',
     app_license_status: 'activated',
     allow_negative_stock: 'false',
     pos_autofocus_search: 'true',
@@ -112,6 +114,9 @@
     receipt_font_family: 'monospace',
     receipt_header: 'مرحباً بكم في سوبرماركت تيتاو',
     receipt_footer: 'Les articles retournés doivent être présentés sous 48h',
+    // Pricing defaults for new products
+    default_margin_percent: '20',
+    price_round_step: '5',
     receipt_show_shop_name: 'true',
     receipt_show_address: 'true',
     receipt_show_phone: 'true',
@@ -150,6 +155,17 @@
   // Telegram test state
   let isSendingTelegram = false;
   let telegramStatusMsg = '';
+  let recapStatusMsg = '';
+
+  async function sendRecapNow() {
+    try {
+      recapStatusMsg = 'Sending recap...';
+      const res = await invoke<string>('send_telegram_recap');
+      recapStatusMsg = '✅ ' + res;
+    } catch (e: any) {
+      recapStatusMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || 'Recap failed');
+    }
+  }
 
   // Updates
   let appVersion = 'v0.2.0';
@@ -400,17 +416,19 @@
     try {
       isSendingTelegram = true;
       telegramStatusMsg = 'Sending test message...';
-      const text = encodeURIComponent('🚀 *TitaouPOS Live Alert*\nTest connection successful from POS settings!');
-      const url = `https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage?chat_id=${settings.telegram_chat_id}&text=${text}&parse_mode=Markdown`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.ok) {
-        telegramStatusMsg = '✅ Telegram test alert delivered successfully!';
-      } else {
-        telegramStatusMsg = '❌ Telegram error: ' + (data.description || 'Check Token/Chat ID');
-      }
+      // Save first so the backend reads the freshly typed credentials.
+      await invoke('set_multiple_settings', {
+        settings: {
+          telegram_bot_token: String(settings.telegram_bot_token || ''),
+          telegram_chat_id: String(settings.telegram_chat_id || ''),
+        },
+      });
+      await invoke('send_telegram_message', {
+        text: '🚀 *TitaouPOS Live Alert*\nTest connection successful from POS settings!',
+      });
+      telegramStatusMsg = '✅ Telegram test alert delivered successfully!';
     } catch (e: any) {
-      telegramStatusMsg = 'Network error: ' + e.message;
+      telegramStatusMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || 'Check Token/Chat ID');
     } finally {
       isSendingTelegram = false;
     }
@@ -1592,10 +1610,6 @@
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
             <h3 class="font-black text-sm text-pos-text">Alert Triggers</h3>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Daily End-of-Day revenue summary</span>
-              <input type="checkbox" bind:checked={settings.notify_daily_summary} class="rounded text-sky-600" />
-            </label>
-            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Instant notification on every sale</span>
               <input type="checkbox" bind:checked={settings.notify_each_sale} class="rounded text-sky-600" />
             </label>
@@ -1611,6 +1625,34 @@
               <span>Low stock & inventory depletion alert</span>
               <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" />
             </label>
+          </div>
+
+          <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+            <h3 class="font-black text-sm text-pos-text">Recurring Recap (ملخص دوري)</h3>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <div>
+                <span>Enable automatic recap</span>
+                <p class="text-[10px] text-pos-muted font-normal">Sends a sales/cash/expenses summary every X while the app is open</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" />
+            </label>
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Recap frequency</label>
+              <select bind:value={settings.recap_interval_minutes} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
+                <option value="15">Every 15 minutes</option>
+                <option value="30">Every 30 minutes</option>
+                <option value="60">Every hour</option>
+                <option value="120">Every 2 hours</option>
+                <option value="240">Every 4 hours</option>
+              </select>
+            </div>
+            <button type="button" on:click={sendRecapNow} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <Send class="w-3.5 h-3.5" />
+              <span>Send Recap Now (إرسال الملخص الآن)</span>
+            </button>
+            {#if recapStatusMsg}
+              <p class="text-[11px] font-bold text-pos-muted">{recapStatusMsg}</p>
+            {/if}
           </div>
         </div>
       </div>
@@ -1941,6 +1983,21 @@
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">Default Walk-in Customer Label</label>
               <input type="text" bind:value={settings.default_customer_name} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block text-[10px] font-bold text-pos-muted mb-1">Default Margin % (new products)</label>
+                <input type="number" min="0" max="500" step="0.5" bind:value={settings.default_margin_percent} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold font-mono text-pos-text outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-pos-muted mb-1">Round Sale Price to</label>
+                <select bind:value={settings.price_round_step} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
+                  <option value="0">Whole DZD (no rounding)</option>
+                  <option value="5">Nearest 5 DZD (119→120, 116→115)</option>
+                  <option value="10">Nearest 10 DZD</option>
+                </select>
+              </div>
             </div>
           </div>
 

@@ -21,6 +21,7 @@
   import NotificationsView from './routes/notifications/NotificationsView.svelte';
   import LoginView from './routes/auth/LoginView.svelte';
   import AboutView from './routes/about/AboutView.svelte';
+  import CashDrawerModal from './lib/components/CashDrawerModal.svelte';
 
   import { printHtmlDirectly } from './lib/utils/printer';
 
@@ -38,6 +39,7 @@
   let updateStatus: '' | 'downloading' | 'ready' | 'restarting' | 'error' = '';
   let updateProgress = 0;
   let updateError = '';
+  let isCashDrawerOpen = false;
 
   // Download the signed update package in-app, install it, and relaunch —
   // no browser, no separate installer window.
@@ -99,6 +101,10 @@
       try {
         const session = await invoke<CashSession | null>('get_active_cash_session', { userId: $currentUser.id });
         $activeSession = session;
+        // Session left open from a previous day: prompt close + fresh open.
+        if (session && (session as any).is_stale) {
+          isCashDrawerOpen = true;
+        }
       } catch (err) {
         console.error(err);
       }
@@ -116,6 +122,29 @@
         console.warn('Auto update check note:', e);
       }
     }, 1500);
+
+    // Recurring Telegram recap scheduler: polls the interval setting every
+    // 5 minutes and sends the recap when the window has elapsed.
+    setInterval(async () => {
+      try {
+        const s = await invoke<Record<string, string>>('get_all_settings');
+        if (s['notify_recap_enabled'] !== 'true') return;
+        const intervalMin = parseInt(s['recap_interval_minutes'] || '60', 10);
+        const lastStr = s['last_recap_at'] || '';
+        let due = true;
+        if (lastStr) {
+          const last = new Date(lastStr.replace(' ', 'T'));
+          if (!isNaN(last.getTime())) {
+            due = Date.now() - last.getTime() >= intervalMin * 60 * 1000;
+          }
+        }
+        if (due) {
+          await invoke('send_telegram_recap');
+        }
+      } catch (e) {
+        // Silent: scheduling must never disturb the cashier.
+      }
+    }, 5 * 60 * 1000);
   });
 
   function toggleTheme() {
@@ -440,4 +469,9 @@
       </div>
     </main>
   </div>
+
+  <!-- Stale-session prompt: close yesterday's session, then open today's -->
+  {#if $isAuthenticated}
+    <CashDrawerModal isOpen={isCashDrawerOpen} onClose={() => (isCashDrawerOpen = false)} />
+  {/if}
 {/if}

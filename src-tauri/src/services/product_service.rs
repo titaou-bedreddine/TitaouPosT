@@ -121,6 +121,58 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
     }
 
     let mut conn = db.conn.lock().unwrap();
+
+    // Reject duplicate barcodes and duplicate product names across the
+    // catalog. When editing, the product's own rows are excluded.
+    let clean_barcodes: Vec<String> = input
+        .barcodes
+        .iter()
+        .map(|b| b.trim().to_string())
+        .filter(|b| !b.is_empty())
+        .collect();
+
+    for b in &clean_barcodes {
+        let owner: Option<i64> = conn
+            .query_row(
+                "SELECT product_id FROM product_barcodes WHERE barcode = ?1
+                 UNION SELECT id FROM products WHERE sku = ?1",
+                [b],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        if let Some(owner_id) = owner {
+            if Some(owner_id) != product_id {
+                return Err(format!(
+                    "Barcode {} is already used by another product / الباركود {} مستعمل من قبل منتج آخر",
+                    b, b
+                ));
+            }
+        }
+    }
+
+    for (field, name) in [
+        ("name_ar", input.name_ar.trim()),
+        ("name_fr", input.name_fr.trim()),
+        ("name_en", input.name_en.trim()),
+    ] {
+        if name.is_empty() {
+            continue;
+        }
+        let owner: Option<i64> = conn
+            .query_row(
+                &format!("SELECT id FROM products WHERE {} = ?1 AND id != ?2", field),
+                rusqlite::params![name, product_id.unwrap_or(-1)],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        if owner.is_some() {
+            return Err(format!(
+                "Product name \"{}\" already exists / اسم المنتج \"{}\" موجود مسبقاً",
+                name, name
+            ));
+        }
+    }
+
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     let is_scalable_int = if input.is_scalable { 1 } else { 0 };
@@ -233,15 +285,12 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         new_id
     };
 
-    for (i, barcode) in input.barcodes.iter().enumerate() {
-        let b = barcode.trim();
-        if !b.is_empty() {
-            let is_primary = i == 0;
-            let _ = tx.execute(
-                "INSERT OR IGNORE INTO product_barcodes (product_id, barcode, is_primary) VALUES (?1, ?2, ?3)",
-                rusqlite::params![id, b, is_primary],
-            );
-        }
+    for (i, b) in clean_barcodes.iter().enumerate() {
+        let is_primary = i == 0;
+        let _ = tx.execute(
+            "INSERT OR IGNORE INTO product_barcodes (product_id, barcode, is_primary) VALUES (?1, ?2, ?3)",
+            rusqlite::params![id, b, is_primary],
+        );
     }
 
     tx.commit().map_err(|e| e.to_string())?;

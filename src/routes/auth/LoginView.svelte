@@ -11,8 +11,14 @@
   let showPassword = false;
   let errorMsg = '';
   let isLoading = false;
+  let appVersion = '';
 
   onMount(async () => {
+    try {
+      appVersion = await invoke<string>('get_app_version');
+    } catch (e) {
+      appVersion = '';
+    }
     try {
       usersList = await invoke<User[]>('get_active_users');
       if (usersList && usersList.length > 0) {
@@ -66,7 +72,14 @@
       <div class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mx-auto shadow-lg shadow-sky-600/20 overflow-hidden p-1 border border-slate-700">
         <img src="/logo.png" alt="TitaouPOS" class="w-full h-full object-contain" />
       </div>
-      <h1 class="text-2xl font-black text-white tracking-tight">TitaouPOS</h1>
+      <div class="flex items-center justify-center gap-2">
+        <h1 class="text-2xl font-black text-white tracking-tight">TitaouPOS</h1>
+        {#if appVersion}
+          <span class="px-2 py-0.5 bg-sky-950 border border-sky-800 text-sky-300 text-[10px] font-mono font-bold rounded-full">
+            v{appVersion}
+          </span>
+        {/if}
+      </div>
       <p class="text-xs text-sky-400 font-bold">Created by Titaou Bedreddine 0553444057</p>
     </div>
 

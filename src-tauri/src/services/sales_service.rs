@@ -122,8 +122,13 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
     // Credit & versement both track the unpaid remainder on the customer's
     // account. Credit: goods leave now, total owed minus paid now. Versement:
-    // goods stay at the shop, same remainder math.
-    let owed_remainder = (input.total_amount - input.paid_amount.clamp(0, input.total_amount)).max(0);
+    // goods stay at the shop, same remainder math. Refund carts (negative
+    // total) never touch balances — clamp(min, max) would panic on negatives.
+    let owed_remainder = if input.total_amount > 0 {
+        (input.total_amount - input.paid_amount.clamp(0, input.total_amount)).max(0)
+    } else {
+        0
+    };
     if owed_remainder > 0 {
         if let Some(cust_id) = input.customer_id {
             tx.execute(
@@ -135,6 +140,14 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+
+    // Telegram "each sale" alert (fire-and-forget on a background thread).
+    crate::services::notifier_service::notify_if_enabled(
+        db,
+        "notify_each_sale",
+        format!("🧾 *Nouvelle Vente* {}\n💰 Total: *{} DZD*\n👤 Caisse: {}", sale_number, input.total_amount, input.user_id),
+    );
+
     Ok(sale_number)
 }
 

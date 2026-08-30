@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly, buildReceiptHtml } from '../../lib/utils/printer';
@@ -29,16 +29,16 @@
   import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
 
   import { customers, selectedCustomerId, selectedCustomer, refreshCustomers, DEFAULT_WALKIN_CUSTOMER_ID } from '../../lib/stores/customers';
+  import { suppliers, selectedSupplierId, selectedSupplier, refreshSuppliers } from '../../lib/stores/suppliers';
 
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
-    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent, UserRound, ChevronDown
+    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent, UserRound, ChevronDown, Truck
   } from 'lucide-svelte';
 
   let products: Product[] = [];
   let categories: Category[] = [];
   let units: Unit[] = [];
-  let suppliers: Supplier[] = [];
 
   let selectedCategory: number | null = null;
   let searchQuery = '';
@@ -64,11 +64,13 @@
   let isVersementOpen = false;
   let isCheckoutOpen = false;
   let isCustomerSelectorOpen = false;
+  let isSupplierSelectorOpen = false;
   let isOtherArticleOpen = false;
 
   let isUnknownBarcodeModalOpen = false;
   let unknownScannedBarcode = '';
   let initialBarcodeForNewProduct = '';
+  let editingProductWithExtraBarcode = '';
 
   let lastSaleSuccessNumber = '';
   let barcodeBuffer = '';
@@ -99,9 +101,9 @@
 
     await loadCategories();
     await loadUnits();
-    await loadSuppliers();
     await loadProducts();
     await refreshCustomers();
+    await refreshSuppliers();
 
     window.addEventListener('keydown', handleGlobalKeyDown);
   });
@@ -136,13 +138,6 @@
     }
   }
 
-  async function loadSuppliers() {
-    try {
-      suppliers = await invoke<Supplier[]>('list_suppliers');
-    } catch (e) {
-      console.error(e);
-    }
-  }
 
   async function loadProducts() {
     try {
@@ -225,25 +220,39 @@
   function handleOpenEdit(p: Product) {
     editingProduct = p;
     initialBarcodeForNewProduct = '';
+    editingProductWithExtraBarcode = '';
+    isProductEditOpen = true;
+  }
+
+  // Link flow: open the editor for an existing product with the scanned
+  // barcode pre-attached for review before saving.
+  function handleEditProductWithBarcode(p: Product, newBarcode: string) {
+    editingProduct = p;
+    initialBarcodeForNewProduct = '';
+    editingProductWithExtraBarcode = newBarcode;
     isProductEditOpen = true;
   }
 
   function handleOpenNewProduct() {
     editingProduct = null;
     initialBarcodeForNewProduct = '';
+    editingProductWithExtraBarcode = '';
     isProductEditOpen = true;
   }
 
   async function handleProductSaved() {
     await loadProducts();
-    if (initialBarcodeForNewProduct) {
+    // After creating a product from a scanned barcode (or linking that
+    // barcode to an existing one), add it straight to the cart.
+    const pendingBarcode = initialBarcodeForNewProduct || editingProductWithExtraBarcode;
+    if (pendingBarcode) {
       try {
         const list = await invoke<Product[]>('search_products', {
-          query: initialBarcodeForNewProduct,
+          query: pendingBarcode,
           categoryId: null,
           searchType: 'barcode',
         });
-        const created = list.find(p => p.barcodes?.includes(initialBarcodeForNewProduct));
+        const created = list.find(p => p.barcodes?.includes(pendingBarcode));
         if (created) {
           addToCart(created, 1, $isRefundMode);
         }
@@ -251,6 +260,7 @@
         console.warn('Auto add created product error:', e);
       }
       initialBarcodeForNewProduct = '';
+      editingProductWithExtraBarcode = '';
     }
   }
 
@@ -260,6 +270,16 @@
 
     if (!$activeSession) {
       isCashDrawerOpen = true;
+      return;
+    }
+
+    // Purchase / Broken modes have their own checkout flows.
+    if ($posMode === 'purchase') {
+      await executeModeCheckout('purchase');
+      return;
+    }
+    if ($posMode === 'broken') {
+      await executeModeCheckout('broken');
       return;
     }
 
@@ -275,6 +295,76 @@
 
     // Cash or TPE Checkout directly
     await executeCheckout(null, undefined);
+  }
+
+  // Purchase & Broken mode checkouts: purchases add stock from the
+  // supplier; broken writes quantity off and books an expense.
+  async function executeModeCheckout(mode: 'purchase' | 'broken') {
+    if ($cartItems.length === 0) return;
+    try {
+      const stamp = Date.now().toString().slice(-8);
+      if (mode === 'purchase') {
+        // Stock-in purchase from the selected supplier at cart line prices.
+        const total = $cartItems.reduce((s, i) => s + Math.round(i.unit_price * i.quantity), 0);
+        await invoke('create_purchase', {
+          input: {
+            invoiceNumber: 'ACH-' + stamp,
+            supplierId: $selectedSupplierId ?? 1,
+            userId: $currentUser?.id || 1,
+            date: new Date().toISOString().split('T')[0],
+            subtotal: total,
+            discount: 0,
+            tax: 0,
+            total,
+            paidAmount: total,
+            paymentMethod: 'cash',
+            items: $cartItems.map((i) => ({
+              product_id: i.product_id,
+              quantity: i.quantity,
+              unit_cost: Math.round(i.unit_price),
+              discount: 0,
+              tax: 0,
+              total: Math.round(i.unit_price * i.quantity),
+            })),
+            notes: 'POS Purchase Mode (شراء)',
+          },
+        });
+      } else {
+        // Broken: quantity leaves stock and the value becomes an expense
+        // per line (negative-quantity purchase = write-off movement).
+        const total = $cartItems.reduce((s, i) => s + Math.round(i.unit_price * i.quantity), 0);
+        await invoke('create_purchase', {
+          input: {
+            invoiceNumber: 'BRK-' + stamp,
+            supplierId: 1,
+            userId: $currentUser?.id || 1,
+            date: new Date().toISOString().split('T')[0],
+            subtotal: total,
+            discount: 0,
+            tax: 0,
+            total: 0,
+            paidAmount: 0,
+            paymentMethod: 'cash',
+            items: $cartItems.map((i) => ({
+              product_id: i.product_id,
+              quantity: -i.quantity,
+              unit_cost: Math.round(i.unit_price),
+              discount: 0,
+              tax: 0,
+              total: Math.round(i.unit_price * i.quantity),
+            })),
+            notes: `Broken/Damaged write-off (تالف): ${$cartItems.map((i) => `${i.name_fr || i.name_ar} x${i.quantity}`).join(', ')}`,
+          },
+        });
+      }
+      lastSaleSuccessNumber = mode === 'purchase' ? 'Purchase saved' : 'Broken write-off saved';
+      clearCart();
+      await loadProducts();
+      setTimeout(() => (lastSaleSuccessNumber = ''), 4000);
+    } catch (err: any) {
+      console.error('Mode checkout failed:', err);
+      alert('Checkout Failed: ' + (err?.message || err));
+    }
   }
 
   // Unified Checkout dialog (TopBar Checkout / F2): customer + amount +
@@ -567,7 +657,10 @@
       }
     } else if (e.key === 'F7') {
       e.preventDefault();
-      isQuickPurchaseOpen = true;
+      // Cycle the POS mode directly: Sale -> Purchase -> Broken.
+      if ($posMode === 'sale') $posMode = 'purchase';
+      else if ($posMode === 'purchase') $posMode = 'broken';
+      else $posMode = 'sale';
     } else if (e.key === 'F8') {
       e.preventDefault();
       isReturnDamagedOpen = true;
@@ -597,8 +690,6 @@
     onOpenRemise={() => (isRemiseOpen = true)}
     onOpenHeldSales={() => (isHeldSalesOpen = true)}
     onPrintReceipt={() => (isPrintReceiptOpen = true)}
-    onQuickPurchase={() => (isQuickPurchaseOpen = true)}
-    onReturnDamaged={() => (isReturnDamagedOpen = true)}
     onOpenOtherArticle={() => (isOtherArticleOpen = true)}
   />
 
@@ -804,9 +895,51 @@
             </div>
           {/if}
         </div>
-      </div>
+        <!-- Supplier Selector: purchase mode picks the source supplier -->
+        {#if $posMode === 'purchase'}
+          <div class="relative" class:z-30={isSupplierSelectorOpen}>
+            <button
+              type="button"
+              on:click={() => (isSupplierSelectorOpen = !isSupplierSelectorOpen)}
+              class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-sky-400 rounded-xl text-xs font-bold cursor-pointer transition {isSupplierSelectorOpen ? 'ring-2 ring-sky-400' : ''}"
+              title="Select supplier for this purchase"
+            >
+              <span class="flex items-center gap-2 min-w-0">
+                <Truck class="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span class="truncate text-pos-text">{$selectedSupplier?.name || 'Fournisseur Divers / مورد متنوع'}</span>
+                {#if $selectedSupplier && $selectedSupplier.balance > 0}
+                  <span class="text-[9px] font-mono font-black text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded-full shrink-0">
+                    {$selectedSupplier.balance.toLocaleString()} DZD due
+                  </span>
+                {/if}
+              </span>
+              <ChevronDown class="w-3.5 h-3.5 text-pos-muted shrink-0 transition-transform {isSupplierSelectorOpen ? 'rotate-180' : ''}" />
+            </button>
 
-      <!-- Cart Item Cards List -->
+            {#if isSupplierSelectorOpen}
+              <div class="absolute left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-xl shadow-2xl overflow-hidden z-40 animate-in fade-in duration-100">
+                <div class="max-h-56 overflow-y-auto p-1.5 space-y-1">
+                  {#each $suppliers as s}
+                    <button
+                      type="button"
+                      on:click={() => { $selectedSupplierId = s.id; isSupplierSelectorOpen = false; }}
+                      class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-start transition cursor-pointer {$selectedSupplierId === s.id ? 'bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-pos-text'}"
+                    >
+                      <span class="min-w-0">
+                        <span class="text-[11px] font-black block truncate">{s.name}</span>
+                        <span class="text-[9px] text-pos-muted block truncate">{s.phone || 'No phone'}</span>
+                      </span>
+                      {#if s.balance > 0}
+                        <span class="text-[9px] font-mono font-black text-amber-600 shrink-0">{s.balance.toLocaleString()}</span>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
       <div bind:this={cartContainerEl} class="flex-1 overflow-y-auto p-2.5 space-y-2">
         {#if $cartItems.length === 0}
           <div class="h-full flex flex-col items-center justify-center text-pos-muted p-4 text-center">
@@ -904,6 +1037,7 @@
     categories={categories}
     units={units}
     initialBarcode={initialBarcodeForNewProduct}
+    extraBarcode={editingProductWithExtraBarcode}
     onClose={() => (isProductEditOpen = false)}
     onSaved={handleProductSaved}
   />
@@ -915,8 +1049,10 @@
     onAddNewWithBarcode={(bc) => {
       editingProduct = null;
       initialBarcodeForNewProduct = bc;
+      editingProductWithExtraBarcode = '';
       isProductEditOpen = true;
     }}
+    onEditProductWithBarcode={handleEditProductWithBarcode}
     onLinkedToProduct={(p) => {
       addToCart(p, 1, $isRefundMode);
       loadProducts();
@@ -925,14 +1061,14 @@
 
   <QuickPurchaseModal
     isOpen={isQuickPurchaseOpen}
-    suppliers={suppliers}
+    suppliers={$suppliers}
     onClose={() => (isQuickPurchaseOpen = false)}
     onPurchaseCompleted={loadProducts}
   />
 
   <ReturnDamagedModal
     isOpen={isReturnDamagedOpen}
-    suppliers={suppliers}
+    suppliers={$suppliers}
     onClose={() => (isReturnDamagedOpen = false)}
     onReturnCompleted={loadProducts}
   />

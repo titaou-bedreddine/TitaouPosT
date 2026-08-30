@@ -347,6 +347,19 @@ pub fn set_setting(db: State<'_, DbState>, key: String, value: String) -> Result
 }
 
 #[tauri::command]
+pub fn send_telegram_message(db: State<'_, DbState>, text: String) -> Result<(), String> {
+    // Manual/test send — blocking is fine here so the UI shows the result.
+    let (token, chat_id, _) = crate::services::notifier_service::get_telegram_config(&db)
+        .ok_or("Telegram bot token / chat ID not configured")?;
+    crate::services::notifier_service::send_telegram_blocking(&token, &chat_id, &text)
+}
+
+#[tauri::command]
+pub fn send_telegram_recap(db: State<'_, DbState>) -> Result<String, String> {
+    crate::services::notifier_service::send_periodic_recap(&db)
+}
+
+#[tauri::command]
 pub fn set_multiple_settings(db: State<'_, DbState>, settings: HashMap<String, String>) -> Result<(), String> {
     settings_service::set_multiple_settings(&db, settings)
 }

@@ -1,19 +1,19 @@
 ﻿<script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import type { Product, ProductInput } from '../types';
+  import type { Product } from '../types';
   import { AlertTriangle, Plus, Link2, Search, X, Check, Package, QrCode, ArrowLeft, Tag } from 'lucide-svelte';
 
   export let isOpen = false;
   export let barcode = '';
   export let onClose: () => void;
   export let onAddNewWithBarcode: (barcode: string) => void;
+  export let onEditProductWithBarcode: (product: Product, newBarcode: string) => void;
   export let onLinkedToProduct: (product: Product) => void;
 
   let mode: 'choose' | 'link' = 'choose';
   let searchQuery = '';
   let searchResults: Product[] = [];
   let isSearching = false;
-  let isSavingLink = false;
   let searchTimeout: any = null;
 
   $: if (isOpen) {
@@ -48,54 +48,12 @@
     }
   }
 
-  async function linkToExistingProduct(p: Product) {
+  function chooseExistingProduct(p: Product) {
+    // Open the product editor with the scanned barcode attached so the user
+    // can review price/quantity and save consciously.
     if (!barcode) return;
-    try {
-      isSavingLink = true;
-      const updatedBarcodes = Array.from(new Set([...(p.barcodes || []), barcode]));
-
-      const input: ProductInput = {
-        sku: p.sku || undefined,
-        name_ar: p.name_ar,
-        name_fr: p.name_fr,
-        name_en: p.name_en,
-        category_id: p.category_id,
-        unit_id: p.unit_id,
-        purchase_price: p.purchase_price,
-        sale_price: p.sale_price,
-        min_sale_price: p.min_sale_price,
-        tax_rate: p.tax_rate,
-        current_stock: p.current_stock,
-        min_stock: p.min_stock,
-        image_path: p.image_path || undefined,
-        expiry_date: p.expiry_date || undefined,
-        is_scalable: p.is_scalable,
-        scale_code: p.scale_code || undefined,
-        scale_plu: p.scale_plu,
-        scale_barcode_type: p.scale_barcode_type,
-        scale_department_id: p.scale_department_id,
-        scale_sync_status: p.scale_sync_status,
-        is_bundle: p.is_bundle,
-        barcodes: updatedBarcodes,
-      };
-
-      await invoke('save_product', {
-        input,
-        productId: p.id,
-      });
-
-      const updatedProduct: Product = {
-        ...p,
-        barcodes: updatedBarcodes,
-      };
-
-      onLinkedToProduct(updatedProduct);
-      onClose();
-    } catch (e: any) {
-      alert('Failed to link barcode: ' + (e?.message || e));
-    } finally {
-      isSavingLink = false;
-    }
+    onEditProductWithBarcode(p, barcode);
+    onClose();
   }
 </script>
 
@@ -234,12 +192,11 @@
 
                   <button
                     type="button"
-                    on:click={() => linkToExistingProduct(p)}
-                    disabled={isSavingLink}
-                    class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5 transition"
+                    on:click={() => chooseExistingProduct(p)}
+                    class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5 transition"
                   >
                     <Link2 class="w-3.5 h-3.5" />
-                    <span>Link Barcode</span>
+                    <span>Link & Edit</span>
                   </button>
                 </div>
               {/each}

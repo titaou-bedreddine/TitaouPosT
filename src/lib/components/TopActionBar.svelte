@@ -4,13 +4,14 @@
   import {
     clearCart, isRefundMode, toggleAllCartRefund,
     cartItems, globalDiscountMode, heldSalesList,
-    holdCurrentSale, heldNotification
+    holdCurrentSale, heldNotification, posMode
   } from '../stores/cart';
   import { printHtmlDirectly } from '../utils/printer';
   import {
     PlusCircle, Trash2, Undo2, Percent, CreditCard,
     PauseCircle, Printer, DollarSign, Languages, Check,
-    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet, Coins
+    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet, Coins,
+    ShoppingCart, PackagePlus, PackageX
   } from 'lucide-svelte';
 
   export let onOpenPayment: () => void;
@@ -18,8 +19,6 @@
   export let onOpenRemise: () => void;
   export let onOpenHeldSales: () => void;
   export let onPrintReceipt: () => void;
-  export let onQuickPurchase: () => void;
-  export let onReturnDamaged: () => void;
   export let onOpenOtherArticle: () => void = () => {};
   export let onCheckout: () => void;
 
@@ -48,6 +47,15 @@
     else if (selectedPaymentMode === 'tpe') selectedPaymentMode = 'credit';
     else if (selectedPaymentMode === 'credit') selectedPaymentMode = 'versement';
     else selectedPaymentMode = 'cash';
+  }
+
+  // Sale -> Purchase -> Broken cycle. Sale: everything is sold. Purchase:
+  // scanned items are bought from the supplier and add to stock. Broken:
+  // items are written off — quantity leaves stock and value becomes an expense.
+  function cyclePosMode() {
+    if ($posMode === 'sale') $posMode = 'purchase';
+    else if ($posMode === 'purchase') $posMode = 'broken';
+    else $posMode = 'sale';
   }
 
   function handleRefundToggle() {
@@ -190,28 +198,25 @@
     <!-- Vertical Divider -->
     <div class="h-8 w-px bg-pos-border shrink-0 hidden sm:block"></div>
 
-    <!-- Group 4: Operations (Purchases, Return/Loss, Drawer, Register) -->
+    <!-- Group 4: Operations (POS Mode, Register) -->
     <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-pos-border shadow-xs">
       <button
         type="button"
-        on:click={onQuickPurchase}
-        class="flex flex-col items-center justify-center w-20 h-14 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-        title="F7 - Purchases Mode"
+        on:click={cyclePosMode}
+        class="flex flex-col items-center justify-center w-24 h-14 rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {$posMode === 'sale' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : $posMode === 'purchase' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : 'bg-rose-600 text-white ring-2 ring-rose-400'}"
+        title="Click to Toggle: Sale → Purchase (supplier) → Broken (damaged)"
       >
-        <ShoppingBag class="w-4 h-4 text-sky-500 mb-0.5" />
-        <span class="text-[10px] font-black leading-tight">Purchases</span>
-        <span class="text-[8px] bg-black/10 dark:bg-white/10 px-1 rounded font-mono font-normal mt-0.5">F7</span>
-      </button>
-
-      <button
-        type="button"
-        on:click={onReturnDamaged}
-        class="flex flex-col items-center justify-center w-20 h-14 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-        title="F8 - Return / Damaged Goods (إرجاع متلف)"
-      >
-        <AlertTriangle class="w-4 h-4 text-rose-500 mb-0.5" />
-        <span class="text-[10px] font-black leading-tight">Return</span>
-        <span class="text-[8px] bg-black/10 dark:bg-white/10 px-1 rounded font-mono font-normal mt-0.5">F8</span>
+        {#if $posMode === 'sale'}
+          <ShoppingCart class="w-4 h-4 mb-0.5" />
+          <span class="text-[10px] font-black leading-tight">Sale (بيع)</span>
+        {:else if $posMode === 'purchase'}
+          <PackagePlus class="w-4 h-4 mb-0.5" />
+          <span class="text-[10px] font-black leading-tight">Purchase (شراء)</span>
+        {:else}
+          <PackageX class="w-4 h-4 mb-0.5" />
+          <span class="text-[10px] font-black leading-tight">Broken (تالف)</span>
+        {/if}
+        <span class="text-[8px] opacity-80 font-mono mt-0.5">Toggle ↻</span>
       </button>
 
       <button

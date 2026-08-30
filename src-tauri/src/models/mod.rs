@@ -133,6 +133,9 @@ pub struct CashSession {
     pub current_balance: Option<i64>,
     pub status: String,
     pub notes: Option<String>,
+    /// True when the session was opened on a previous calendar day.
+    #[serde(default)]
+    pub is_stale: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

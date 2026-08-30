@@ -32,11 +32,19 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
             current_balance: Some(row.get(7)?),
             status: row.get(10)?,
             notes: row.get(11)?,
+            is_stale: None,
         })
     });
 
     match session {
         Ok(mut s) => {
+            // A session left open from a previous calendar day is stale: the
+            // caller should prompt to close it and open today's session.
+            let opened_date = chrono::DateTime::parse_from_rfc3339(&s.opened_at)
+                .map(|d| d.date_naive())
+                .unwrap_or_else(|_| chrono::Local::now().date_naive());
+            s.is_stale = Some(opened_date < chrono::Local::now().date_naive());
+
             // Calculate total sales and expenses for this session
             let sales_sum: i64 = conn.query_row(
                 "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE session_id = ?1 AND type = 'cash_sale'",
@@ -101,6 +109,7 @@ pub fn open_session(db: &DbState, user_id: i64, register_id: i64, opening_amount
         current_balance: Some(opening_amount),
         status: "open".to_string(),
         notes,
+        is_stale: Some(false),
     })
 }
 
@@ -217,6 +226,7 @@ pub fn list_session_history(db: &DbState) -> Result<Vec<CashSession>, String> {
                 current_balance: Some(row.get(7)?),
                 status: row.get(10)?,
                 notes: row.get(11)?,
+                is_stale: None,
             })
         })
         .map_err(|e| e.to_string())?;

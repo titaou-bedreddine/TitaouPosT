@@ -7,7 +7,7 @@
   import {
     X, Check, Plus, Trash2, Edit2, Tag, Upload, Calendar,
     DollarSign, Package, History, Layers, AlertTriangle, Scale, RefreshCw, Send,
-    Copy, Percent, Sparkles, FolderPlus, QrCode, Printer
+    Copy, Percent, Sparkles, FolderPlus, QrCode, Printer, Banknote
   } from 'lucide-svelte';
 
   export let isOpen = false;
@@ -15,6 +15,9 @@
   export let categories: Category[] = [];
   export let units: Unit[] = [];
   export let initialBarcode: string = '';
+  // Scanned barcode to attach to an EXISTING product (link flow): merged into
+  // the token list on open so the user reviews and saves consciously.
+  export let extraBarcode: string = '';
   export let onClose: () => void;
   export let onSaved: () => void;
 
@@ -55,6 +58,89 @@
   let marginMode: 'percent' | 'amount' = 'percent';
   let profitMarginPercent = 20;
   let profitMarginAmount = 0;
+
+  // Settings-driven pricing defaults: rounding step (0/5/10...) and default
+  // margin for NEW products (existing products reuse their own margin).
+  let priceRoundStep = 5;
+  let defaultMarginPercent = 20;
+
+  // Stock fields are linked: current (already in shop) + new (being added now)
+  // = total (what current_stock will become on save).
+  let newStockQty = 0;
+  let baselineStock = 0;
+
+  async function loadPricingDefaults() {
+    try {
+      const s = await invoke<Record<string, string>>('get_all_settings');
+      priceRoundStep = parseInt(s['price_round_step'] ?? '5', 10) || 0;
+      defaultMarginPercent = parseFloat(s['default_margin_percent'] ?? '20') || 0;
+    } catch (e) {
+      console.warn('Could not load pricing defaults:', e);
+    }
+  }
+
+  // Round to the configured step: 119 -> 120 (step 5), 116 -> 115.
+  function roundToStep(value: number, step: number): number {
+    if (!step || step <= 0) return Math.round(value);
+    return Math.round(value / step) * step;
+  }
+
+  // Name autosuggest: live suggestions from existing catalog products.
+  let nameSuggestions: { field: 'fr' | 'ar' | 'en'; value: string }[] = [];
+  let showNameSuggestions = false;
+  let nameSuggestTimeout: any = null;
+
+  function refreshNameSuggestions(typed: string, field: 'fr' | 'ar' | 'en') {
+    const q = typed.trim().toLowerCase();
+    if (q.length < 2) {
+      nameSuggestions = [];
+      return;
+    }
+    clearTimeout(nameSuggestTimeout);
+    nameSuggestTimeout = setTimeout(async () => {
+      try {
+        const list = await invoke<Product[]>('search_products', {
+          query: typed.trim(),
+          categoryId: null,
+          searchType: 'name',
+        });
+        const seen = new Set<string>();
+        const matches: { field: 'fr' | 'ar' | 'en'; value: string }[] = [];
+        for (const p of list.slice(0, 8)) {
+          for (const [f, v] of [['fr', p.name_fr], ['ar', p.name_ar], ['en', p.name_en]] as const) {
+            const val = (v || '').trim();
+            if (val && val.toLowerCase().includes(q) && !seen.has(val)) {
+              seen.add(val);
+              matches.push({ field: f as 'fr' | 'ar' | 'en', value: val });
+              if (matches.length >= 6) break;
+            }
+          }
+          if (matches.length >= 6) break;
+        }
+        nameSuggestions = matches;
+        showNameSuggestions = matches.length > 0;
+      } catch (e) {
+        nameSuggestions = [];
+      }
+    }, 200);
+  }
+
+  function acceptNameSuggestion(s: { field: 'fr' | 'ar' | 'en'; value: string }) {
+    if (s.field === 'fr') nameFr = s.value;
+    else if (s.field === 'ar') nameAr = s.value;
+    else nameEn = s.value;
+    nameSuggestions = [];
+    showNameSuggestions = false;
+  }
+
+  function handleNameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Tab' && showNameSuggestions && nameSuggestions.length > 0) {
+      e.preventDefault();
+      acceptNameSuggestion(nameSuggestions[0]);
+    } else if (e.key === 'Escape') {
+      showNameSuggestions = false;
+    }
+  }
 
   // Quick Add Family Modal
   let isQuickFamilyOpen = false;
@@ -133,10 +219,10 @@
 
   function handlePurchasePriceChange() {
     if (marginMode === 'percent') {
-      salePrice = Math.round(purchasePrice * (1 + profitMarginPercent / 100));
+      salePrice = roundToStep(purchasePrice * (1 + profitMarginPercent / 100), priceRoundStep);
       profitMarginAmount = salePrice - purchasePrice;
     } else {
-      salePrice = purchasePrice + profitMarginAmount;
+      salePrice = roundToStep(purchasePrice + profitMarginAmount, priceRoundStep);
       if (purchasePrice > 0) {
         profitMarginPercent = Math.round((profitMarginAmount / purchasePrice) * 100);
       }
@@ -145,13 +231,13 @@
 
   function handleMarginPercentChange() {
     if (purchasePrice > 0) {
-      salePrice = Math.round(purchasePrice * (1 + profitMarginPercent / 100));
+      salePrice = roundToStep(purchasePrice * (1 + profitMarginPercent / 100), priceRoundStep);
       profitMarginAmount = salePrice - purchasePrice;
     }
   }
 
   function handleMarginAmountChange() {
-    salePrice = purchasePrice + profitMarginAmount;
+    salePrice = roundToStep(purchasePrice + profitMarginAmount, priceRoundStep);
     if (purchasePrice > 0) {
       profitMarginPercent = Math.round((profitMarginAmount / purchasePrice) * 100);
     }
@@ -162,6 +248,21 @@
       profitMarginAmount = salePrice - purchasePrice;
       profitMarginPercent = Math.round(((salePrice - purchasePrice) / purchasePrice) * 100);
     }
+  }
+
+  // Linked stock trio: baseline (already in shop) + new (added now) = total.
+  function handleNewStockChange() {
+    currentStock = Number(baselineStock) + Number(newStockQty || 0);
+  }
+
+  function handleTotalStockChange() {
+    // Editing the total directly back-calculates the "new" quantity.
+    newStockQty = Number(currentStock) - Number(baselineStock);
+  }
+
+  function handleBaselineStockChange() {
+    // Editing what's already in stock keeps the added quantity intact.
+    newStockQty = Number(currentStock) - Number(baselineStock);
   }
 
   function generateValidEan13() {
@@ -195,6 +296,7 @@
   let lastIsOpen = false;
   let lastProductId: number | null | undefined = undefined;
   let lastInitialBarcode = '';
+  let lastExtraBarcode = '';
 
   function initializeModal() {
     if (product) {
@@ -220,9 +322,17 @@
       scaleDepartmentId = product.scale_department_id || 1;
       scaleSyncStatus = product.scale_sync_status || 'pending';
       barcodeTokens = product.barcodes ? [...product.barcodes] : [];
+      if (extraBarcode && extraBarcode.trim() && !barcodeTokens.includes(extraBarcode.trim())) {
+        barcodeTokens = [...barcodeTokens, extraBarcode.trim()];
+      }
       currentBarcodeTyped = '';
       editingTokenIndex = null;
+      // An existing product keeps ITS OWN margin (derived from its prices).
       handleSalePriceChange();
+      // Stock: current stock is the baseline, nothing added yet.
+      baselineStock = product.current_stock || 0;
+      currentStock = baselineStock;
+      newStockQty = 0;
       activeTab = 'details';
     } else {
       sku = '';
@@ -249,21 +359,33 @@
       barcodeTokens = initialBarcode ? [initialBarcode.trim()] : [];
       currentBarcodeTyped = '';
       editingTokenIndex = null;
-      profitMarginPercent = 20;
-      profitMarginAmount = 0;
+      // New product: settings default margin, no existing stock.
+      loadPricingDefaults().then(() => {
+        profitMarginPercent = defaultMarginPercent;
+        profitMarginAmount = 0;
+        handlePurchasePriceChange();
+      });
+      baselineStock = 0;
+      newStockQty = 0;
       activeTab = 'details';
     }
+    // Common reset for suggestions on every open.
+    nameSuggestions = [];
+    showNameSuggestions = false;
   }
 
-  $: if (isOpen && (!lastIsOpen || (product ? product.id : null) !== lastProductId || initialBarcode !== lastInitialBarcode)) {
+  $: if (isOpen && (!lastIsOpen || (product ? product.id : null) !== lastProductId || initialBarcode !== lastInitialBarcode || extraBarcode !== lastExtraBarcode)) {
     lastIsOpen = true;
     lastProductId = product ? product.id : null;
     lastInitialBarcode = initialBarcode;
+    lastExtraBarcode = extraBarcode;
+    loadPricingDefaults();
     initializeModal();
   } else if (!isOpen) {
     lastIsOpen = false;
     lastProductId = undefined;
     lastInitialBarcode = '';
+    lastExtraBarcode = '';
   }
 
   function addBarcodeToken() {
@@ -555,16 +677,46 @@
               </div>
             </div>
 
-            <!-- Names -->
+            <!-- Names (with live DB autosuggest: Tab or click accepts) -->
             <div class="md:col-span-3 space-y-2.5">
               <div class="grid grid-cols-2 gap-3">
-                <div>
+                <div class="relative">
                   <label class="block text-xs font-bold text-pos-muted mb-1">Product Name (Français) *</label>
-                  <input type="text" bind:value={nameFr} placeholder="Ex: Lait Candia 1L Entier" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+                  <input
+                    type="text"
+                    bind:value={nameFr}
+                    on:input={(e) => refreshNameSuggestions((e.target as HTMLInputElement).value, 'fr')}
+                    on:focus={(e) => refreshNameSuggestions((e.target as HTMLInputElement).value, 'fr')}
+                    on:keydown={handleNameKeydown}
+                    on:blur={() => setTimeout(() => (showNameSuggestions = false), 150)}
+                    placeholder="Ex: Lait Candia 1L Entier"
+                    class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  {#if showNameSuggestions && nameSuggestions.length > 0}
+                    <div class="absolute z-20 left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-xl shadow-2xl overflow-hidden">
+                      {#each nameSuggestions as s}
+                        <button
+                          type="button"
+                          on:mousedown|preventDefault={() => acceptNameSuggestion(s)}
+                          class="w-full text-start px-3 py-2 text-xs font-bold text-pos-text hover:bg-sky-100 dark:hover:bg-sky-950 cursor-pointer truncate"
+                        >
+                          {s.value}
+                        </button>
+                      {/each}
+                      <p class="px-3 py-1 text-[9px] text-pos-muted font-bold border-t border-pos-border">Tab = accept first suggestion</p>
+                    </div>
+                  {/if}
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-pos-muted mb-1">Product Name (العربية)</label>
-                  <input type="text" bind:value={nameAr} placeholder="Ex: حليب كانديا 1 لتر كامل" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
+                  <input
+                    type="text"
+                    bind:value={nameAr}
+                    on:input={(e) => refreshNameSuggestions((e.target as HTMLInputElement).value, 'ar')}
+                    on:keydown={handleNameKeydown}
+                    placeholder="Ex: حليب كانديا 1 لتر كامل"
+                    class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+                  />
                 </div>
               </div>
 
@@ -653,88 +805,133 @@
             {/if}
           </div>
 
-          <!-- Pricing, Margin Toggle & Stock Grid -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">
-                Purchase Cost (DZD) <span class="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                bind:value={purchasePrice}
-                on:input={handlePurchasePriceChange}
-                placeholder="0"
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
-              />
+          <!-- MONEY GROUP: purchase / margin / sale price -->
+          <div class="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-pos-border rounded-2xl space-y-3">
+            <div class="flex items-center gap-2">
+              <Banknote class="w-4 h-4 text-emerald-600" />
+              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">Money / Pricing (الأموال)</span>
             </div>
-
-            <!-- Margin Toggle: % vs DZD Amount -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-pos-muted">Margin ({marginMode === 'percent' ? '%' : 'DZD'})</label>
-                <div class="flex items-center bg-slate-200 dark:bg-slate-700 rounded-md p-0.5 text-[9px] font-bold">
-                  <button
-                    type="button"
-                    on:click={() => { marginMode = 'percent'; handleMarginPercentChange(); }}
-                    class="px-1.5 py-0.5 rounded {marginMode === 'percent' ? 'bg-sky-600 text-white' : 'text-pos-muted'}"
-                  >%</button>
-                  <button
-                    type="button"
-                    on:click={() => { marginMode = 'amount'; handleMarginAmountChange(); }}
-                    class="px-1.5 py-0.5 rounded {marginMode === 'amount' ? 'bg-sky-600 text-white' : 'text-pos-muted'}"
-                  >DZD</button>
-                </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">
+                  Purchase Cost (DZD) <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  bind:value={purchasePrice}
+                  on:input={handlePurchasePriceChange}
+                  placeholder="0"
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+                />
               </div>
 
-              {#if marginMode === 'percent'}
+              <!-- Margin Toggle: % vs DZD Amount -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-pos-muted">Margin ({marginMode === 'percent' ? '%' : 'DZD'})</label>
+                  <div class="flex items-center bg-slate-200 dark:bg-slate-700 rounded-md p-0.5 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      on:click={() => { marginMode = 'percent'; handleMarginPercentChange(); }}
+                      class="px-1.5 py-0.5 rounded {marginMode === 'percent' ? 'bg-sky-600 text-white' : 'text-pos-muted'}"
+                    >%</button>
+                    <button
+                      type="button"
+                      on:click={() => { marginMode = 'amount'; handleMarginAmountChange(); }}
+                      class="px-1.5 py-0.5 rounded {marginMode === 'amount' ? 'bg-sky-600 text-white' : 'text-pos-muted'}"
+                    >DZD</button>
+                  </div>
+                </div>
+
+                {#if marginMode === 'percent'}
+                  <input
+                    type="number"
+                    bind:value={profitMarginPercent}
+                    on:input={handleMarginPercentChange}
+                    class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
+                  />
+                {:else}
+                  <input
+                    type="number"
+                    bind:value={profitMarginAmount}
+                    on:input={handleMarginAmountChange}
+                    class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
+                  />
+                {/if}
+                <p class="text-[9px] text-pos-muted font-bold mt-0.5">Sale price auto-rounds to {priceRoundStep > 0 ? `nearest ${priceRoundStep}` : 'whole DZD'}</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">
+                  Sale Price (DZD) <span class="text-rose-500">*</span>
+                </label>
                 <input
                   type="number"
-                  bind:value={profitMarginPercent}
-                  on:input={handleMarginPercentChange}
-                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
+                  min="0"
+                  bind:value={salePrice}
+                  on:input={handleSalePriceChange}
+                  placeholder="0"
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
                 />
-              {:else}
-                <input
-                  type="number"
-                  bind:value={profitMarginAmount}
-                  on:input={handleMarginAmountChange}
-                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
-                />
-              {/if}
+              </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">
-                Sale Price (DZD) <span class="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                bind:value={salePrice}
-                on:input={handleSalePriceChange}
-                placeholder="0"
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
-              />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Current Stock</label>
-              <input
-                type="number"
-                min="0"
-                bind:value={currentStock}
-                class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
-              />
-            </div>
+            {#if salePrice > 0 && purchasePrice > 0 && Number(salePrice) < Number(purchasePrice)}
+              <div class="p-2.5 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-xl flex items-center gap-2">
+                <AlertTriangle class="w-4 h-4 shrink-0 text-rose-600" />
+                <span>Sale price ({salePrice} DZD) cannot be lower than purchase cost ({purchasePrice} DZD) / لا يمكن أن يكون سعر البيع أقل من سعر الشراء!</span>
+              </div>
+            {/if}
           </div>
 
-          {#if salePrice > 0 && purchasePrice > 0 && Number(salePrice) < Number(purchasePrice)}
-            <div class="p-2.5 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-xl flex items-center gap-2">
-              <AlertTriangle class="w-4 h-4 shrink-0 text-rose-600" />
-              <span>Sale price ({salePrice} DZD) cannot be lower than purchase cost ({purchasePrice} DZD) / لا يمكن أن يكون سعر البيع أقل من سعر الشراء!</span>
+          <!-- STOCK GROUP: linked current + new + total -->
+          <div class="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-pos-border rounded-2xl space-y-3">
+            <div class="flex items-center gap-2">
+              <Package class="w-4 h-4 text-sky-600" />
+              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">Stock (المخزون)</span>
             </div>
-          {/if}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">Current Stock (في المخزن)</label>
+                <input
+                  type="number"
+                  min="0"
+                  bind:value={baselineStock}
+                  on:input={handleBaselineStockChange}
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">
+                  New Quantity (تضيف الآن) <span class="text-emerald-600 font-black">+</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  bind:value={newStockQty}
+                  on:input={handleNewStockChange}
+                  placeholder="0"
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-pos-muted mb-1">
+                  Total Quantity (المجموع) <span class="text-sky-600 font-black">=</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  bind:value={currentStock}
+                  on:input={handleTotalStockChange}
+                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+            <p class="text-[9px] text-pos-muted font-bold">
+              Current + New = Total — editing any field recalculates the others / تعديل أي خانة يحدّث الباقي
+            </p>
+          </div>
 
           <!-- Expiry Date & Min Stock -->
           <div class="grid grid-cols-2 gap-3">

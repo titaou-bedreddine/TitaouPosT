@@ -72,6 +72,8 @@ pub fn run() {
             commands::get_all_settings,
             commands::set_setting,
             commands::set_multiple_settings,
+            commands::send_telegram_message,
+            commands::send_telegram_recap,
             commands::get_hwid,
             commands::verify_license,
             commands::factory_reset,

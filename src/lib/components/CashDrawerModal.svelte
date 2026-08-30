@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { activeSession } from '../stores/session';
   import { currentUser } from '../stores/auth';
-  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, X, Check, Wallet } from 'lucide-svelte';
+  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, X, Check, Wallet, Clock } from 'lucide-svelte';
 
   export let isOpen = false;
   export let onClose: () => void;
@@ -14,15 +14,23 @@
   let countedCash = 0;
   let errorMsg = '';
   let isSubmitting = false;
+  let staleWarn = false;
 
   $: if (isOpen) {
     if (!$activeSession) {
       mode = 'startup';
-      amount = 10000;
+      amount = 0;
+    } else if (($activeSession as any).is_stale) {
+      // Session left open from a previous day: prompt to close it first,
+      // then the caller will offer opening today's fresh session.
+      mode = 'close';
+      countedCash = $activeSession.expected_cash || 0;
+      staleWarn = true;
     } else {
       mode = 'in';
       amount = 0;
       countedCash = $activeSession.expected_cash || 0;
+      staleWarn = false;
     }
   }
 
@@ -32,11 +40,15 @@
       isSubmitting = true;
       errorMsg = '';
 
+      // Empty number inputs bind as null; the backend expects an integer.
+      const safeAmount = Math.round(Number(amount) || 0);
+      const safeCounted = Math.round(Number(countedCash) || 0);
+
       if (mode === 'startup') {
         const session = await invoke<any>('open_cash_session', {
           userId: $currentUser.id,
           registerId: 1,
-          openingAmount: amount,
+          openingAmount: safeAmount,
           notes: reason || 'Startup Cash / رصيد افتتاحي',
         });
         $activeSession = session;
@@ -47,7 +59,7 @@
           const session = await invoke<any>('open_cash_session', {
             userId: $currentUser.id,
             registerId: 1,
-            openingAmount: 10000,
+            openingAmount: 0,
             notes: 'Auto-opened Session',
           });
           $activeSession = session;
@@ -57,7 +69,7 @@
           sessionId: $activeSession.id,
           userId: $currentUser.id,
           movementType: mode === 'in' ? 'cash_in' : 'cash_out',
-          amount,
+          amount: safeAmount,
           reason: reason || (mode === 'in' ? 'Cash In / إيداع' : 'Cash Out / سحب'),
         });
 
@@ -68,11 +80,19 @@
         if (!$activeSession) return;
         await invoke('close_cash_session', {
           sessionId: $activeSession.id,
-          actualCash: countedCash,
+          actualCash: safeCounted,
           notes: reason || null,
         });
         $activeSession = null;
-        onClose();
+        if (staleWarn) {
+          // Stale session closed — stay open and offer today's fresh session.
+          staleWarn = false;
+          mode = 'startup';
+          amount = 0;
+          reason = '';
+        } else {
+          onClose();
+        }
       }
     } catch (err: any) {
       errorMsg = typeof err === 'string' ? err : err.message || 'Operation failed';
@@ -97,6 +117,12 @@
       </div>
 
       <div class="p-5 space-y-4">
+        {#if staleWarn && mode === 'close'}
+          <div class="p-3 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-bold rounded-xl flex items-start gap-2">
+            <Clock class="w-4 h-4 shrink-0 mt-0.5" />
+            <span>This session was left open from a previous day. Close it now, then open today's fresh session / هذه الجلسة قديمة — أغلقها ثم افتح جلسة جديدة</span>
+          </div>
+        {/if}
         {#if errorMsg}
           <div class="p-3 bg-rose-100 text-rose-700 text-xs font-bold rounded-xl">{errorMsg}</div>
         {/if}

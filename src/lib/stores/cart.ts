@@ -12,6 +12,11 @@ export const lastAddedProductId = writable<number | null>(null);
 export const heldNotification = writable<string | null>(null);
 export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
 
+// POS transaction mode: sale (default), purchase (stock from supplier),
+// broken (damaged goods written off as expenses).
+export type PosMode = 'sale' | 'purchase' | 'broken';
+export const posMode = writable<PosMode>('sale');
+
 // Quantity-edit mode (F6): the cart line currently being edited, keyed by
 // "productId[_ref]". null = not editing.
 export const qtyEditTarget = writable<string | null>(null);
@@ -134,6 +139,7 @@ export function clearCart() {
   // New sale resets to the walk-in customer, not "no customer".
   selectedCustomerId.set(DEFAULT_WALKIN_CUSTOMER_ID);
   isRefundMode.set(false);
+  posMode.set('sale');
   stopQtyEdit();
 }
 
