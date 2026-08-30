@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Customer } from '../types';
-  import { X, Check, Search, Banknote, Layers, UserPlus } from 'lucide-svelte';
+  import { X, Check, Search, Wallet, UserPlus, Banknote } from 'lucide-svelte';
 
   export let isOpen = false;
   export let totalAmount = 0;
   export let onClose: () => void;
-  export let onConfirmCredit: (customerId: number, customerName: string, paidAmount: number, remaining: number) => void;
+  export let onConfirmVersement: (customerId: number, customerName: string, paidAmount: number, remaining: number) => void;
 
   let customers: Customer[] = [];
   let searchQuery = '';
@@ -41,6 +41,7 @@
     try {
       customers = await invoke<Customer[]>('list_customers');
       if (customers.length > 0 && !selectedCustomerId) {
+        // Default to walk-in customer (id 1) rather than the first created.
         const walkin = customers.find(c => c.id === 1);
         const pick = walkin || customers[0];
         selectedCustomerId = pick.id;
@@ -104,7 +105,7 @@
 
   function handleConfirm() {
     if (!selectedCustomerId || paidInvalid) return;
-    onConfirmCredit(selectedCustomerId, selectedCustomerName, Math.round(numericPaid), remaining);
+    onConfirmVersement(selectedCustomerId, selectedCustomerName, Math.round(numericPaid), remaining);
     onClose();
   }
 </script>
@@ -114,12 +115,12 @@
     <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
       <div class="flex items-center justify-between px-6 py-4 border-b border-pos-border bg-slate-50 dark:bg-slate-800/60">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-amber-600/10 text-amber-600 flex items-center justify-center font-bold">
-            <Layers class="w-5 h-5" />
+          <div class="w-10 h-10 rounded-2xl bg-violet-600/10 text-violet-600 flex items-center justify-center font-bold">
+            <Wallet class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-base text-pos-text">Credit Sale / بيع بالدين (Dette Client)</h3>
-            <p class="text-xs text-amber-600 font-bold">Total Due: {totalAmount.toLocaleString()} DZD</p>
+            <h3 class="font-black text-base text-pos-text">Versement / تسبقة (Layaway Deposit)</h3>
+            <p class="text-xs text-violet-600 font-bold">Total: {totalAmount.toLocaleString()} DZD — goods stay at the shop</p>
           </div>
         </div>
         <button on:click={onClose} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
@@ -165,7 +166,7 @@
                 type="button"
                 on:click={handleQuickAdd}
                 disabled={isSavingCustomer}
-                class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer"
+                class="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer"
               >
                 Save Customer
               </button>
@@ -175,7 +176,7 @@
           <button
             type="button"
             on:click={() => (showQuickAdd = true)}
-            class="w-full py-2 bg-amber-50 dark:bg-amber-950/40 border border-dashed border-amber-400 text-amber-600 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+            class="w-full py-2 bg-violet-50 dark:bg-violet-950/40 border border-dashed border-violet-400 text-violet-600 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/40 transition"
           >
             <UserPlus class="w-3.5 h-3.5" />
             <span>Quick Add Customer / إضافة زبون سريع</span>
@@ -189,7 +190,7 @@
           <button
             type="button"
             on:click={() => selectCustomer(c)}
-            class="w-full p-3 rounded-2xl border text-start transition flex items-center justify-between cursor-pointer {selectedCustomerId === c.id ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-400' : 'bg-pos-card border-pos-border hover:bg-slate-50 dark:hover:bg-slate-800/50'}"
+            class="w-full p-3 rounded-2xl border text-start transition flex items-center justify-between cursor-pointer {selectedCustomerId === c.id ? 'bg-violet-500/10 border-violet-500 ring-2 ring-violet-400' : 'bg-pos-card border-pos-border hover:bg-slate-50 dark:hover:bg-slate-800/50'}"
           >
             <div>
               <p class="text-xs font-black text-pos-text">{c.name}</p>
@@ -203,12 +204,12 @@
         {/each}
       </div>
 
-      <!-- Amount Paid Now -->
+      <!-- Deposit Amount -->
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 space-y-3">
         <div>
           <label class="block text-[10px] font-black text-pos-muted uppercase tracking-wider mb-1 flex items-center gap-1">
             <Banknote class="w-3.5 h-3.5" />
-            Amount Paid Now (DZD) — can be 0
+            Deposit Amount Now (DZD) — can be 0
           </label>
           <input
             bind:this={amountInput}
@@ -218,34 +219,36 @@
             max={totalAmount}
             step="any"
             on:keydown={(e) => e.key === 'Enter' && handleConfirm()}
-            class="w-full px-3 py-2 bg-pos-card border rounded-xl text-xl font-bold font-mono text-pos-text outline-none focus:ring-2 focus:ring-amber-500 {paidInvalid ? 'border-rose-500' : 'border-pos-border'}"
+            class="w-full px-3 py-2 bg-pos-card border rounded-xl text-xl font-bold font-mono text-pos-text outline-none focus:ring-2 focus:ring-violet-500 {paidInvalid ? 'border-rose-500' : 'border-pos-border'}"
           />
           {#if paidInvalid}
-            <p class="text-[10px] font-bold text-rose-600 mt-1">Amount cannot exceed the total ({totalAmount.toLocaleString()} DZD)</p>
+            <p class="text-[10px] font-bold text-rose-600 mt-1">Deposit cannot exceed the total ({totalAmount.toLocaleString()} DZD)</p>
           {/if}
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <div class="p-2.5 bg-emerald-100/60 dark:bg-emerald-950/50 rounded-xl border border-emerald-300/60 dark:border-emerald-800/60 text-center">
+          <div class="p-2.5 bg-violet-100/60 dark:bg-violet-950/50 rounded-xl border border-violet-300/60 dark:border-violet-800/60 text-center">
             <span class="text-[9px] font-black text-pos-muted uppercase block">Paid Now</span>
-            <span class="text-lg font-black font-mono text-emerald-600">{numericPaid.toLocaleString()} DZD</span>
+            <span class="text-lg font-black font-mono text-violet-600">{numericPaid.toLocaleString()} DZD</span>
           </div>
-          <div class="p-2.5 bg-rose-100/60 dark:bg-rose-950/50 rounded-xl border border-rose-300/60 dark:border-rose-800/60 text-center">
-            <span class="text-[9px] font-black text-pos-muted uppercase block">Remaining Debt (Reste)</span>
-            <span class="text-lg font-black font-mono text-rose-600">{remaining.toLocaleString()} DZD</span>
+          <div class="p-2.5 bg-amber-100/60 dark:bg-amber-950/50 rounded-xl border border-amber-300/60 dark:border-amber-800/60 text-center">
+            <span class="text-[9px] font-black text-pos-muted uppercase block">Remaining (Reste)</span>
+            <span class="text-lg font-black font-mono text-amber-600">{remaining.toLocaleString()} DZD</span>
           </div>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-[10px] text-pos-muted font-bold text-start">Prints 2 copies with CREDIT watermark</span>
+          <span class="text-[10px] text-pos-muted font-bold text-start">
+            Goods stay at the shop — customer verse multiple times until total is reached
+          </span>
           <div class="flex items-center gap-2">
             <button on:click={onClose} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Cancel</button>
             <button
               type="button"
               on:click={handleConfirm}
               disabled={!selectedCustomerId || paidInvalid}
-              class="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+              class="px-6 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
             >
               <Check class="w-4 h-4" />
-              <span>Confirm Credit Sale (تأكيد البيع بالدين)</span>
+              <span>Confirm Versement</span>
             </button>
           </div>
         </div>

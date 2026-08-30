@@ -1,16 +1,19 @@
 import { writable, derived, get } from 'svelte/store';
 import type { CartItem, Product, HeldSale } from '../types';
 import { invoke } from '@tauri-apps/api/core';
+import { selectedCustomerId, DEFAULT_WALKIN_CUSTOMER_ID } from './customers';
 
 export const cartItems = writable<CartItem[]>([]);
 export const globalDiscountMode = writable<'none' | 'percent' | 'amount'>('none');
 export const globalDiscountValue = writable<number>(0);
-export const selectedCustomerId = writable<number | null>(null);
 export const isRefundMode = writable<boolean>(false);
 export const heldSalesList = writable<HeldSale[]>([]);
 export const lastAddedProductId = writable<number | null>(null);
 export const heldNotification = writable<string | null>(null);
 export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
+
+// Kept for backward compatibility: the canonical store now lives in ./customers.
+export { selectedCustomerId };
 
 export function addToCart(product: Product, quantity = 1, asRefund = false) {
   lastAddedProductId.set(product.id);
@@ -112,7 +115,8 @@ export function clearCart() {
   cartItems.set([]);
   globalDiscountMode.set('none');
   globalDiscountValue.set(0);
-  selectedCustomerId.set(null);
+  // New sale resets to the walk-in customer, not "no customer".
+  selectedCustomerId.set(DEFAULT_WALKIN_CUSTOMER_ID);
   isRefundMode.set(false);
 }
 

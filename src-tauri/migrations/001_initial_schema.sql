@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
 CREATE TABLE IF NOT EXISTS sale_payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
-    payment_method TEXT CHECK(payment_method IN ('cash', 'tpe', 'credit')) NOT NULL,
+    payment_method TEXT CHECK(payment_method IN ('cash', 'tpe', 'credit', 'versement')) NOT NULL,
     amount INTEGER NOT NULL,
     reference_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP

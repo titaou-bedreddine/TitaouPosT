@@ -31,6 +31,15 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
     let sale_id = tx.last_insert_rowid();
 
+    let is_versement = input
+        .payment_method
+        .as_deref()
+        .map(|m| m == "versement")
+        .unwrap_or(false);
+    // Versement/layaway: goods physically stay at the shop, stock is only
+    // decremented when the sale is fully paid and released.
+    let skip_stock = input.skip_stock || is_versement;
+
     // Process each cart item & update stock
     for item in &input.items {
         tx.execute(
@@ -43,6 +52,10 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
             ],
         )
         .map_err(|e| e.to_string())?;
+
+        if skip_stock {
+            continue;
+        }
 
         let movement_type = if item.is_refund { "sale_refund" } else { "sale" };
         let stock_change = if item.is_refund { item.quantity } else { -item.quantity };
@@ -63,7 +76,6 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
     // Process payment breakdown
     let mut total_cash_paid: i64 = 0;
-    let mut total_credit_amount: i64 = 0;
 
     let payments_list: Vec<crate::models::SalePaymentInput> = if input.payments.is_empty() {
         let method = input.payment_method.clone().unwrap_or_else(|| "cash".to_string());
@@ -86,8 +98,6 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
 
         if payment.payment_method == "cash" {
             total_cash_paid += payment.amount;
-        } else if payment.payment_method == "credit" {
-            total_credit_amount += payment.amount;
         }
     }
 
@@ -110,11 +120,15 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
         .map_err(|e| e.to_string())?;
     }
 
-    if total_credit_amount > 0 {
+    // Credit & versement both track the unpaid remainder on the customer's
+    // account. Credit: goods leave now, total owed minus paid now. Versement:
+    // goods stay at the shop, same remainder math.
+    let owed_remainder = (input.total_amount - input.paid_amount.clamp(0, input.total_amount)).max(0);
+    if owed_remainder > 0 {
         if let Some(cust_id) = input.customer_id {
             tx.execute(
                 "UPDATE customers SET balance = balance + ?1 WHERE id = ?2",
-                rusqlite::params![total_credit_amount, cust_id],
+                rusqlite::params![owed_remainder, cust_id],
             )
             .map_err(|e| e.to_string())?;
         }

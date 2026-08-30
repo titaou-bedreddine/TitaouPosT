@@ -112,6 +112,40 @@ impl DbState {
             [],
         );
 
+        // Seed default Walk-in Supplier if not present
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO suppliers (id, name, contact_person, phone, qr_code, balance, is_active)
+             VALUES (1, 'Fournisseur Divers / مورد متنوع', 'Comptoir', '0550000000', 'SUP-001', 0, 1);",
+            [],
+        );
+
+        // sale_payments CHECK must accept 'versement' (layaway deposits).
+        // SQLite cannot ALTER a CHECK constraint, so rebuild the table once
+        // when it still carries the old constraint.
+        let old_constraint = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='sale_payments'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap_or_default();
+        if old_constraint.contains("'credit')") && !old_constraint.contains("'versement'") {
+            let _ = conn.execute_batch(
+                "CREATE TABLE sale_payments_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+                    payment_method TEXT CHECK(payment_method IN ('cash', 'tpe', 'credit', 'versement')) NOT NULL,
+                    amount INTEGER NOT NULL,
+                    reference_code TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO sale_payments_new (id, sale_id, payment_method, amount, reference_code, created_at)
+                    SELECT id, sale_id, payment_method, amount, reference_code, created_at FROM sale_payments;
+                DROP TABLE sale_payments;
+                ALTER TABLE sale_payments_new RENAME TO sale_payments;",
+            );
+        }
+
         // Performance Indexes
         let _ = conn.execute_batch("
             CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);

@@ -10,7 +10,7 @@
   import {
     PlusCircle, Trash2, Undo2, Percent, CreditCard,
     PauseCircle, Printer, DollarSign, Languages, Check,
-    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert
+    ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet
   } from 'lucide-svelte';
 
   export let onOpenPayment: () => void;
@@ -22,7 +22,7 @@
   export let onReturnDamaged: () => void;
   export let onOpenOtherArticle: () => void = () => {};
 
-  export let selectedPaymentMode: 'cash' | 'tpe' | 'credit' = 'cash';
+  export let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   export let autoPrintEnabled: boolean = true;
   export let autoDrawerEnabled: boolean = true;
 
@@ -45,6 +45,7 @@
   function cyclePaymentMode() {
     if (selectedPaymentMode === 'cash') selectedPaymentMode = 'tpe';
     else if (selectedPaymentMode === 'tpe') selectedPaymentMode = 'credit';
+    else if (selectedPaymentMode === 'credit') selectedPaymentMode = 'versement';
     else selectedPaymentMode = 'cash';
   }
 
@@ -165,8 +166,8 @@
       <button
         type="button"
         on:click={cyclePaymentMode}
-        class="flex flex-col items-center justify-center w-24 h-14 rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {selectedPaymentMode === 'cash' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : selectedPaymentMode === 'tpe' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : 'bg-amber-600 text-white ring-2 ring-amber-400'}"
-        title="Click to Toggle: Cash -> TPE -> Credit"
+        class="flex flex-col items-center justify-center w-24 h-14 rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {selectedPaymentMode === 'cash' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : selectedPaymentMode === 'tpe' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : selectedPaymentMode === 'versement' ? 'bg-violet-600 text-white ring-2 ring-violet-400' : 'bg-amber-600 text-white ring-2 ring-amber-400'}"
+        title="Click to Toggle: Cash -> TPE -> Credit -> Versement"
       >
         {#if selectedPaymentMode === 'cash'}
           <Banknote class="w-4 h-4 mb-0.5" />
@@ -174,6 +175,9 @@
         {:else if selectedPaymentMode === 'tpe'}
           <CreditCard class="w-4 h-4 mb-0.5" />
           <span class="text-[10px] font-black leading-tight">TPE (بطاقة)</span>
+        {:else if selectedPaymentMode === 'versement'}
+          <Wallet class="w-4 h-4 mb-0.5" />
+          <span class="text-[10px] font-black leading-tight">Versement (تسبقة)</span>
         {:else}
           <Layers class="w-4 h-4 mb-0.5" />
           <span class="text-[10px] font-black leading-tight">Credit (دين)</span>

@@ -221,6 +221,10 @@ pub struct CreateSaleInput {
     pub is_refund: Option<bool>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// Versement (layaway) sales: goods stay at the shop until fully paid,
+    /// so stock is NOT decremented at sale time.
+    #[serde(default)]
+    pub skip_stock: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

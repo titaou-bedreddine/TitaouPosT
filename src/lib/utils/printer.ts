@@ -126,6 +126,10 @@ export function buildReceiptHtml(options: {
   paymentMethod: string;
   isCredit?: boolean;
   copyLabel?: string;
+  // Versement (layaway): deposit paid now and what the customer still owes
+  // before the goods leave the shop.
+  versementPaid?: number;
+  versementRemaining?: number;
   headerFontSize?: number;
   headerBold?: boolean;
   bodyFontSize?: number;
@@ -217,6 +221,19 @@ export function buildReceiptHtml(options: {
         <span>TOTAL A PAYER:</span>
         <span class="font-mono">${options.grandTotal.toLocaleString()} DZD</span>
       </div>
+      ${options.versementPaid !== undefined ? `
+        <div class="flex justify-between" style="font-size: ${Math.max(9, bodySize - 1)}px;">
+          <span>Verse (تسبقة):</span>
+          <span class="font-mono">${options.versementPaid.toLocaleString()} DZD</span>
+        </div>
+        <div class="flex justify-between" style="font-size: ${totalSize - 2}px; font-weight: 900;">
+          <span>RESTE A VERSER:</span>
+          <span class="font-mono">${(options.versementRemaining ?? Math.max(0, options.grandTotal - options.versementPaid)).toLocaleString()} DZD</span>
+        </div>
+        <div class="text-center" style="font-size: ${Math.max(8, bodySize - 2)}px; font-weight: bold; border: 1px dashed #000; padding: 3px; margin-top: 4px;">
+          BIENS CONSERVES AU MAGASIN / البضاعة تبقى في المحل
+        </div>
+      ` : ''}
     </div>
 
     <div style="text-align: ${footerAlign};" class="pt-2 border-t-dashed">

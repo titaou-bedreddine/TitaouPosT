@@ -23,12 +23,15 @@
   import QuickPurchaseModal from '../../lib/components/QuickPurchaseModal.svelte';
   import ReturnDamagedModal from '../../lib/components/ReturnDamagedModal.svelte';
   import CreditCustomerModal from '../../lib/components/CreditCustomerModal.svelte';
+  import VersementCustomerModal from '../../lib/components/VersementCustomerModal.svelte';
   import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
   import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
 
+  import { customers, selectedCustomerId, selectedCustomer, refreshCustomers, DEFAULT_WALKIN_CUSTOMER_ID } from '../../lib/stores/customers';
+
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
-    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent
+    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent, UserRound, ChevronDown
   } from 'lucide-svelte';
 
   let products: Product[] = [];
@@ -41,7 +44,7 @@
   let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
   let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' = 'name_asc';
 
-  let selectedPaymentMode: 'cash' | 'card' | 'credit' = 'cash';
+  let selectedPaymentMode: 'cash' | 'card' | 'credit' | 'versement' = 'cash';
   let autoPrintEnabled = true;
   let autoDrawerEnabled = true;
   let isFastCheckingOut = false;
@@ -57,6 +60,8 @@
   let isQuickPurchaseOpen = false;
   let isReturnDamagedOpen = false;
   let isCreditCustomerOpen = false;
+  let isVersementOpen = false;
+  let isCustomerSelectorOpen = false;
   let isOtherArticleOpen = false;
 
   let isUnknownBarcodeModalOpen = false;
@@ -94,6 +99,7 @@
     await loadUnits();
     await loadSuppliers();
     await loadProducts();
+    await refreshCustomers();
 
     window.addEventListener('keydown', handleGlobalKeyDown);
   });
@@ -260,11 +266,20 @@
       return;
     }
 
+    if (selectedPaymentMode === 'versement') {
+      isVersementOpen = true;
+      return;
+    }
+
     // Cash or TPE Checkout directly
     await executeCheckout(null, undefined);
   }
 
-  async function executeCheckout(customerId: number | null, customerName?: string) {
+  async function executeCheckout(
+    customerId: number | null,
+    customerName?: string,
+    versement?: { paidAmount: number; remaining: number }
+  ) {
     try {
       const saleNumber = 'VTE-' + Date.now().toString().slice(-6);
       const saleDate = new Date().toLocaleString();
@@ -276,18 +291,25 @@
         user_id: $currentUser?.id || 1,
         subtotal: $cartSubtotal,
         total_amount: $cartGrandTotal,
-        paid_amount: $cartGrandTotal,
+        paid_amount: versement ? versement.paidAmount : $cartGrandTotal,
         change_amount: 0,
         tax_amount: 0,
         discount_amount: $globalDiscountAmount,
         discount_percentage: $globalDiscountPercent,
         payment_method: selectedPaymentMode,
         is_refund: $isRefundMode,
-        notes: customerName ? `Credit Sale to ${customerName}` : undefined,
+        notes: versement
+          ? `Versement Sale to ${customerName} — Paid ${versement.paidAmount} DZD, Reste ${versement.remaining} DZD (goods at shop)`
+          : customerName
+            ? `Credit Sale to ${customerName}`
+            : undefined,
+        skip_stock: !!versement,
         payments: [
           {
-            payment_method: selectedPaymentMode,
-            amount: $cartGrandTotal,
+            // Record only what was actually handed over now; the remainder is
+            // tracked on the customer's account for credit AND versement.
+            payment_method: versement ? 'versement' : selectedPaymentMode,
+            amount: versement ? versement.paidAmount : $cartGrandTotal,
             reference_code: null,
           }
         ],
@@ -374,6 +396,28 @@
           });
 
           printHtmlDirectly(copy1 + '<div style="page-break-after:always;"></div>' + copy2, 'Credit Receipts');
+        } else if (selectedPaymentMode === 'versement' && versement) {
+          // Layaway ticket: deposit paid now, remainder tracked on the customer.
+          const receipt = buildReceiptHtml({
+            shopName,
+            shopAddress,
+            shopPhone,
+            shopRc,
+            shopNif,
+            saleNumber,
+            saleDate,
+            cashierName: cashier,
+            customerName: customerName || 'Client Versement',
+            items: receiptItems,
+            subtotal: $cartSubtotal,
+            discount: $globalDiscountAmount,
+            grandTotal: $cartGrandTotal,
+            paymentMethod: 'VERSEMENT (تسبقة)',
+            versementPaid: versement.paidAmount,
+            versementRemaining: versement.remaining,
+            copyLabel: 'VERSEMENT / تسبقة',
+          });
+          printHtmlDirectly(receipt, 'Versement Receipt #' + saleNumber);
         } else {
           const receipt = buildReceiptHtml({
             shopName,
@@ -638,22 +682,67 @@
       {/if}
 
       <!-- Cart Header -->
-      <div class="p-3 border-b border-pos-border bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <ShoppingBag class="w-4 h-4 text-sky-600" />
-          <span class="font-extrabold text-xs text-pos-text">Shopping Cart</span>
-          <span class="text-[11px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.2 rounded-full font-mono">
-            {$cartItems.length} items
-          </span>
+      <div class="p-3 border-b border-pos-border bg-slate-50 dark:bg-slate-800/40 space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <ShoppingBag class="w-4 h-4 text-sky-600" />
+            <span class="font-extrabold text-xs text-pos-text">Shopping Cart</span>
+            <span class="text-[11px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.2 rounded-full font-mono">
+              {$cartItems.length} items
+            </span>
+          </div>
+          {#if $cartItems.length > 0}
+            <button
+              on:click={clearCart}
+              class="text-[11px] text-rose-500 hover:text-rose-700 font-bold cursor-pointer"
+            >
+              {t('btn_delete_cart')}
+            </button>
+          {/if}
         </div>
-        {#if $cartItems.length > 0}
+
+        <!-- Customer Selector (defaults to Walk-in / Client Comptoir) -->
+        <div class="relative" class:z-30={isCustomerSelectorOpen}>
           <button
-            on:click={clearCart}
-            class="text-[11px] text-rose-500 hover:text-rose-700 font-bold cursor-pointer"
+            type="button"
+            on:click={() => (isCustomerSelectorOpen = !isCustomerSelectorOpen)}
+            class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold cursor-pointer hover:border-sky-400 transition {isCustomerSelectorOpen ? 'ring-2 ring-sky-400 border-sky-400' : ''}"
+            title="Select customer for this sale"
           >
-            {t('btn_delete_cart')}
+            <span class="flex items-center gap-2 min-w-0">
+              <UserRound class="w-3.5 h-3.5 {$selectedCustomer?.id === DEFAULT_WALKIN_CUSTOMER_ID ? 'text-pos-muted' : 'text-sky-600'} shrink-0" />
+              <span class="truncate text-pos-text">{$selectedCustomer?.name || 'Client Comptoir / زبون عادي'}</span>
+              {#if $selectedCustomer && $selectedCustomer.balance > 0}
+                <span class="text-[9px] font-mono font-black text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded-full shrink-0">
+                  {$selectedCustomer.balance.toLocaleString()} DZD dette
+                </span>
+              {/if}
+            </span>
+            <ChevronDown class="w-3.5 h-3.5 text-pos-muted shrink-0 transition-transform {isCustomerSelectorOpen ? 'rotate-180' : ''}" />
           </button>
-        {/if}
+
+          {#if isCustomerSelectorOpen}
+            <div class="absolute left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-xl shadow-2xl overflow-hidden z-40 animate-in fade-in duration-100">
+              <div class="max-h-56 overflow-y-auto p-1.5 space-y-1">
+                {#each $customers as c}
+                  <button
+                    type="button"
+                    on:click={() => { $selectedCustomerId = c.id; isCustomerSelectorOpen = false; }}
+                    class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-start transition cursor-pointer {$selectedCustomerId === c.id ? 'bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-pos-text'}"
+                  >
+                    <span class="min-w-0">
+                      <span class="text-[11px] font-black block truncate">{c.name}</span>
+                      <span class="text-[9px] text-pos-muted block truncate">{c.phone || 'No phone'}</span>
+                    </span>
+                    {#if c.balance > 0}
+                      <span class="text-[9px] font-mono font-black text-rose-600 shrink-0">{c.balance.toLocaleString()}</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
       </div>
 
       <!-- Cart Item Cards List -->
@@ -791,7 +880,19 @@
     isOpen={isCreditCustomerOpen}
     totalAmount={$cartGrandTotal}
     onClose={() => (isCreditCustomerOpen = false)}
-    onConfirmCredit={(cId, cName) => executeCheckout(cId, cName)}
+    onConfirmCredit={(cId, cName, paid, remaining) => executeCheckout(cId, cName, { paidAmount: paid, remaining: Math.max(0, remaining) })}
+  />
+
+  <VersementCustomerModal
+    isOpen={isVersementOpen}
+    totalAmount={$cartGrandTotal}
+    onClose={() => (isVersementOpen = false)}
+    onConfirmVersement={(cId, cName, paid, remaining) => {
+      // Versement reserves the cart for the customer: their selection follows
+      // the sale so the remainder is tracked on their account.
+      $selectedCustomerId = cId;
+      executeCheckout(cId, cName, { paidAmount: paid, remaining: Math.max(0, remaining) });
+    }}
   />
 
   <OtherArticleModal
