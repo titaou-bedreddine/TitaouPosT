@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import type { CashMovement, CashSession } from '../../lib/types';
+  import type { CashMovement, CashSession, Customer } from '../../lib/types';
   import { activeSession } from '../../lib/stores/session';
   import { currentUser } from '../../lib/stores/auth';
-  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Search, Wallet, TrendingUp, ArrowDownRight } from 'lucide-svelte';
+  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
 
   let currentTab: 'current' | 'history' = 'current';
   let movements: CashMovement[] = [];
@@ -26,8 +26,44 @@
   let fromDate = '';
   let toDate = '';
 
+  // Debt & versement KPIs for the register page
+  let totalUnpaidDebt = 0;
+  let totalPaidDebt = 0;
+  let totalVersement = 0;
+
+  async function loadDebtKpis() {
+    try {
+      const customers = await invoke<Customer[]>('list_customers');
+      // Unpaid debt = sum of what customers still owe.
+      totalUnpaidDebt = customers.reduce((s, c) => s + Math.max(0, c.balance || 0), 0);
+      // Paid debt: debt repayments recorded in the active session.
+      totalPaidDebt = $activeSession
+        ? movements
+            .filter((m: any) => m.type === 'customer_debt_payment')
+            .reduce((s: number, m: any) => s + Math.abs(m.amount || 0), 0)
+        : 0;
+      // Versement: remaining unpaid layaway balances today.
+      try {
+        const sales = await invoke<any[]>('list_sales', {
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date().toISOString().split('T')[0],
+          userId: null,
+          limit: 500,
+        });
+        totalVersement = sales
+          .filter((s: any) => s.payment_method === 'versement')
+          .reduce((sum: number, s: any) => sum + Math.max(0, (s.total_amount || 0) - (s.paid_amount || 0)), 0);
+      } catch {
+        totalVersement = 0;
+      }
+    } catch (e) {
+      console.warn('Debt KPIs unavailable:', e);
+    }
+  }
+
   onMount(async () => {
     await loadData();
+    await loadDebtKpis();
   });
 
   async function loadData() {
@@ -208,6 +244,39 @@
           </span>
           <div class="text-2xl font-black font-mono">
             {$activeSession.expected_cash.toLocaleString()} DZD
+          </div>
+        </div>
+      </div>
+
+      <!-- Debt & Versement Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-pos-card border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4 shadow-xs">
+          <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
+            <Layers class="w-4 h-4 text-rose-500" />
+            <span>Unpaid Customer Debt (دين غير مسدد)</span>
+          </span>
+          <div class="text-2xl font-black font-mono text-rose-600">
+            {totalUnpaidDebt.toLocaleString()} DZD
+          </div>
+        </div>
+
+        <div class="bg-pos-card border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4 shadow-xs">
+          <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
+            <CheckCircle class="w-4 h-4 text-emerald-500" />
+            <span>Debt Paid This Session (تسديدات)</span>
+          </span>
+          <div class="text-2xl font-black font-mono text-emerald-600">
+            {totalPaidDebt.toLocaleString()} DZD
+          </div>
+        </div>
+
+        <div class="bg-pos-card border border-violet-200 dark:border-violet-800/60 rounded-2xl p-4 shadow-xs">
+          <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
+            <WalletIcon class="w-4 h-4 text-violet-500" />
+            <span>Versement Remaining (تسبقة متبقية)</span>
+          </span>
+          <div class="text-2xl font-black font-mono text-violet-600">
+            {totalVersement.toLocaleString()} DZD
           </div>
         </div>
       </div>

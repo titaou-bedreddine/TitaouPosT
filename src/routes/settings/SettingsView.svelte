@@ -67,6 +67,7 @@
     app_license_status: 'activated',
     allow_negative_stock: 'false',
     pos_autofocus_search: 'true',
+    pos_autofocus_timer_seconds: '10',
     pos_auto_capture_barcode: 'true',
     require_pin_for_discount: 'false',
     default_customer_name: 'Client Comptoir / زبون عادي',
@@ -173,6 +174,29 @@
   let updateStatus = 'You are running the latest version: v0.2.0';
   let updateAvailable = false;
   let showRollbackModal = false;
+  // Rollback requires typing ROLLBACK and auto-cancels after 10s idle.
+  let rollbackConfirmText = '';
+  let rollbackCountdown = 10;
+  let rollbackTimer: any = null;
+
+  function openRollbackModal() {
+    rollbackConfirmText = '';
+    rollbackCountdown = 10;
+    showRollbackModal = true;
+    clearInterval(rollbackTimer);
+    rollbackTimer = setInterval(() => {
+      rollbackCountdown -= 1;
+      if (rollbackCountdown <= 0) {
+        cancelRollback();
+      }
+    }, 1000);
+  }
+
+  function cancelRollback() {
+    clearInterval(rollbackTimer);
+    rollbackConfirmText = '';
+    showRollbackModal = false;
+  }
 
   // Account
   let newPassword = '';
@@ -219,6 +243,28 @@
   // Factory Reset
   let resetType = 'transactions_only';
   let resetConfirm = '';
+
+  // Clear-history-only (keeps products/stock/prices/debts)
+  let clearHistoryConfirmText = '';
+  let isClearingHistory = false;
+  let clearHistoryMsg = '';
+
+  async function handleClearHistory() {
+    if (clearHistoryConfirmText.trim() !== 'CLEAR HISTORY') return;
+    try {
+      isClearingHistory = true;
+      clearHistoryMsg = '';
+      const res = await invoke<string>('clear_transaction_history', {
+        confirmText: clearHistoryConfirmText.trim(),
+      });
+      clearHistoryMsg = '✅ ' + res;
+      clearHistoryConfirmText = '';
+    } catch (e: any) {
+      clearHistoryMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || 'Failed');
+    } finally {
+      isClearingHistory = false;
+    }
+  }
 
   // User Management State
   interface UserAccountItem {
@@ -561,6 +607,8 @@
   }
 
   async function handleRollback() {
+    if (rollbackConfirmText.trim() !== 'ROLLBACK') return;
+    clearInterval(rollbackTimer);
     showRollbackModal = false;
     triggerSaveNotification('Rollback triggered');
   }
@@ -2013,6 +2061,12 @@
               <input type="checkbox" bind:checked={settings.pos_autofocus_search} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
+            <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">Auto-focus idle timer (seconds)</label>
+              <input type="number" min="0" max="120" bind:value={settings.pos_autofocus_timer_seconds} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold font-mono text-pos-text outline-none" />
+              <p class="text-[9px] text-pos-muted font-normal mt-1">Cursor jumps back to the search bar after this many idle seconds (0 = disabled)</p>
+            </div>
+
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
                 <span>Global Barcode Auto-Capture</span>
@@ -2400,7 +2454,7 @@
             {/if}
 
             <button
-              on:click={() => (showRollbackModal = true)}
+              on:click={openRollbackModal}
               class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
             >
               <History class="w-4 h-4 text-amber-500" />
@@ -2590,6 +2644,38 @@
             <span>Factory Reset & Data Purge / تهيئة المصنع ومسح البيانات</span>
           </h2>
           <p class="text-xs text-pos-muted">Select an operation below. These actions cannot be undone. Please backup database before proceeding.</p>
+        </div>
+
+        <!-- Clear History Only (non-destructive to products) -->
+        <div class="p-5 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-2xl space-y-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-black text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                <History class="w-4 h-4" />
+                <span>Clear Sales & Purchases History / مسح سجل المعاملات فقط</span>
+              </h3>
+              <p class="text-[11px] text-pos-muted mt-1">
+                Erases sales, purchases, cash sessions and movements — but keeps products, prices, quantities, customers, suppliers and debts intact.
+              </p>
+            </div>
+          </div>
+          <input
+            type="text"
+            bind:value={clearHistoryConfirmText}
+            placeholder="Type CLEAR HISTORY to confirm"
+            class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+          />
+          <button
+            type="button"
+            on:click={handleClearHistory}
+            disabled={isClearingHistory || clearHistoryConfirmText.trim() !== 'CLEAR HISTORY'}
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer"
+          >
+            {isClearingHistory ? 'Clearing…' : 'Clear History Only'}
+          </button>
+          {#if clearHistoryMsg}
+            <p class="text-[11px] font-bold text-amber-700 dark:text-amber-300">{clearHistoryMsg}</p>
+          {/if}
         </div>
 
         <div class="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl space-y-4">
@@ -2810,10 +2896,23 @@
           <History class="w-5 h-5 text-amber-500" />
           <span>Confirm Version Rollback</span>
         </h3>
-        <p class="text-xs text-pos-muted">Are you sure you want to rollback to version v1.2.3? Existing database structure will be safely preserved.</p>
+        <p class="text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl p-2.5">
+          ⚠️ Rolling back can lose data created in newer versions. Type <span class="font-mono font-black">ROLLBACK</span> below to confirm.
+        </p>
+        <input
+          type="text"
+          bind:value={rollbackConfirmText}
+          placeholder="Type ROLLBACK to confirm"
+          class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+        />
+        <p class="text-[10px] text-pos-muted font-bold">Auto-cancels in {rollbackCountdown}s — nothing happens if you do nothing.</p>
         <div class="flex justify-end gap-2 pt-2">
-          <button on:click={() => (showRollbackModal = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl">Cancel</button>
-          <button on:click={handleRollback} class="px-4 py-2 bg-amber-600 text-white text-xs font-black rounded-xl">Confirm Rollback</button>
+          <button on:click={cancelRollback} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+          <button
+            on:click={handleRollback}
+            disabled={rollbackConfirmText.trim() !== 'ROLLBACK'}
+            class="px-4 py-2 bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer"
+          >Confirm Rollback</button>
         </div>
       </div>
     </div>

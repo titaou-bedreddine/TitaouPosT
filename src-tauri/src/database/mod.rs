@@ -112,6 +112,15 @@ impl DbState {
             [],
         );
 
+        // Heal legacy DBs where row id=1 was a real customer created before
+        // the walk-in seed existed: normalize the name back to the default
+        // walk-in label so it never shows as a random person's name.
+        let _ = conn.execute_batch("
+            UPDATE customers SET name = 'Client Comptoir / زبون عادي',
+                                 phone = '0550000000', code = 'CUST-001', qr_code = 'CUST-001'
+             WHERE id = 1 AND name NOT LIKE '%Client Comptoir%' AND name NOT LIKE '%زبون عادي%';
+        ");
+
         // Seed default Walk-in Supplier if not present
         let _ = conn.execute(
             "INSERT OR IGNORE INTO suppliers (id, name, contact_person, phone, qr_code, balance, is_active)

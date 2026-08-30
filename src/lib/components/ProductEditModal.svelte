@@ -161,6 +161,36 @@
   let printLabelInitialQty = 1;
   let printProductObj: Product | null = null;
 
+  // Price history (persisted by the backend on every price change)
+  interface PriceHistoryEntry {
+    id: number;
+    old_purchase_price: number;
+    new_purchase_price: number;
+    old_sale_price: number;
+    new_sale_price: number;
+    user_id?: number | null;
+    created_at: string;
+  }
+  let priceHistory: PriceHistoryEntry[] = [];
+
+  async function loadPriceHistory() {
+    if (!product || !product.id) {
+      priceHistory = [];
+      return;
+    }
+    try {
+      priceHistory = await invoke<PriceHistoryEntry[]>('get_price_history', { productId: product.id });
+    } catch (e) {
+      console.warn('Could not load price history:', e);
+      priceHistory = [];
+    }
+  }
+
+  // Load history whenever its tab is opened for an existing product.
+  $: if (isOpen && activeTab === 'history' && product?.id) {
+    loadPriceHistory();
+  }
+
   function generateRandomSku() {
     sku = 'PRD-' + Math.floor(1000 + Math.random() * 9000);
   }
@@ -1024,8 +1054,50 @@
             {/if}
           </div>
         {:else if activeTab === 'history'}
-          <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border text-xs text-pos-muted text-center">
-            Price modifications are automatically logged in SQLite `product_price_history`.
+          <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="font-black text-sm text-pos-text">Price History / سجل تغيير الأسعار</h4>
+              <button
+                type="button"
+                on:click={loadPriceHistory}
+                class="text-[10px] font-black text-sky-600 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw class="w-3 h-3" />
+                <span>Refresh</span>
+              </button>
+            </div>
+            {#if !product || product.id === 0}
+              <p class="text-xs text-pos-muted text-center py-4">Save the product first — its price changes will be logged here.</p>
+            {:else if priceHistory.length === 0}
+              <p class="text-xs text-pos-muted text-center py-4">No price changes recorded yet / لا توجد تغييرات بعد</p>
+            {:else}
+              <div class="overflow-x-auto">
+                <table class="w-full text-[10px]">
+                  <thead>
+                    <tr class="text-pos-muted border-b border-pos-border">
+                      <th class="text-start py-1.5 font-black uppercase">Date</th>
+                      <th class="text-start py-1.5 font-black uppercase">Purchase</th>
+                      <th class="text-start py-1.5 font-black uppercase">Sale</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each priceHistory as h (h.id)}
+                      <tr class="border-b border-pos-border/50">
+                        <td class="py-1.5 font-mono text-pos-muted">{h.created_at}</td>
+                        <td class="py-1.5 font-mono">
+                          {h.old_purchase_price.toLocaleString()} →
+                          <span class="font-black text-emerald-600">{h.new_purchase_price.toLocaleString()}</span>
+                        </td>
+                        <td class="py-1.5 font-mono">
+                          {h.old_sale_price.toLocaleString()} →
+                          <span class="font-black text-sky-600">{h.new_sale_price.toLocaleString()}</span>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>

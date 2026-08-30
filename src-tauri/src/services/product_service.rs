@@ -86,6 +86,7 @@ pub fn search_products(
                 is_bundle: row.get(24)?,
                 is_active: row.get(25)?,
                 barcodes: Vec::new(),
+                total_sold: None,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -102,6 +103,17 @@ pub fn search_products(
                 .filter_map(|r| r.ok())
                 .collect();
             p.barcodes = barcodes;
+
+            // Lifetime net units sold (sales minus refunds) for sorting.
+            p.total_sold = conn
+                .query_row(
+                    "SELECT COALESCE(SUM(CASE WHEN si.is_refunded = 1 THEN -si.quantity ELSE si.quantity END), 0)
+                     FROM sale_items si WHERE si.product_id = ?1",
+                    [p.id],
+                    |r| r.get(0),
+                )
+                .ok();
+
             products.push(p);
         }
     }
@@ -132,14 +144,17 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         .collect();
 
     for b in &clean_barcodes {
-        let owner: Option<i64> = conn
-            .query_row(
-                "SELECT product_id FROM product_barcodes WHERE barcode = ?1
-                 UNION SELECT id FROM products WHERE sku = ?1",
-                [b],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
+        // "No rows" simply means no other product owns this barcode.
+        let owner: Option<i64> = match conn.query_row(
+            "SELECT product_id FROM product_barcodes WHERE barcode = ?1
+             UNION SELECT id FROM products WHERE sku = ?1",
+            [b],
+            |r| r.get(0),
+        ) {
+            Ok(id) => Some(id),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => return Err(e.to_string()),
+        };
         if let Some(owner_id) = owner {
             if Some(owner_id) != product_id {
                 return Err(format!(
@@ -158,13 +173,15 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         if name.is_empty() {
             continue;
         }
-        let owner: Option<i64> = conn
-            .query_row(
-                &format!("SELECT id FROM products WHERE {} = ?1 AND id != ?2", field),
-                rusqlite::params![name, product_id.unwrap_or(-1)],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
+        let owner: Option<i64> = match conn.query_row(
+            &format!("SELECT id FROM products WHERE {} = ?1 AND id != ?2", field),
+            rusqlite::params![name, product_id.unwrap_or(-1)],
+            |r| r.get(0),
+        ) {
+            Ok(id) => Some(id),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => return Err(e.to_string()),
+        };
         if owner.is_some() {
             return Err(format!(
                 "Product name \"{}\" already exists / اسم المنتج \"{}\" موجود مسبقاً",

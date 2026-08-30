@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Customer } from '../../lib/types';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { refreshCustomers } from '../../lib/stores/customers';
   import CustomerDebtModal from '../../lib/components/CustomerDebtModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
   import {
@@ -429,5 +430,5 @@
   isOpen={isDebtModalOpen}
   customer={selectedCustomer}
   onClose={() => (isDebtModalOpen = false)}
-  onPaymentSuccess={loadCustomers}
+  onPaymentRecorded={() => { loadCustomers(); refreshCustomers(); }}
 />

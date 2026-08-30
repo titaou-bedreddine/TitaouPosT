@@ -9,7 +9,7 @@
   export let isOpen = false;
   export let customer: Customer | null = null;
   export let onClose: () => void;
-  export let onPaymentRecorded: () => void;
+  export let onPaymentRecorded: () => void = () => {};
 
   let paymentAmount = 0;
   let paymentDate = new Date().toISOString().split('T')[0];

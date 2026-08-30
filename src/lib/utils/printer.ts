@@ -1,3 +1,43 @@
+// Try silent OS printing first (headless Edge → PDF → default printer).
+// If the backend command isn't available (older binary / dev mode), fall
+// back to the classic hidden-iframe print.
+let silentPrintAvailable: boolean | null = null;
+
+export async function printHtmlSilently(htmlContent: string, title = 'Thermal Receipt'): Promise<void> {
+  if (silentPrintAvailable !== false) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      // The backend needs the full document (styles included); the caller
+      // passes raw content, so reuse the same wrapper as the iframe path.
+      await invoke('print_html_direct', {
+        html: wrapFullDocument(htmlContent),
+        title,
+      });
+      silentPrintAvailable = true;
+      return;
+    } catch (e) {
+      silentPrintAvailable = false;
+      console.warn('Silent print unavailable, falling back to iframe print:', e);
+    }
+  }
+  printHtmlDirectly(htmlContent, title);
+}
+
+function wrapFullDocument(htmlContent: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><style>
+    @page { size: 80mm auto; margin: 0mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; color: #000; }
+    body { width: 76mm; margin: 2mm auto; font-size: 11px; line-height: 1.3; background: #fff; padding: 2mm; }
+    .text-center { text-align: center; } .text-end { text-align: right; } .text-start { text-align: left; }
+    .font-bold { font-weight: bold; } .font-black { font-weight: 900; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+    th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; padding: 2px 0; }
+    td { padding: 2px 0; font-size: 10px; }
+    .border-b-dashed { border-bottom: 1px dashed #000; } .border-t-dashed { border-top: 1px dashed #000; }
+    .flex { display: flex; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
+  </style></head><body>${htmlContent}</body></html>`;
+}
+
 export function printHtmlDirectly(
   htmlContent: string,
   title = 'Thermal Receipt',

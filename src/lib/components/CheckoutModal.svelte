@@ -68,7 +68,8 @@
   });
 
   $: if (isOpen) {
-    paidAmount = null;
+    // Default the tendered amount to the exact total: the common case.
+    paidAmount = totalAmount;
     goodsStayAtShop = false;
     showQuickAdd = false;
     quickAddError = '';

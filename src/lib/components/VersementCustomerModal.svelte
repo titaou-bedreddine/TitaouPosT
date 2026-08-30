@@ -57,7 +57,8 @@
   });
 
   $: if (isOpen) {
-    paidAmount = null;
+    // Deposits are usually partial; start at 0 for the cashier to type.
+    paidAmount = 0;
     showQuickAdd = false;
     quickAddError = '';
     loadCustomers();

@@ -6,10 +6,46 @@
   import type { User } from '../types';
 
   import { normalizeBarcode } from '../utils/barcode';
+  import { onMount, onDestroy } from 'svelte';
 
   export let query = '';
   export let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
   export let onSearch: () => void;
+  // POS rule: when > 0, the search bar auto-refocuses after N idle seconds.
+  export let autofocusSeconds = 0;
+
+  let searchInput: HTMLInputElement;
+  let idleTimer: any = null;
+
+  export function focusSearch() {
+    searchInput?.focus();
+    searchInput?.select();
+  }
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    if (autofocusSeconds > 0) {
+      idleTimer = setTimeout(() => {
+        // Only steal focus if no other text field is being used.
+        const active = document.activeElement;
+        const tag = active?.tagName;
+        const otherField =
+          tag === 'INPUT' && active !== searchInput && (active as HTMLInputElement).type !== 'checkbox' && (active as HTMLInputElement).type !== 'radio';
+        if (!otherField && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          focusSearch();
+        }
+      }, autofocusSeconds * 1000);
+    }
+  }
+
+  onMount(() => {
+    resetIdleTimer();
+  });
+
+  onDestroy(() => {
+    clearTimeout(idleTimer);
+  });
+
 
   const modes: Array<'all' | 'name' | 'barcode' | 'price' | 'qr'> = ['all', 'name', 'barcode', 'price', 'qr'];
   const labels: Record<string, string> = {
@@ -74,11 +110,13 @@
   <div class="relative flex-1 flex items-center">
     <Search class="w-4 h-4 text-pos-muted absolute start-2.5 pointer-events-none" />
     <input
+      bind:this={searchInput}
       type="text"
       bind:value={query}
-      on:input={onSearch}
+      on:input={() => { resetIdleTimer(); onSearch(); }}
       on:keydown={handleKeyDown}
-      on:focus={(e) => (e.target as HTMLInputElement).select()}
+      on:focus={(e) => { resetIdleTimer(); (e.target as HTMLInputElement).select(); }}
+      on:blur={resetIdleTimer}
       placeholder={t('search_placeholder')}
       class="w-full ps-8 pe-8 py-1.5 bg-transparent text-pos-text placeholder-pos-muted text-xs font-semibold outline-none"
     />

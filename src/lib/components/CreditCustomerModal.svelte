@@ -56,7 +56,8 @@
   });
 
   $: if (isOpen) {
-    paidAmount = null;
+    // Default the paid amount to the full total; lower it for partial payment.
+    paidAmount = totalAmount;
     showQuickAdd = false;
     quickAddError = '';
     loadCustomers();

@@ -132,6 +132,71 @@ export function removeFromCart(productId: number, isRefund: boolean) {
   );
 }
 
+// --- Cart persistence across restarts/crashes -----------------------------
+// The active cart (items + discount + customer) is mirrored into
+// app_settings under 'active_cart_json'. checkout/clear wipes it; resume
+// (app start) restores it, so a shutdown never loses an in-progress sale.
+
+const ACTIVE_CART_KEY = 'active_cart_json';
+
+export function persistActiveCart() {
+  try {
+    const payload = JSON.stringify({
+      items: get(cartItems),
+      discountMode: get(globalDiscountMode),
+      discountValue: get(globalDiscountValue),
+      customerId: get(selectedCustomerId),
+      mode: get(posMode),
+      savedAt: Date.now(),
+    });
+    invoke('set_setting', { key: ACTIVE_CART_KEY, value: payload }).catch(() => {});
+  } catch {
+    // Persistence must never interrupt selling.
+  }
+}
+
+function clearPersistedCart() {
+  try {
+    invoke('set_setting', { key: ACTIVE_CART_KEY, value: '' }).catch(() => {});
+  } catch {}
+}
+
+export async function restoreActiveCart() {
+  try {
+    const payload = await invoke<string | null>('get_setting', { key: ACTIVE_CART_KEY });
+    if (!payload) return false;
+    const parsed = JSON.parse(payload);
+    if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) return false;
+    cartItems.set(parsed.items);
+    if (parsed.discountMode === 'percent' || parsed.discountMode === 'amount') {
+      globalDiscountMode.set(parsed.discountMode);
+      globalDiscountValue.set(Number(parsed.discountValue) || 0);
+    }
+    if (parsed.customerId) selectedCustomerId.set(parsed.customerId);
+    if (parsed.mode === 'purchase' || parsed.mode === 'broken' || parsed.mode === 'sale') {
+      posMode.set(parsed.mode);
+    }
+    return true;
+  } catch (e) {
+    console.warn('Could not restore active cart:', e);
+    return false;
+  }
+}
+
+function mirrorCartToDb() {
+  const items = get(cartItems);
+  if (items.length === 0) {
+    clearPersistedCart();
+  } else {
+    persistActiveCart();
+  }
+}
+
+// Re-mirror after every cart mutation.
+cartItems.subscribe(() => mirrorCartToDb());
+globalDiscountMode.subscribe(() => mirrorCartToDb());
+globalDiscountValue.subscribe(() => mirrorCartToDb());
+
 export function clearCart() {
   cartItems.set([]);
   globalDiscountMode.set('none');
@@ -141,6 +206,7 @@ export function clearCart() {
   isRefundMode.set(false);
   posMode.set('sale');
   stopQtyEdit();
+  clearPersistedCart();
 }
 
 // Effective cart-level discount in DZD; never exceeds the cart amount so the total can't go negative.

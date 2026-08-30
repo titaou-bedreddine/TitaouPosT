@@ -2,13 +2,33 @@
   import type { Product } from '../types';
   import { t, currentLocale } from '../i18n';
   import { addToCart, isRefundMode } from '../stores/cart';
-  import { Package, Plus, Edit2, AlertTriangle, AlertOctagon } from 'lucide-svelte';
+  import PrintLabelModal from './PrintLabelModal.svelte';
+  import { Package, Plus, Edit2, AlertTriangle, AlertOctagon, QrCode, Tag } from 'lucide-svelte';
 
   export let product: Product;
   export let categoryColor: string = '#0284c7';
   export let onEditProduct: ((p: Product) => void) | undefined = undefined;
 
   let isClicked = false;
+  let isPrintLabelOpen = false;
+  let printLabelType: 'barcode' | 'etiquette' = 'barcode';
+  let printLabelQty = 1;
+
+  // Sticker prints the stock quantity (or 1 when out of stock); shelf tag
+  // always prints one.
+  function openPrintSticker(e: MouseEvent) {
+    e.stopPropagation();
+    printLabelType = 'barcode';
+    printLabelQty = Math.max(1, Math.floor(product.current_stock || 0));
+    isPrintLabelOpen = true;
+  }
+
+  function openPrintShelf(e: MouseEvent) {
+    e.stopPropagation();
+    printLabelType = 'etiquette';
+    printLabelQty = 1;
+    isPrintLabelOpen = true;
+  }
 
   function handleClick() {
     isClicked = true;
@@ -77,6 +97,26 @@
   >
     <Edit2 class="w-3.5 h-3.5" />
   </button>
+
+  <!-- Print Sticker & Shelf Tag (Top Start, under Edit) -->
+  <div class="absolute top-9 start-2 z-20 flex flex-col gap-1">
+    <button
+      type="button"
+      on:click={openPrintSticker}
+      class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-sky-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+      title="Print Barcode Sticker (x{Math.max(1, Math.floor(product.current_stock || 0))})"
+    >
+      <QrCode class="w-3.5 h-3.5" />
+    </button>
+    <button
+      type="button"
+      on:click={openPrintShelf}
+      class="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 text-emerald-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+      title="Print Shelf Tag (x1)"
+    >
+      <Tag class="w-3.5 h-3.5" />
+    </button>
+  </div>
 
   <!-- Stock & Expiry Status Badges (Top End) -->
   <div class="absolute top-2 end-2 z-10 flex flex-col items-end gap-1">
@@ -148,3 +188,11 @@
     </span>
   </div>
 </div>
+<!-- Label Print Modal (sticker = stock qty, shelf = 1) -->
+<PrintLabelModal
+  isOpen={isPrintLabelOpen}
+  product={product}
+  initialType={printLabelType}
+  initialQty={printLabelQty}
+  onClose={() => (isPrintLabelOpen = false)}
+/>

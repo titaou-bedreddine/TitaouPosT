@@ -54,6 +54,7 @@ export interface Product {
   is_bundle: boolean;
   is_active: boolean;
   barcodes: string[];
+  total_sold?: number;
 }
 
 export interface ProductInput {

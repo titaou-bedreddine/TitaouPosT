@@ -3,10 +3,10 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, restoreActiveCart } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
-  import { printHtmlDirectly, buildReceiptHtml } from '../../lib/utils/printer';
+  import { printHtmlSilently, buildReceiptHtml } from '../../lib/utils/printer';
   import { normalizeBarcode } from '../../lib/utils/barcode';
 
   import TopActionBar from '../../lib/components/TopActionBar.svelte';
@@ -43,7 +43,7 @@
   let selectedCategory: number | null = null;
   let searchQuery = '';
   let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
-  let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' = 'name_asc';
+  let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' | 'best_sellers' | 'worst_sellers' = 'name_asc';
 
   let selectedPaymentMode: 'cash' | 'card' | 'credit' | 'versement' = 'cash';
   let autoPrintEnabled = true;
@@ -80,6 +80,8 @@
   let currentTime = new Date().toLocaleTimeString();
   let currentDate = new Date().toLocaleDateString();
   let timeInterval: any;
+  // POS rule: idle seconds before the search bar re-steals focus (0 = off).
+  let autofocusTimerSeconds = 0;
 
   let cartContainerEl: HTMLDivElement;
 
@@ -89,6 +91,10 @@
       currentShopName = s['shop_name_fr'] || s['shop_name_ar'] || 'TitaouPOS';
       if (s['cart_item_order'] === 'top' || s['cart_item_order'] === 'bottom') {
         $cartItemOrder = s['cart_item_order'];
+      }
+      // Auto-focus search: enabled flag + idle timer in seconds.
+      if (s['pos_autofocus_search'] === 'true') {
+        autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
       }
     } catch (e) {
       console.warn(e);
@@ -105,16 +111,29 @@
     await refreshCustomers();
     await refreshSuppliers();
 
+    // Recover an interrupted sale (shutdown/crash) before it was checked out.
+    await restoreActiveCart();
+
     window.addEventListener('keydown', handleGlobalKeyDown);
   });
 
-  // Auto-scroll to bottom when in 'bottom' mode and new item is added
-  $: if ($cartItems && $cartItemOrder === 'bottom' && cartContainerEl) {
-    setTimeout(() => {
-      if (cartContainerEl) {
-        cartContainerEl.scrollTop = cartContainerEl.scrollHeight;
-      }
-    }, 50);
+  // Auto-scroll ONLY when a new item is actually added (not on every cart
+  // mutation like qty edits, which caused the jumpy scrolling). The new line
+  // scrolls into view at the top or bottom per the configured order.
+  let lastCartCount = 0;
+  $: if ($cartItems.length !== lastCartCount) {
+    const grew = $cartItems.length > lastCartCount;
+    lastCartCount = $cartItems.length;
+    if (grew && cartContainerEl) {
+      requestAnimationFrame(() => {
+        if (!cartContainerEl) return;
+        if ($cartItemOrder === 'top') {
+          cartContainerEl.scrollTop = 0;
+        } else {
+          cartContainerEl.scrollTop = cartContainerEl.scrollHeight;
+        }
+      });
+    }
   }
 
   onDestroy(() => {
@@ -158,6 +177,10 @@
         list.sort((a, b) => b.sale_price - a.sale_price);
       } else if (sortBy === 'stock') {
         list.sort((a, b) => b.current_stock - a.current_stock);
+      } else if (sortBy === 'best_sellers') {
+        list.sort((a, b) => (b.total_sold || 0) - (a.total_sold || 0));
+      } else if (sortBy === 'worst_sellers') {
+        list.sort((a, b) => (a.total_sold || 0) - (b.total_sold || 0));
       }
 
       products = list;
@@ -505,7 +528,7 @@
             paymentMethod: 'CREDIT (دين)',
             isCredit: true,
           };
-          printHtmlDirectly(
+          printHtmlSilently(
             buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' }) +
               '<div style="page-break-after:always;"></div>' +
               buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
@@ -532,7 +555,7 @@
             versementRemaining: reste,
             copyLabel: 'VERSEMENT / تسبقة',
           });
-          printHtmlDirectly(receipt, 'Versement Receipt #' + saleNumber);
+          printHtmlSilently(receipt, 'Versement Receipt #' + saleNumber);
         } else {
           const receipt = buildReceiptHtml({
             shopName,
@@ -550,7 +573,7 @@
             grandTotal: $cartGrandTotal,
             paymentMethod: effectiveMethod.toUpperCase(),
           });
-          printHtmlDirectly(receipt, 'Sale Receipt #' + saleNumber);
+          printHtmlSilently(receipt, 'Sale Receipt #' + saleNumber);
         }
       }
 
@@ -714,6 +737,7 @@
             bind:query={searchQuery}
             bind:searchType
             onSearch={loadProducts}
+            autofocusSeconds={autofocusTimerSeconds}
           />
         </div>
 
@@ -727,6 +751,8 @@
             <option value="price_asc">Price (Low → High)</option>
             <option value="price_desc">Price (High → Low)</option>
             <option value="stock">Most Stock</option>
+            <option value="best_sellers">Best Sellers (Most Sold)</option>
+            <option value="worst_sellers">Least Sold</option>
           </select>
         </div>
       </div>
@@ -853,7 +879,9 @@
           {/if}
         </div>
 
-        <!-- Customer Selector (defaults to Walk-in / Client Comptoir) -->
+        <!-- Customer Selector (defaults to Walk-in / Client Comptoir).
+             In purchase mode the supplier selector replaces it. -->
+        {#if $posMode !== 'purchase'}
         <div class="relative" class:z-30={isCustomerSelectorOpen}>
           <button
             type="button"
@@ -895,6 +923,7 @@
             </div>
           {/if}
         </div>
+        {/if}
         <!-- Supplier Selector: purchase mode picks the source supplier -->
         {#if $posMode === 'purchase'}
           <div class="relative" class:z-30={isSupplierSelectorOpen}>

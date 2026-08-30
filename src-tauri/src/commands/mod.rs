@@ -3,7 +3,7 @@ use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
     Payroll, Product, ProductInput, Purchase, CreatePurchaseInput, Sale, Supplier, Unit, User, UserAccount, Role,
-    CashMovement, CashSession, CreateSaleInput,
+    CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry,
 };
 use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
@@ -12,6 +12,79 @@ use crate::services::{
 };
 use std::collections::HashMap;
 use tauri::State;
+
+/// Silent print: render the HTML to PDF with the OS's headless Edge/Chrome,
+/// then send the PDF to the DEFAULT printer with the "print" shell verb —
+/// no Windows print dialog ever appears.
+#[tauri::command]
+pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) -> Result<(), String> {
+    let settings = settings_service::get_all_settings(&db).unwrap_or_default();
+    let _ = settings;
+
+    let tmp = std::env::temp_dir();
+    let stamp = chrono::Local::now().timestamp_subsec_nanos();
+    let html_path = tmp.join(format!("titaou_print_{}.html", stamp));
+    let pdf_path = tmp.join(format!("titaou_print_{}.pdf", stamp));
+    std::fs::write(&html_path, &html).map_err(|e| e.to_string())?;
+
+    // Locate a headless-capable Chromium browser shipped with Windows.
+    let candidates = [
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe".to_string(),
+        "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe".to_string(),
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe".to_string(),
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe".to_string(),
+    ];
+    let browser = candidates
+        .iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .ok_or("No Edge/Chrome found for silent printing")?;
+
+    let url = format!("file:///{}", html_path.to_string_lossy().replace('\\', "/"));
+    let status = std::process::Command::new(browser)
+        .args([
+            "--headless",
+            "--disable-gpu",
+            "--no-first-run",
+            "--print-to-pdf-no-header",
+            &format!("--print-to-pdf={}", pdf_path.to_string_lossy()),
+            &url,
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    let _ = status;
+    let _ = std::fs::remove_file(&html_path);
+
+    if !pdf_path.exists() {
+        return Err("PDF generation failed".to_string());
+    }
+
+    // ShellExecute "print" verb on the PDF: default handler prints silently.
+    let printed = print_pdf_windows(&pdf_path);
+    let _ = std::fs::remove_file(&pdf_path);
+    if !printed {
+        return Err("No default PDF printer handler available".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn print_pdf_windows(path: &std::path::Path) -> bool {
+    use std::os::windows::process::CommandExt;
+    // cmd start with the print verb launches the associated app's print
+    // command (SumatraPDF/Adobe/Microsoft Print to PDF all support /p /s).
+    std::process::Command::new("cmd")
+        .args(["/C", "start", "", "/B"])
+        .arg(path)
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(not(windows))]
+fn print_pdf_windows(_path: &std::path::Path) -> bool {
+    false
+}
+
 
 #[tauri::command]
 pub fn login(db: State<'_, DbState>, username: String, password: String) -> Result<Option<User>, String> {
@@ -346,6 +419,71 @@ pub fn set_setting(db: State<'_, DbState>, key: String, value: String) -> Result
     settings_service::set_setting(&db, &key, &value)
 }
 
+/// Clear Sales & Purchase History: wipes transactional history ONLY —
+/// products, prices, stock, customers, suppliers and their debts stay.
+#[tauri::command]
+pub fn clear_transaction_history(db: State<'_, DbState>, confirm_text: String) -> Result<String, String> {
+    if confirm_text.trim() != "CLEAR HISTORY" {
+        return Err("Type CLEAR HISTORY to confirm / اكتب CLEAR HISTORY للتأكيد".to_string());
+    }
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let tables = [
+        "sale_payments",
+        "sale_items",
+        "sales",
+        "purchase_items",
+        "purchases",
+        "cash_movements",
+        "cash_sessions",
+        "inventory_movements",
+        "held_sales",
+        "product_price_history",
+    ];
+    let mut cleared = 0;
+    for t in tables {
+        let n = tx.execute(&format!("DELETE FROM {}", t), []).map_err(|e| e.to_string())?;
+        cleared += n;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(format!("Cleared {} history rows", cleared))
+}
+
+#[tauri::command]
+pub fn get_setting(db: State<'_, DbState>, key: String) -> Result<Option<String>, String> {
+    let all = settings_service::get_all_settings(&db)?;
+    Ok(all.get(&key).cloned().filter(|v| !v.is_empty()))
+}
+
+/// Price change log for a product, newest first.
+#[tauri::command]
+pub fn get_price_history(db: State<'_, DbState>, product_id: i64) -> Result<Vec<PriceHistoryEntry>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, old_purchase_price, new_purchase_price, old_sale_price, new_sale_price, user_id, created_at
+             FROM product_price_history WHERE product_id = ?1 ORDER BY id DESC LIMIT 100",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([product_id], |row| {
+            Ok(PriceHistoryEntry {
+                id: row.get(0)?,
+                old_purchase_price: row.get(1)?,
+                new_purchase_price: row.get(2)?,
+                old_sale_price: row.get(3)?,
+                new_sale_price: row.get(4)?,
+                user_id: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
 #[tauri::command]
 pub fn send_telegram_message(db: State<'_, DbState>, text: String) -> Result<(), String> {
     // Manual/test send — blocking is fine here so the UI shows the result.
@@ -605,10 +743,19 @@ pub async fn check_github_update(app_handle: tauri::AppHandle) -> Result<AppUpda
 
     let mut download_url = release_url.clone();
     if let Some(assets) = latest["assets"].as_array() {
-        if let Some(asset) = assets.iter().find(|a| {
+        // Prefer the NSIS setup bundle (small, silent-installable) over the
+        // raw 18MB portable exe; MSI is the last resort.
+        let pick_asset = assets.iter().find(|a| {
             let name = a["name"].as_str().unwrap_or("");
-            name.ends_with(".exe") || name.ends_with(".msi")
-        }) {
+            name.ends_with("-setup.exe")
+        });
+        let asset = pick_asset.or_else(|| {
+            assets.iter().find(|a| {
+                let name = a["name"].as_str().unwrap_or("");
+                name.ends_with(".exe") && !name.starts_with("titaou-post")
+            })
+        });
+        if let Some(asset) = asset {
             if let Some(browser_url) = asset["browser_download_url"].as_str() {
                 download_url = browser_url.to_string();
             }

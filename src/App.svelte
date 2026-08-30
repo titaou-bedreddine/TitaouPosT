@@ -86,10 +86,13 @@
     // Disable right-click context menu across Tauri POS desktop app
     window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Auto-select text on input focus for fast barcode/number replacement
+    // Auto-select text on input focus for fast barcode/number replacement.
+    // Fields marked data-no-autoselect (e.g. invoice numbers the user edits
+    // mid-string) are skipped so the caret never jumps.
     window.addEventListener('focusin', (e) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        if (target.hasAttribute('data-no-autoselect')) return;
         const input = target as HTMLInputElement;
         if (input.type === 'number' || input.type === 'text') {
           setTimeout(() => input.select(), 10);
@@ -442,7 +445,7 @@
         {#if currentRoute === 'pos'}
           <PosView />
         {:else if currentRoute === 'sales'}
-          <SalesView />
+          <SalesView onRequestPosRoute={() => (currentRoute = 'pos')} />
         {:else if currentRoute === 'cash'}
           <CashRegisterView />
         {:else if currentRoute === 'purchases'}

@@ -81,6 +81,9 @@ pub struct Product {
     pub is_bundle: bool,
     pub is_active: bool,
     pub barcodes: Vec<String>,
+    /// Lifetime units sold (sales minus refunds) for best/worst sorting.
+    #[serde(default)]
+    pub total_sold: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -471,6 +474,17 @@ pub struct DashboardStats {
     pub gross_profit: i64,
     pub average_basket: i64,
     pub top_products: Vec<TopProductStat>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PriceHistoryEntry {
+    pub id: i64,
+    pub old_purchase_price: i64,
+    pub new_purchase_price: i64,
+    pub old_sale_price: i64,
+    pub new_sale_price: i64,
+    pub user_id: Option<i64>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

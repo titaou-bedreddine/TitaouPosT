@@ -4,17 +4,20 @@
   import type { Sale, User } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { cartItems, clearCart } from '../../lib/stores/cart';
+  import { selectedCustomerId } from '../../lib/stores/customers';
   import {
     ShoppingBag, Search, Printer, Calendar, User as UserIcon,
     DollarSign, Eye, Trash2, X, Check, AlertTriangle, Layers,
-    CreditCard, Banknote, ShieldAlert, TrendingUp
+    CreditCard, Banknote, ShieldAlert, TrendingUp, Pencil
   } from 'lucide-svelte';
 
   let sales: Sale[] = [];
   let users: User[] = [];
 
-  let startDate = '';
-  let endDate = '';
+  // History defaults to today; the user can widen the range.
+  let startDate = new Date().toISOString().split('T')[0];
+  let endDate = new Date().toISOString().split('T')[0];
   let selectedCashier: number | null = null;
   let selectedStatus: string = 'all';
   let searchQuery = '';
@@ -158,6 +161,39 @@
     adminPassword = '';
     isDeleteModalOpen = true;
   }
+
+  // Re-open a completed sale in the POS cart for editing. The caller
+  // (App.svelte) switches to the POS route; the sale stays in history until
+  // the cashier deletes it via the protected delete.
+  async function editSaleInPos(sale: Sale) {
+    try {
+      const items = await invoke<any[]>('get_sale_items', { saleId: sale.id });
+      const mapped = items.map((i) => ({
+        product_id: i.product_id,
+        sku: i.sku || '',
+        barcode: i.barcode || '',
+        name_ar: i.name_ar || '',
+        name_fr: i.name_fr || '',
+        name_en: i.name_en || '',
+        image_path: i.image_path,
+        unit_price: i.unit_price,
+        quantity: i.quantity,
+        discount_amount: i.discount_amount || 0,
+        tax_amount: i.tax_amount || 0,
+        total_price: i.total_price,
+        is_refund: i.is_refund || false,
+      }));
+      clearCart();
+      $cartItems = mapped;
+      if (sale.customer_id) $selectedCustomerId = sale.customer_id;
+      isDetailModalOpen = false;
+      onRequestPosRoute?.();
+    } catch (e) {
+      console.error('Failed to load sale for editing:', e);
+    }
+  }
+
+  export let onRequestPosRoute: () => void = () => {};
 
   async function executeProtectedDelete() {
     if (!$currentUser) return;
@@ -457,6 +493,15 @@
         </button>
 
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            on:click={() => editSaleInPos(selectedSale)}
+            class="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+            title="Re-open this sale in the POS cart"
+          >
+            <Pencil class="w-4 h-4" />
+            <span>Edit in POS / تعديل</span>
+          </button>
           <button on:click={() => (isDetailModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
             Close
           </button>

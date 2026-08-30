@@ -136,10 +136,19 @@
   function handleSaleKeyDown(e: KeyboardEvent, idx: number) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const searchInput = document.getElementById('purchase-omni-input') as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-        searchInput.select();
+      // After the last column of a row, Enter chains to the NEXT row's
+      // quantity — invoice entry flows straight down the lines. On the final
+      // row it returns to the product search to scan the next product.
+      const nextQty = document.getElementById(`qty-${idx + 1}`) as HTMLInputElement;
+      if (nextQty) {
+        nextQty.focus();
+        nextQty.select();
+      } else {
+        const searchInput = document.getElementById('purchase-omni-input') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
       }
     }
   }
@@ -332,7 +341,7 @@
 
           <div>
             <label class="block text-xs font-bold text-pos-muted mb-1">Invoice / Bon Number</label>
-            <input type="text" bind:value={invoiceNumber} placeholder="Ex: ACH-2026-001" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+            <input data-no-autoselect type="text" bind:value={invoiceNumber} placeholder="Ex: ACH-2026-001" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
           </div>
 
           <div>
