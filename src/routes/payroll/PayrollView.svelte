@@ -117,6 +117,10 @@
   }
 
   async function handleSaveEmployee() {
+    if (!name.trim() || !code.trim()) {
+      alert('Name and code are required / الاسم والرمز إجباريان');
+      return;
+    }
     try {
       await invoke('save_employee', {
         code,
@@ -129,16 +133,19 @@
         salaryType: 'monthly',
         hireDate: new Date().toISOString().split('T')[0],
         notes: null,
-        employeeId: null,
+        employeeId: editingEmployeeId,
       });
       isAddOpen = false;
+      editingEmployeeId = null;
       code = '';
       name = '';
       jobTitle = '';
       baseSalary = 0;
+      phone = '';
       await loadEmployees();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      // Editing reuses the same employee_code — show why it failed.
+      alert('Save failed: ' + (typeof e === 'string' ? e : e.message || e));
     }
   }
 

@@ -69,6 +69,7 @@ pub fn run() {
             commands::delete_purchase,
             commands::list_purchases,
             commands::add_expense,
+            commands::update_expense,
             commands::list_expenses,
             commands::delete_expense,
             commands::list_employees,

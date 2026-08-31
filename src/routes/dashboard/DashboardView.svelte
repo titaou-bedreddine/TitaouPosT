@@ -8,7 +8,7 @@
   let stats: DashboardStats | null = null;
   let fromDate = new Date().toISOString().split('T')[0];
   let toDate = new Date().toISOString().split('T')[0];
-  let selectedTab: 'financial' | 'debts' | 'inventory' | 'expenses' | 'caisse' = 'financial';
+  let selectedTab: 'financial' | 'debts' | 'inventory' | 'expenses' | 'versement' | 'caisse' = 'financial';
 
   onMount(async () => {
     await loadStats();
@@ -21,6 +21,10 @@
   let productsList: any[] = [];
   let expensesList: any[] = [];
   let movementsList: any[] = [];
+  let versementSales: any[] = [];
+
+  $: versementTotalPaid = versementSales.reduce((s2, x) => s2 + (x.paid_amount || 0), 0);
+  $: versementTotalRemaining = versementSales.reduce((s2, x) => s2 + Math.max(0, (x.total_amount || 0) - (x.paid_amount || 0)), 0);
 
   $: totalCustomerDebt = customersList.reduce((s, c) => s + Math.max(0, c.balance || 0), 0);
   $: totalSupplierDue = suppliersList.reduce((s, x) => s + Math.max(0, x.balance || 0), 0);
@@ -47,6 +51,17 @@
       expensesList = es;
     } catch (e) {
       console.warn('Dashboard tab data:', e);
+    }
+    try {
+      const sales = await invoke<any[]>('list_sales', {
+        startDate: fromDate || null,
+        endDate: toDate || null,
+        userId: null,
+        limit: 500,
+      });
+      versementSales = sales.filter((x) => x.payment_method === 'versement');
+    } catch {
+      versementSales = [];
     }
     try {
       const session = await invoke<any>('get_active_cash_session', { userId: 1 });
@@ -145,6 +160,12 @@
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'inventory' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
       >
         Inventory Analytics
+      </button>
+      <button
+        on:click={() => selectedTab = 'versement'}
+        class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'versement' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
+      >
+        Versements (تسبقة)
       </button>
       <button
         on:click={() => selectedTab = 'expenses'}
@@ -365,6 +386,52 @@
             {/each}
             {#if expensesFiltered.length === 0}
               <tr><td colspan="5" class="p-6 text-center text-pos-muted">No expenses in the selected range.</td></tr>
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {:else if selectedTab === 'versement'}
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-violet-700 uppercase">Versement Sales</span>
+          <div class="text-xl font-black font-mono text-violet-600">{versementSales.length}</div>
+        </div>
+        <div class="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-emerald-700 uppercase">Deposits Collected</span>
+          <div class="text-xl font-black font-mono text-emerald-600">{versementTotalPaid.toLocaleString()} DZD</div>
+        </div>
+        <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-amber-700 uppercase">Still Owed (goods at shop)</span>
+          <div class="text-xl font-black font-mono text-amber-600">{versementTotalRemaining.toLocaleString()} DZD</div>
+        </div>
+      </div>
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-pos-muted font-bold">
+            <tr>
+              <th class="p-2.5 text-start">Ticket</th>
+              <th class="p-2.5 text-start">Date</th>
+              <th class="p-2.5 text-start">Customer</th>
+              <th class="p-2.5 text-end">Total</th>
+              <th class="p-2.5 text-end">Paid</th>
+              <th class="p-2.5 text-end">Remaining</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-pos-border/40">
+            {#each versementSales.slice(0, 30) as x}
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <td class="p-2.5 font-mono font-bold text-violet-600">#{x.sale_number}</td>
+                <td class="p-2.5 font-mono text-pos-muted">{x.created_at}</td>
+                <td class="p-2.5 font-bold text-pos-text">{x.customer_name || 'Client Comptoir'}</td>
+                <td class="p-2.5 text-end font-mono font-bold">{x.total_amount.toLocaleString()}</td>
+                <td class="p-2.5 text-end font-mono font-black text-emerald-600">{x.paid_amount.toLocaleString()}</td>
+                <td class="p-2.5 text-end font-mono font-black text-amber-600">{Math.max(0, x.total_amount - x.paid_amount).toLocaleString()}</td>
+              </tr>
+            {/each}
+            {#if versementSales.length === 0}
+              <tr><td colspan="6" class="p-6 text-center text-pos-muted">No versement sales in the selected range.</td></tr>
             {/if}
           </tbody>
         </table>

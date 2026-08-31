@@ -498,6 +498,23 @@ pub fn add_expense(
 }
 
 #[tauri::command]
+pub fn update_expense(
+    db: State<'_, DbState>,
+    expense_id: i64,
+    category_id: i64,
+    amount: i64,
+    payment_method: String,
+    recipient: Option<String>,
+    receipt_reference: Option<String>,
+    notes: Option<String>,
+    date: String,
+) -> Result<(), String> {
+    expense_service::update_expense(
+        &db, expense_id, category_id, amount, &payment_method, recipient, receipt_reference, notes, date,
+    )
+}
+
+#[tauri::command]
 pub fn list_expenses(db: State<'_, DbState>) -> Result<Vec<Expense>, String> {
     expense_service::list_expenses(&db)
 }

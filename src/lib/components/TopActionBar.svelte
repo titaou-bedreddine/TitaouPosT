@@ -52,10 +52,16 @@
   // Sale -> Purchase -> Broken cycle. Sale: everything is sold. Purchase:
   // scanned items are bought from the supplier and add to stock. Broken:
   // items are written off — quantity leaves stock and value becomes an expense.
-  function cyclePosMode() {
+  // The host parks the cart per-mode before switching (hold sales,
+  // hold purchases, hold broken).
+  export let onCycleMode: () => void = () => {
     if ($posMode === 'sale') $posMode = 'purchase';
     else if ($posMode === 'purchase') $posMode = 'broken';
     else $posMode = 'sale';
+  };
+
+  function cyclePosMode() {
+    onCycleMode();
   }
 
   function handleRefundToggle() {

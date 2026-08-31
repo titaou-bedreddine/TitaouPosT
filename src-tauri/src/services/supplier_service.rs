@@ -77,6 +77,10 @@ pub fn save_supplier(
 }
 
 pub fn delete_supplier(db: &DbState, supplier_id: i64) -> Result<(), String> {
+    // The seeded generic supplier (id 1) backs POS purchase mode: undeletable.
+    if supplier_id == 1 {
+        return Err("The default supplier cannot be deleted / لا يمكن حذف المورد الافتراضي".to_string());
+    }
     let conn = db.conn.lock().unwrap();
     conn.execute("UPDATE suppliers SET is_active = 0 WHERE id = ?1", [supplier_id])
         .map_err(|e| e.to_string())?;

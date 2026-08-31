@@ -100,6 +100,9 @@
 
     // Barcode Labels & Presets
     barcode_label_width: '50',
+    label_presets: '',
+    sticker_content_position: 'top', // top | middle | bottom
+    shelf_content_position: 'top',
     barcode_label_height: '30',
     sticker_show_shop_name: 'true',
     sticker_show_product_name: 'true',
@@ -251,6 +254,90 @@
     tick().then(renderSettingsBarcode);
   }
 
+
+  // ----- Label presets (sticker + shelf saved configurations) -----
+  // Stored as JSON in app_settings.label_presets:
+  // { "Preset name": { ...sticker/shelf settings } }
+  let labelPresets: Record<string, Record<string, string>> = {};
+  let newPresetName = '';
+
+  function labelPresetKeys(): string[] {
+    // Which settings make up a label preset.
+    return [
+      'barcode_label_width', 'barcode_label_height', 'sticker_orientation',
+      'sticker_show_shop_name', 'sticker_show_product_name', 'sticker_show_barcode',
+      'sticker_show_price', 'sticker_name_font_size', 'sticker_name_bold',
+      'sticker_price_font_size', 'sticker_price_bold', 'sticker_barcode_font_size',
+      'sticker_text_align', 'sticker_content_position',
+      'shelf_tag_width', 'shelf_tag_height', 'shelf_tag_orientation',
+      'shelf_tag_show_shop', 'shelf_tag_show_name', 'shelf_tag_show_price',
+      'shelf_tag_show_ref', 'shelf_tag_name_size', 'shelf_tag_price_size',
+      'shelf_tag_ref_size', 'shelf_text_align', 'shelf_content_position',
+    ].filter((k) => k in settings);
+  }
+
+  async function loadLabelPresets() {
+    try {
+      const raw = await invoke<string | null>('get_setting', { key: 'label_presets' });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          labelPresets = parsed;
+        }
+      }
+    } catch {
+      labelPresets = {};
+    }
+  }
+
+  async function persistLabelPresets() {
+    try {
+      await invoke('set_setting', {
+        key: 'label_presets',
+        value: JSON.stringify(labelPresets),
+      });
+      triggerSaveNotification('Preset saved / تم حفظ الإعداد');
+    } catch (e: any) {
+      triggerSaveNotification('Preset save failed: ' + (e?.message || e));
+    }
+  }
+
+  async function saveCurrentLabelPreset() {
+    const name = newPresetName.trim();
+    if (!name) {
+      triggerSaveNotification('Enter a preset name first');
+      return;
+    }
+    const snapshot: Record<string, string> = {};
+    for (const key of labelPresetKeys()) {
+      snapshot[key] = String(settings[key] ?? '');
+    }
+    labelPresets = { ...labelPresets, [name]: snapshot };
+    newPresetName = '';
+    await persistLabelPresets();
+  }
+
+  async function applyLabelPreset(name: string) {
+    const preset = labelPresets[name];
+    if (!preset) return;
+    for (const [k, v] of Object.entries(preset)) {
+      (settings as any)[k] = v;
+    }
+    await invoke('set_multiple_settings', {
+      settings: Object.fromEntries(
+        Object.entries(settings).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ),
+    });
+    triggerSaveNotification(`Preset "${name}" applied / تم تطبيق الإعداد`);
+  }
+
+  async function deleteLabelPreset(name: string) {
+    const copy = { ...labelPresets };
+    delete copy[name];
+    labelPresets = copy;
+    await persistLabelPresets();
+  }
+
   // Factory Reset
   let resetType = 'transactions_only';
   let resetConfirm = '';
@@ -315,6 +402,7 @@
   onMount(async () => {
     await loadAutostart();
     await loadPrinters();
+    await loadLabelPresets();
     await loadShortcutBindings();
     try {
       const v = await invoke<string>('get_app_version');
@@ -1938,6 +2026,58 @@
                     <option value="right">Right / يمين</option>
                   </select>
                 </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Content Position (الموضع)</label>
+                  <select bind:value={settings.sticker_content_position} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="top">Top / أعلى</option>
+                    <option value="middle">Middle / وسط</option>
+                    <option value="bottom">Bottom / أسفل</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Label Presets -->
+              <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-2">
+                <span class="text-[10px] font-bold text-pos-muted uppercase tracking-wider block">Label Presets (إعدادات جاهزة)</span>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="text"
+                    bind:value={newPresetName}
+                    placeholder="Preset name (Ex: Fardeau 60x40)..."
+                    class="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-bold text-pos-text outline-none"
+                  />
+                  <button
+                    type="button"
+                    on:click={saveCurrentLabelPreset}
+                    class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer"
+                  >
+                    Save Preset
+                  </button>
+                </div>
+                {#if Object.keys(labelPresets).length > 0}
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    {#each Object.keys(labelPresets) as pname}
+                      <div class="flex items-center gap-1 bg-white dark:bg-slate-900 border border-pos-border rounded-lg overflow-hidden">
+                        <button
+                          type="button"
+                          on:click={() => applyLabelPreset(pname)}
+                          class="px-2.5 py-1 text-[10px] font-black text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 cursor-pointer"
+                          title="Apply this preset"
+                        >
+                          {pname}
+                        </button>
+                        <button
+                          type="button"
+                          on:click={() => deleteLabelPreset(pname)}
+                          class="px-1.5 py-1 text-[10px] text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 cursor-pointer border-s border-pos-border"
+                          title="Delete preset"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
               </div>
 
               <!-- Display Fields Checkboxes -->
@@ -2068,6 +2208,12 @@
                     <option value="center">Center / وسط</option>
                     <option value="left">Left / يسار</option>
                     <option value="right">Right / يمين</option>
+                  </select>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1 mt-2">Content Position (الموضع)</label>
+                  <select bind:value={settings.shelf_content_position} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs text-pos-text font-bold">
+                    <option value="top">Top / أعلى</option>
+                    <option value="middle">Middle / وسط</option>
+                    <option value="bottom">Bottom / أسفل</option>
                   </select>
                 </div>
               </div>

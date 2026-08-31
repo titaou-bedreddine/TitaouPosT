@@ -286,3 +286,16 @@ export function buildReceiptHtml(options: {
     </div>
   `;
 }
+/**
+ * Offline-friendly entity QR payload. Same scheme the receipt uses, so a
+ * scanner app (or the POS omni-search) maps a QR back to its record:
+ *   SALE:POS-20260831..., PUR:ACH-..., EXP:EXP-..., CUST:CUST-001, EMP:EMP-01
+ */
+export function entityQrPayload(type: 'SALE' | 'PUR' | 'EXP' | 'CUST' | 'SUP' | 'EMP', code: string): string {
+  return `${type}:${code}`;
+}
+
+/** QR image URL for the payload (same generator as receipts). */
+export function entityQrUrl(payload: string, size = 120): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}`;
+}

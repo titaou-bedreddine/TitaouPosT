@@ -6,14 +6,16 @@
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
+  import { entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
   import {
-    Plus, DollarSign, Trash2, Eye, Printer, X, Check,
+    Plus, DollarSign, Trash2, Eye, Printer, X, Check, Pencil,
     TrendingDown, Calendar, User, Receipt, AlertTriangle,
     CreditCard, Banknote, Building
   } from 'lucide-svelte';
 
   let expenses: Expense[] = [];
   let isAddOpen = false;
+  let editingExpense: Expense | null = null;
   let previewExpense: Expense | null = null;
 
   // Date-range filter for the loaded expense list.
@@ -192,7 +194,18 @@
 
     <button
       type="button"
-      on:click={() => { isAddOpen = true; errorMsg = ''; }}
+      on:click={() => {
+        editingExpense = null;
+        amount = 0;
+        categoryId = 1;
+        paymentMethod = 'cash';
+        recipient = '';
+        receiptRef = '';
+        notes = '';
+        expenseDate = new Date().toISOString().split('T')[0];
+        isAddOpen = true;
+        errorMsg = '';
+      }}
       class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
@@ -326,6 +339,25 @@
                   </button>
                   <button
                     type="button"
+                    on:click={() => {
+                      editingExpense = exp;
+                      amount = exp.amount;
+                      categoryId = exp.category_id;
+                      paymentMethod = exp.payment_method;
+                      recipient = exp.recipient || '';
+                      receiptRef = exp.receipt_reference || '';
+                      notes = exp.notes || '';
+                      expenseDate = exp.date || new Date().toISOString().split('T')[0];
+                      isAddOpen = true;
+                      errorMsg = '';
+                    }}
+                    class="p-1.5 text-pos-muted hover:text-amber-600 rounded-lg cursor-pointer"
+                    title="Edit Voucher (تعديل)"
+                  >
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
                     on:click={(e) => promptDelete(exp, e)}
                     class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer"
                     title="Delete Voucher"
@@ -441,6 +473,69 @@
         <button on:click={confirmDeleteExpense} disabled={isDeleting} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
           {isDeleting ? 'Deleting...' : 'Delete Voucher'}
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Expense Preview Modal (View) -->
+{#if previewExpense}
+  <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95">
+      <div class="flex items-start justify-between">
+        <div>
+          <h3 class="font-black text-sm text-pos-text">Voucher #{previewExpense.expense_number}</h3>
+          <p class="text-xs text-pos-muted">{previewExpense.date} • by {previewExpense.user_name || 'User #' + previewExpense.user_id}</p>
+        </div>
+        <button on:click={() => (previewExpense = null)} class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer">
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      <div class="flex items-center justify-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+        <img src={entityQrUrl(entityQrPayload('EXP', previewExpense.expense_number), 100)} alt="Voucher QR" class="w-[100px] h-[100px]" />
+        <div class="text-xs text-pos-muted font-bold">
+          <p>Voucher QR / رمز السند</p>
+          <p class="font-mono text-pos-text">{entityQrPayload('EXP', previewExpense.expense_number)}</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 text-xs">
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border">
+          <span class="text-pos-muted font-bold block text-[10px] uppercase">Category</span>
+          <span class="font-black text-pos-text">{previewExpense.category_name || 'Général'}</span>
+        </div>
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border">
+          <span class="text-pos-muted font-bold block text-[10px] uppercase">Payment</span>
+          <span class="font-black text-pos-text uppercase">{previewExpense.payment_method}</span>
+        </div>
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border">
+          <span class="text-pos-muted font-bold block text-[10px] uppercase">Beneficiary</span>
+          <span class="font-black text-pos-text">{previewExpense.recipient || 'Divers'}</span>
+        </div>
+        <div class="p-3 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-800/60">
+          <span class="text-rose-600 font-bold block text-[10px] uppercase">Amount</span>
+          <span class="font-black text-rose-600 font-mono">{previewExpense.amount.toLocaleString()} DZD</span>
+        </div>
+      </div>
+
+      {#if previewExpense.notes}
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border text-xs">
+          <span class="text-pos-muted font-bold block text-[10px] uppercase mb-1">Notes</span>
+          <span class="text-pos-text">{previewExpense.notes}</span>
+        </div>
+      {/if}
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button
+          type="button"
+          on:click={() => printExpenseVoucher(previewExpense)}
+          class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5"
+        >
+          <Printer class="w-4 h-4" />
+          <span>Print</span>
+        </button>
+        <button on:click={() => (previewExpense = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
       </div>
     </div>
   </div>

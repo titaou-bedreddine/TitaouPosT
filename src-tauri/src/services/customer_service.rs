@@ -82,6 +82,10 @@ pub fn save_customer(
 }
 
 pub fn delete_customer(db: &DbState, customer_id: i64) -> Result<(), String> {
+    // The seeded walk-in customer (id 1) is the POS default: undeletable.
+    if customer_id == 1 {
+        return Err("The default walk-in customer cannot be deleted / لا يمكن حذف الزبون الافتراضي".to_string());
+    }
     let conn = db.conn.lock().unwrap();
     conn.execute("UPDATE customers SET is_active = 0 WHERE id = ?1", [customer_id])
         .map_err(|e| e.to_string())?;

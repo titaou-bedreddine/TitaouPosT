@@ -2,9 +2,10 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SupplierDebtModal from '../../lib/components/SupplierDebtModal.svelte';
+  import { entityQrPayload, entityQrUrl, printHtmlDirectly } from '../../lib/utils/printer';
   import type { Supplier } from '../../lib/types';
   import {
-    Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check, DollarSign,
+    Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check, DollarSign, Eye, ShieldAlert,
     Phone, Mail, MapPin, Building, FileSpreadsheet
   } from 'lucide-svelte';
 
@@ -13,6 +14,58 @@
   let isModalOpen = false;
   let previewSupplier: Supplier | null = null;
   let supplierHistory: any[] = [];
+
+  // Full supplier card: shop header, details, dues and QR.
+  async function printSupplierCard(x: Supplier) {
+    let shopName = 'TitaouPOS';
+    let shopPhone = '';
+    let shopAddress = '';
+    try {
+      const settings = await invoke<Record<string, string>>('get_all_settings');
+      shopName = settings['shop_name_fr'] || shopName;
+      shopPhone = settings['shop_phone'] || '';
+      shopAddress = settings['shop_address'] || '';
+    } catch { /* defaults */ }
+    const code = x.qr_code || 'SUP-' + x.id;
+    const html = `
+      <div style="width:80mm;font-family:monospace;font-size:11px;padding:4mm;text-align:center;">
+        <p style="font-size:15px;font-weight:900;margin:0;">${shopName}</p>
+        <p style="font-size:9px;margin:2px 0;">${shopAddress} • ${shopPhone}</p>
+        <hr style="border-top:1px dashed #000;margin:5px 0;" />
+        <p style="font-size:13px;font-weight:900;margin:4px 0;">FOURNISSEUR CARD / بطاقة مورد</p>
+        <p style="font-weight:900;font-size:12px;margin:3px 0;">${x.name}</p>
+        ${x.contact_person ? `<p style="margin:2px 0;">Contact: ${x.contact_person}</p>` : ''}
+        ${x.phone ? `<p style="margin:2px 0;">Tel: ${x.phone}</p>` : ''}
+        ${x.rc ? `<p style="margin:2px 0;font-size:10px;">RC: ${x.rc} ${x.nif ? '| NIF: ' + x.nif : ''}</p>` : ''}
+        <img src="${entityQrUrl(entityQrPayload('SUP', code), 150)}" alt="QR" style="width:38mm;height:38mm;margin:5px auto;" />
+        <p style="font-size:10px;font-family:monospace;">${code}</p>
+        <hr style="border-top:1px dashed #000;margin:5px 0;" />
+        <p style="font-size:13px;font-weight:900;margin:2px 0;">DUES: ${(x.balance || 0).toLocaleString()} DZD</p>
+        <p style="font-size:9px;margin-top:6px;">TitaouPOS • ${shopName}</p>
+      </div>
+    `;
+    printHtmlDirectly(html, 'Fournisseur Card ' + x.name);
+  }
+
+  async function confirmDeleteSupplier() {
+    if (!supplierToDelete) return;
+    try {
+      isDeletingSupplier = true;
+      deleteErrorMsg = '';
+      const ok = await invoke<boolean>('verify_admin_password', { password: deletePassword });
+      if (!ok) {
+        deleteErrorMsg = 'Invalid password / كلمة المرور غير صحيحة';
+        return;
+      }
+      await invoke('delete_supplier', { supplierId: supplierToDelete.id });
+      supplierToDelete = null;
+      await loadSuppliers();
+    } catch (e: any) {
+      deleteErrorMsg = typeof e === 'string' ? e : e.message || 'Delete failed';
+    } finally {
+      isDeletingSupplier = false;
+    }
+  }
 
   async function loadSupplierHistory(x: Supplier) {
     try {
@@ -23,6 +76,10 @@
     }
   }
   let isDebtModalOpen = false;
+  let supplierToDelete: Supplier | null = null;
+  let deletePassword = '';
+  let deleteErrorMsg = '';
+  let isDeletingSupplier = false;
   let payingSupplier: Supplier | null = null;
 
   let name = '';
@@ -188,12 +245,30 @@
                 <div class="flex items-center justify-end gap-1">
                   <button
                     type="button"
+                    on:click={() => { previewSupplier = s; loadSupplierHistory(s); }}
+                    class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
+                    title="View details (عرض)"
+                  >
+                    <Eye class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     on:click={() => openEditModal(s)}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
                     title="Edit"
                   >
                     <Edit2 class="w-3.5 h-3.5" />
                   </button>
+                  {#if s.id !== 1}
+                    <button
+                      type="button"
+                      on:click={() => { supplierToDelete = s; deletePassword = ''; deleteErrorMsg = ''; }}
+                      class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer"
+                      title="Delete (requires admin password)"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  {/if}
                 </div>
               </td>
             </tr>
@@ -314,6 +389,23 @@
             <p class="text-[10px] uppercase font-black tracking-wider">Supplier Account Balance (حساب المورد)</p>
             <p class="text-xl font-black font-mono">{previewSupplier.balance.toLocaleString()} DZD</p>
           </div>
+        <div class="flex items-center justify-between gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+          <div class="flex items-center gap-3">
+            <img src={entityQrUrl(entityQrPayload('SUP', previewSupplier.qr_code || 'SUP-' + previewSupplier.id), 90)} alt="Supplier QR" class="w-[90px] h-[90px]" />
+            <div class="text-xs text-pos-muted font-bold">
+              <p>Supplier QR / رمز المورد</p>
+              <p class="font-mono text-pos-text">{previewSupplier.qr_code || 'SUP-' + previewSupplier.id}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            on:click={() => printSupplierCard(previewSupplier)}
+            class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+          >
+            Print QR Card (طباعة البطاقة)
+          </button>
+        </div>
+
         <div class="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border p-3">
           <h4 class="font-black text-xs text-pos-text mb-2">Purchase History (سجل الفواتير) — {supplierHistory.length}</h4>
           <div class="max-h-56 overflow-y-auto space-y-1">
@@ -396,3 +488,31 @@
   onClose={() => (isDebtModalOpen = false)}
   onPaymentRecorded={loadSuppliers}
 />
+
+<!-- Protected Supplier Delete -->
+{#if supplierToDelete}
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
+      <div class="flex items-center gap-3 text-rose-600">
+        <ShieldAlert class="w-6 h-6 shrink-0" />
+        <h3 class="font-black text-sm text-pos-text">Delete Supplier (حذف مورد)</h3>
+      </div>
+      <p class="text-xs text-pos-muted">Delete <strong class="text-pos-text">{supplierToDelete.name}</strong>? Admin password required.</p>
+      {#if deleteErrorMsg}
+        <div class="p-2 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">{deleteErrorMsg}</div>
+      {/if}
+      <input
+        type="password"
+        bind:value={deletePassword}
+        placeholder="Admin password"
+        class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono outline-none"
+      />
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (supplierToDelete = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={confirmDeleteSupplier} disabled={isDeletingSupplier} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
+          {isDeletingSupplier ? 'Deleting...' : 'Confirm Delete'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

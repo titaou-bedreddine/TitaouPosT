@@ -146,12 +146,20 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     // the non-reentrant mutex — after commit, freezing the invoke forever.
     drop(conn);
 
-    // Telegram "each sale" alert (fire-and-forget on a background thread).
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_each_sale",
-        format!("🧾 *Nouvelle Vente* {}\n💰 Total: *{} DZD*\n👤 Caisse: {}", sale_number, input.total_amount, input.user_id),
-    );
+    // Telegram "each sale" alert (fire-and-forget on a background thread),
+    // localized to the UI language (en/ar/fr).
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🧾 *New Sale* {}\n💰 Total: *{} DZD*\n👤 Cashier: {}", sale_number, input.total_amount, input.user_id),
+                format!("🧾 *بيع جديد* {}\n💰 المجموع: *{} دج*\n👤 الكاشير: {}", sale_number, input.total_amount, input.user_id),
+                format!("🧾 *Nouvelle Vente* {}\n💰 Total: *{} DZD*\n👤 Caisse: {}", sale_number, input.total_amount, input.user_id),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_each_sale", text);
+    }
 
     Ok(sale_number)
 }

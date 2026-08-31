@@ -373,6 +373,17 @@
     await executeCheckout(null, undefined);
   }
 
+  // Mode switch with cart parking: each mode keeps its own held cart,
+  // tagged MODE:sale / MODE:purchase / MODE:broken in the held list.
+  async function switchPosMode() {
+    const next = $posMode === 'sale' ? 'purchase' : $posMode === 'purchase' ? 'broken' : 'sale';
+    if ($cartItems.length > 0) {
+      const ok = await holdCurrentSale(`[${$posMode.toUpperCase()} MODE]`);
+      if (!ok) return; // hold failed: stay in the current mode, keep the cart
+    }
+    $posMode = next;
+  }
+
   // Cycle the payment mode: Cash -> TPE -> Credit -> Versement (F11).
   function cyclePaymentMode() {
     if (selectedPaymentMode === 'cash') selectedPaymentMode = 'tpe';
@@ -681,7 +692,7 @@
   }
 
   // Global Keyboard Shortcuts
-  function handleGlobalKeyDown(e: KeyboardEvent) {
+  async function handleGlobalKeyDown(e: KeyboardEvent) {
     // While editing quantities, Enter advances to the next cart line and
     // ESC exits the mode. Swallow both so they never trigger other actions.
     if ($qtyEditTarget) {
@@ -793,11 +804,11 @@
       e.preventDefault();
       onNavigate('sales');
     } else if (isKey('cycle_mode', e)) {
-      // Cycle the POS mode: Sale -> Purchase -> Broken.
+      // Cycle the POS mode: Sale -> Purchase -> Broken. Switching away with
+      // items in the cart parks it as a HELD cart tagged for that mode, so
+      // nothing is lost between sale/purchase/broken work.
       e.preventDefault();
-      if ($posMode === 'sale') $posMode = 'purchase';
-      else if ($posMode === 'purchase') $posMode = 'broken';
-      else $posMode = 'sale';
+      await switchPosMode();
     } else if (isKey('cycle_payment', e)) {
       // Cycle the payment mode: Cash -> TPE -> Credit -> Versement.
       e.preventDefault();
@@ -827,6 +838,7 @@
     bind:autoDrawerEnabled
     onOpenPayment={handleFastCheckout}
     onCheckout={handleOpenCheckout}
+    onCycleMode={switchPosMode}
     onOpenCashDrawer={() => (isCashDrawerOpen = true)}
     onOpenRemise={() => (isRemiseOpen = true)}
     onOpenHeldSales={() => (isHeldSalesOpen = true)}

@@ -6,6 +6,7 @@
   import { currentUser } from '../../lib/stores/auth';
   import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
+  import { printHtmlDirectly } from '../../lib/utils/printer';
 
   let currentTab: 'current' | 'history' = 'current';
   let movements: CashMovement[] = [];
@@ -119,17 +120,52 @@
     }
   }
 
+  // End-of-session Z-report, printed right after a successful close.
+  async function printSessionReport(snap: CashSession, counted: number) {
+    let shopName = 'TitaouPOS';
+    try {
+      const settings = await invoke<Record<string, string>>('get_all_settings');
+      shopName = settings['shop_name_fr'] || shopName;
+    } catch { /* default */ }
+    const diff = counted - snap.expected_cash;
+    const html = [
+      '<div style="width:80mm;font-family:monospace;font-size:11px;padding:4mm;">',
+      '<p style="text-align:center;font-size:15px;font-weight:900;margin:0;">' + shopName + '</p>',
+      '<p style="text-align:center;font-size:11px;font-weight:900;margin:4px 0;">RAPPORT DE CAISSE / تقرير الصندوق</p>',
+      '<hr style="border-top:1px dashed #000;margin:5px 0;" />',
+      '<p>Session #' + snap.id + ' — ' + (snap.user_name || 'Caisse') + '</p>',
+      '<p>Ouvert: ' + (snap.opened_at || '-') + '</p>',
+      '<hr style="border-top:1px dashed #000;margin:5px 0;" />',
+      '<table style="width:100%;font-size:11px;">',
+      '<tr><td>Solde ouverture:</td><td style="text-align:right;">' + snap.opening_amount.toLocaleString() + ' DZD</td></tr>',
+      '<tr><td>Ventes (cash):</td><td style="text-align:right;">' + (snap.total_sales || 0).toLocaleString() + ' DZD</td></tr>',
+      '<tr><td>Sorties (cash):</td><td style="text-align:right;">' + (snap.total_expenses || 0).toLocaleString() + ' DZD</td></tr>',
+      '<tr><td><b>Attendu:</b></td><td style="text-align:right;"><b>' + snap.expected_cash.toLocaleString() + ' DZD</b></td></tr>',
+      '<tr><td><b>Compte:</b></td><td style="text-align:right;"><b>' + counted.toLocaleString() + ' DZD</b></td></tr>',
+      '<tr><td><b>Ecart:</b></td><td style="text-align:right;"><b>' + diff.toLocaleString() + ' DZD</b></td></tr>',
+      '</table>',
+      closeNotes ? '<p style="font-size:10px;margin-top:4px;">Notes: ' + closeNotes + '</p>' : '',
+      '<hr style="border-top:1px dashed #000;margin:5px 0;" />',
+      '<p style="text-align:center;font-size:9px;">TitaouPOS &bull; ' + new Date().toLocaleString() + '</p>',
+      '</div>',
+    ].join('');
+    printHtmlDirectly(html, 'Session Report #' + snap.id);
+  }
+
   async function handleCloseSession() {
     if (!$activeSession) return;
     try {
+      const snap: CashSession = { ...$activeSession };
       await invoke('close_cash_session', {
-        sessionId: $activeSession.id,
+        sessionId: snap.id,
         actualCash: countedCash,
         notes: closeNotes || null,
       });
       isCloseOpen = false;
       $activeSession = null;
       await loadData();
+      // Print the Z-report after the close lands.
+      printSessionReport(snap, countedCash);
     } catch (e) {
       console.error(e);
     }

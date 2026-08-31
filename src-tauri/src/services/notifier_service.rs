@@ -145,3 +145,20 @@ pub fn send_periodic_recap(db: &DbState) -> Result<String, String> {
 
     Ok("Recap sent".to_string())
 }
+
+/// Localized Telegram strings keyed by the UI language setting.
+pub fn tr(lang: &str, msgs: (String, String, String)) -> String {
+    match lang {
+        "ar" => msgs.1,
+        "fr" => msgs.2,
+        _ => msgs.0,
+    }
+}
+
+/// Current UI language for notifications ("en" default).
+pub fn ui_language(db: &DbState) -> String {
+    crate::services::settings_service::get_all_settings(db)
+        .ok()
+        .and_then(|s| s.get("ui_language").cloned())
+        .unwrap_or_else(|| "en".to_string())
+}

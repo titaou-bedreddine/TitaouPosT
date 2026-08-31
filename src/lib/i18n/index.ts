@@ -25,6 +25,10 @@ currentLocale.subscribe((lang) => {
 
 export function setLocale(lang: Language) {
   currentLocale.set(lang);
+  // Persist so backend Telegram notifications match the UI language.
+  import('@tauri-apps/api/core')
+    .then(({ invoke }) => invoke('set_setting', { key: 'ui_language', value: lang }).catch(() => {}))
+    .catch(() => {});
 }
 
 export function getLanguage(): Language {

@@ -2,13 +2,15 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Customer } from '../../lib/types';
-  import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { printHtmlDirectly, entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
   import { refreshCustomers } from '../../lib/stores/customers';
+  import { currentUser } from '../../lib/stores/auth';
   import CustomerDebtModal from '../../lib/components/CustomerDebtModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
   import {
     Users, Plus, QrCode, DollarSign, Edit2, Trash2, Search,
-    X, Check, Printer, FileText, Phone, MapPin, Building, History
+    X, Check, Printer, FileText, Phone, MapPin, Building, History,
+    Eye, ShieldAlert
   } from 'lucide-svelte';
 
   let customers: Customer[] = [];
@@ -19,6 +21,64 @@
   let isDebtModalOpen = false;
   let selectedCustomer: Customer | null = null;
   let previewCustomer: Customer | null = null;
+  let customerToDelete: Customer | null = null;
+  let deletePassword = '';
+  let deleteErrorMsg = '';
+  let isDeletingCustomer = false;
+
+  async function confirmDeleteCustomer() {
+    if (!customerToDelete || !$currentUser) return;
+    try {
+      isDeletingCustomer = true;
+      deleteErrorMsg = '';
+      const ok = await invoke<boolean>('verify_admin_password', { password: deletePassword });
+      if (!ok) {
+        deleteErrorMsg = 'Invalid password / كلمة المرور غير صحيحة';
+        return;
+      }
+      await invoke('delete_customer', { customerId: customerToDelete.id });
+      customerToDelete = null;
+      await loadCustomers();
+    } catch (e: any) {
+      deleteErrorMsg = typeof e === 'string' ? e : e.message || 'Delete failed';
+    } finally {
+      isDeletingCustomer = false;
+    }
+  }
+
+  // Full customer card: shop header, details, debts and QR.
+  async function printCustomerCard(c: Customer) {
+    let shopName = 'TitaouPOS';
+    let shopPhone = '';
+    let shopAddress = '';
+    try {
+      const settings = await invoke<Record<string, string>>('get_all_settings');
+      shopName = settings['shop_name_fr'] || shopName;
+      shopPhone = settings['shop_phone'] || '';
+      shopAddress = settings['shop_address'] || '';
+    } catch {
+      // defaults stand
+    }
+    const code = c.qr_code || 'CUST-' + c.id;
+    const balance = (c.balance || 0).toLocaleString();
+    const parts = [];
+    parts.push('<div style="width:80mm;font-family:monospace;font-size:11px;padding:4mm;text-align:center;">');
+    parts.push('<p style="font-size:15px;font-weight:900;margin:0;">' + shopName + '</p>');
+    parts.push('<p style="font-size:9px;margin:2px 0;">' + shopAddress + ' &bull; ' + shopPhone + '</p>');
+    parts.push('<hr style="border-top:1px dashed #000;margin:5px 0;" />');
+    parts.push('<p style="font-size:13px;font-weight:900;margin:4px 0;">CLIENT CARD / بطاقة زبون</p>');
+    parts.push('<p style="font-weight:900;font-size:12px;margin:3px 0;">' + c.name + '</p>');
+    if (c.phone) parts.push('<p style="margin:2px 0;">Tel: ' + c.phone + '</p>');
+    if (c.rc) parts.push('<p style="margin:2px 0;font-size:10px;">RC: ' + c.rc + (c.nif ? ' | NIF: ' + c.nif : '') + '</p>');
+    parts.push('<img src="' + entityQrUrl(entityQrPayload('CUST', code), 150) + '" alt="QR" style="width:38mm;height:38mm;margin:5px auto;" />');
+    parts.push('<p style="font-size:10px;font-family:monospace;">' + code + '</p>');
+    parts.push('<hr style="border-top:1px dashed #000;margin:5px 0;" />');
+    parts.push('<p style="font-size:13px;font-weight:900;margin:2px 0;">DETTES: ' + balance + ' DZD</p>');
+    parts.push('<p style="font-size:9px;margin-top:6px;">TitaouPOS &bull; ' + shopName + '</p>');
+    parts.push('</div>');
+    printHtmlDirectly(parts.join('\n'), 'Client Card ' + c.name);
+  }
+
   let customerHistory: any[] = [];
 
   // Sales history for the previewed customer.
@@ -257,12 +317,30 @@
                   {/if}
                   <button
                     type="button"
+                    on:click={() => { previewCustomer = c; loadCustomerHistory(c); }}
+                    class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
+                    title="View details"
+                  >
+                    <Eye class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     on:click={() => openEditModal(c)}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
                     title="Edit"
                   >
                     <Edit2 class="w-3.5 h-3.5" />
                   </button>
+                  {#if c.id !== 1}
+                    <button
+                      type="button"
+                      on:click={() => { customerToDelete = c; deletePassword = ''; deleteErrorMsg = ''; }}
+                      class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer"
+                      title="Delete (admin password)"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  {/if}
                 </div>
               </td>
             </tr>
@@ -400,6 +478,26 @@
           {/if}
         </div>
 
+        <!-- Sales History -->
+        <div class="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border p-3">
+          <h4 class="font-black text-xs text-pos-text mb-2">Sales History (سجل المبيعات) — {customerHistory.length}</h4>
+          <div class="max-h-48 overflow-y-auto space-y-1">
+            {#each customerHistory as sale}
+              <div class="flex items-center justify-between p-2 bg-pos-card rounded-lg text-xs border border-pos-border/60">
+                <span class="font-mono font-bold text-sky-600 truncate">#{sale.sale_number}</span>
+                <span class="text-pos-muted font-mono">{sale.created_at}</span>
+                <span class="font-mono font-black text-pos-text">{sale.total_amount.toLocaleString()} DZD</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black {sale.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                  {sale.payment_status}
+                </span>
+              </div>
+            {/each}
+            {#if customerHistory.length === 0}
+              <p class="text-xs text-pos-muted text-center py-3">No sales recorded for this customer.</p>
+            {/if}
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- QR Card -->
           <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border text-center space-y-2 flex flex-col items-center justify-center">
@@ -407,6 +505,13 @@
               <img src={qrUrl} alt="QR Code" class="w-full h-full object-contain" />
             </div>
             <p class="text-[10px] text-pos-muted font-bold">Scan at POS for Instant Account Lookup</p>
+            <button
+              type="button"
+              on:click={() => printCustomerCard(previewCustomer)}
+              class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-xl cursor-pointer shadow-xs"
+            >
+              Print QR Card (طباعة)
+            </button>
           </div>
 
           <!-- Contact & Registration -->
@@ -448,3 +553,30 @@
   onClose={() => (isDebtModalOpen = false)}
   onPaymentRecorded={() => { loadCustomers(); refreshCustomers(); }}
 />
+<!-- Protected Customer Delete -->
+{#if customerToDelete}
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
+      <div class="flex items-center gap-3 text-rose-600">
+        <ShieldAlert class="w-6 h-6 shrink-0" />
+        <h3 class="font-black text-sm text-pos-text">Delete Customer</h3>
+      </div>
+      <p class="text-xs text-pos-muted">Delete <strong class="text-pos-text">{customerToDelete.name}</strong>? Admin password required.</p>
+      {#if deleteErrorMsg}
+        <div class="p-2 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">{deleteErrorMsg}</div>
+      {/if}
+      <input
+        type="password"
+        bind:value={deletePassword}
+        placeholder="Admin password"
+        class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono outline-none"
+      />
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (customerToDelete = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={confirmDeleteCustomer} disabled={isDeletingCustomer} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
+          {isDeletingCustomer ? 'Deleting...' : 'Confirm Delete'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

@@ -141,16 +141,23 @@
     return 'center';
   }
 
+  function getFlexJustify(position: string): string {
+    if (position === 'top') return 'flex-start';
+    if (position === 'bottom') return 'flex-end';
+    return 'center';
+  }
+
   function buildStickerHtml(): string {
     const svgContent = barcodeSvgEl ? barcodeSvgEl.outerHTML : '';
     const flexAlign = getFlexAlign(stickerAlign);
+    const positionJustify = getFlexJustify(settings.sticker_content_position || 'middle');
     const finalWidth = stickerOrientation === 'portrait' ? heightMm : widthMm;
     const finalHeight = stickerOrientation === 'portrait' ? widthMm : heightMm;
     const nameStyle = `font-size:${stickerNameSize}px; font-weight:${stickerNameBold ? '900' : '500'}; text-align:${stickerAlign}; margin:2px 0;`;
     const priceStyle = `font-size:${stickerPriceSize}px; font-weight:${stickerPriceBold ? '900' : '700'}; font-family:monospace; text-align:${stickerAlign}; margin:2px 0;`;
     return `
       <div style="width:${finalWidth}mm; height:${finalHeight}mm; padding:2mm; text-align:${stickerAlign};
-                  display:flex; flex-direction:column; align-items:${flexAlign}; justify-content:center;
+                  display:flex; flex-direction:column; align-items:${flexAlign}; justify-content:${positionJustify};
                   font-family:sans-serif; overflow:hidden; box-sizing:border-box; background:#fff;">
         ${stickerShowShop ? `<span style="font-size:10px; font-weight:bold; text-transform:uppercase; color:#444; display:block; width:100%; text-align:${stickerAlign};">${shopName}</span>` : ''}
         ${stickerShowName ? `<span style="${nameStyle} display:block; overflow:hidden; white-space:nowrap; max-width:100%; width:100%;">${product?.name_fr || product?.name_ar || ''}</span>` : ''}
@@ -162,6 +169,7 @@
 
   function buildShelfTagHtml(): string {
     const flexAlign = getFlexAlign(shelfAlign);
+    const positionJustify = getFlexJustify(settings.shelf_content_position || settings.sticker_content_position || 'middle');
     const finalWidth = shelfOrientation === 'portrait' ? heightMm : widthMm;
     const finalHeight = shelfOrientation === 'portrait' ? widthMm : heightMm;
     const nameStyle = `font-size:${shelfNameSize}px; font-weight:${shelfNameBold ? '900' : '600'}; text-align:${shelfAlign};`;
@@ -169,7 +177,7 @@
     return `
       <div style="width:${finalWidth}mm; height:${finalHeight}mm; border:2px solid #000; padding:3mm;
                   font-family:sans-serif; text-align:${shelfAlign}; box-sizing:border-box; background:#fff;
-                  display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;">
+                  display:flex; flex-direction:column; justify-content:${positionJustify}; overflow:hidden;">
         ${shelfShowShop ? `<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;"><span>${shopName}</span><span style="color:#059669; font-weight:900;">DISPO</span></div>` : ''}
         ${shelfShowName ? `<p style="${nameStyle} margin:4px 0; line-height:1.2; width:100%;">${product?.name_fr || product?.name_ar || ''}</p>` : ''}
         ${shelfShowPrice ? `<div style="background:#000;color:#fff;padding:6px;${priceStyle}margin:4px 0;font-family:monospace;border-radius:4px;width:100%;">${product?.sale_price?.toLocaleString() || '0'} DZD</div>` : ''}

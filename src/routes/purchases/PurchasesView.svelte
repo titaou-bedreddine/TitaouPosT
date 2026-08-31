@@ -5,6 +5,7 @@
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
+  import { entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
   import ProductEditModal from '../../lib/components/ProductEditModal.svelte';
   import type { Category, Unit } from '../../lib/types';
   import {
@@ -75,28 +76,42 @@
     }
   }
 
-  // One-click settlement of an invoice's remaining due: books a supplier
-  // payment from the active cash session drawer.
-  async function quickPaySupplierDue(pur: Purchase) {
-    const due = pur.total - pur.paid_amount;
-    if (due <= 0) return;
+  // Pay an invoice's due: a dialog asks the amount (prefilled with the
+  // remaining due) instead of silently emptying the drawer.
+  let payDialogPurchase: Purchase | null = null;
+  let payDialogAmount = 0;
+  let payDialogErr = '';
+
+  function quickPaySupplierDue(pur: Purchase) {
+    payDialogPurchase = pur;
+    payDialogAmount = pur.total - pur.paid_amount;
+    payDialogErr = '';
+  }
+
+  async function confirmPaySupplierDue() {
+    if (!payDialogPurchase) return;
+    if (payDialogAmount <= 0) {
+      payDialogErr = 'Enter a valid amount / المبلغ غير صالح';
+      return;
+    }
     try {
       const { activeSession } = await import('../../lib/stores/session');
       const { currentUser } = await import('../../lib/stores/auth');
       await invoke('record_supplier_debt_payment', {
         input: {
-          supplier_id: pur.supplier_id,
-          amount: due,
+          supplier_id: payDialogPurchase.supplier_id,
+          amount: payDialogAmount,
           payment_method: 'cash',
-          reference: pur.invoice_number,
+          reference: payDialogPurchase.invoice_number,
           session_id: activeSession?.id ?? null,
           user_id: currentUser?.id || 1,
-          notes: `Full settlement of invoice ${pur.invoice_number} / تسديد كامل للفاتورة`,
+          notes: `Payment of invoice ${payDialogPurchase.invoice_number} / تسديد الفاتورة`,
         },
       });
+      payDialogPurchase = null;
       await loadData();
     } catch (e: any) {
-      alert('Payment failed: ' + (typeof e === 'string' ? e : e.message || e));
+      payDialogErr = 'Payment failed: ' + (typeof e === 'string' ? e : e.message || e);
     }
   }
 
@@ -157,6 +172,7 @@
 
   // Quick date-range filter for the loaded purchase list.
   let filterStartDate = '';
+  let listSearch = '';
   let filterEndDate = '';
 
   // Invoice details preview: items + delete-with-password.
@@ -167,9 +183,22 @@
   let deleteErrorMsg = '';
   let isDeletingPurchase = false;
 
+  // Omni filter: invoice number, supplier, exact amount, or invoice QR.
   $: filteredPurchases = purchases.filter((p) => {
     if (filterStartDate && p.date < filterStartDate) return false;
     if (filterEndDate && p.date > filterEndDate) return false;
+    const q = listSearch.trim().toLowerCase();
+    if (q) {
+      const stripped = q.startsWith('pur:') ? q.slice(4) : q;
+      const qr = entityQrPayload('PUR', p.invoice_number).toLowerCase();
+      const hit =
+        p.invoice_number.toLowerCase().includes(stripped) ||
+        (p.supplier_name || '').toLowerCase().includes(stripped) ||
+        String(p.total) === stripped ||
+        qr === q ||
+        qr.includes(stripped);
+      if (!hit) return false;
+    }
     return true;
   });
 
@@ -493,8 +522,16 @@
     </button>
   </div>
 
-  <!-- Quick Date Presets -->
-  <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} />
+  <!-- Quick Date Presets + Omni Search -->
+  <div class="flex items-center gap-3 flex-wrap">
+    <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} />
+    <input
+      type="text"
+      bind:value={listSearch}
+      placeholder="Search: #, supplier, amount, or scan invoice QR..."
+      class="flex-1 min-w-[220px] px-3 py-1.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none"
+    />
+  </div>
 
   <!-- Purchases List Table -->
   <div class="flex-1 overflow-y-auto bg-pos-card border border-pos-border rounded-2xl shadow-xs">
@@ -803,7 +840,14 @@
         </button>
       </div>
 
-      <div class="p-6 overflow-y-auto flex-1">
+      <div class="p-6 overflow-y-auto flex-1 space-y-4">
+        <div class="flex items-center justify-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+          <img src={entityQrUrl(entityQrPayload('PUR', previewPurchase.invoice_number), 110)} alt="Invoice QR" class="w-[110px] h-[110px]" />
+          <div class="text-xs text-pos-muted font-bold">
+            <p>Invoice QR / رمز الفاتورة</p>
+            <p class="font-mono text-pos-text">{entityQrPayload('PUR', previewPurchase.invoice_number)}</p>
+          </div>
+        </div>
         <table class="w-full text-start text-xs border-collapse">
           <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
             <tr>
@@ -917,3 +961,34 @@
     products = await invoke<Product[]>('search_products', { query: '', categoryId: null, searchType: 'all' });
   }}
 />
+
+<!-- Pay Supplier Due Dialog -->
+{#if payDialogPurchase}
+  <div class="fixed inset-0 z-[65] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+      <h3 class="font-black text-sm text-pos-text">Pay Supplier (تسديد للمورد)</h3>
+      <p class="text-xs text-pos-muted">
+        Invoice <strong class="text-pos-text">#{payDialogPurchase.invoice_number}</strong> —
+        {payDialogPurchase.supplier_name || '—'} • Due: {(payDialogPurchase.total - payDialogPurchase.paid_amount).toLocaleString()} DZD
+      </p>
+      {#if payDialogErr}
+        <div class="p-2 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">{payDialogErr}</div>
+      {/if}
+      <div>
+        <label class="block text-xs font-bold text-pos-muted mb-1">Amount from drawer (DZD)</label>
+        <input
+          type="number"
+          inputmode="numeric"
+          min="0"
+          bind:value={payDialogAmount}
+          on:focus={(e) => (e.target as HTMLInputElement).select()}
+          class="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-lg font-mono font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (payDialogPurchase = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={confirmPaySupplierDue} class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">Confirm Payment</button>
+      </div>
+    </div>
+  </div>
+{/if}

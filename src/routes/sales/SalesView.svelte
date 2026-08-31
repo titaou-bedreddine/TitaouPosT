@@ -5,6 +5,7 @@
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
+  import { entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
   import { cartItems, clearCart } from '../../lib/stores/cart';
   import { selectedCustomerId } from '../../lib/stores/customers';
   import {
@@ -62,9 +63,18 @@
   }
 
   $: filteredSales = sales.filter(s => {
-    const matchesSearch = !searchQuery ||
-      s.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.customer_name && s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    // Omni-search: sale number, customer name, exact amount, or the QR
+    // payload (scan a receipt QR → 'SALE:POS-...' or plain code).
+    const q = searchQuery.trim().toLowerCase();
+    const qr = entityQrPayload('SALE', s.sale_number).toLowerCase();
+    const stripped = q.startsWith('sale:') ? q.slice(5) : q;
+    const matchesSearch =
+      !q ||
+      s.sale_number.toLowerCase().includes(stripped) ||
+      (s.customer_name || '').toLowerCase().includes(stripped) ||
+      String(s.total_amount) === stripped ||
+      qr === q ||
+      qr.includes(stripped);
 
     if (!matchesSearch) return false;
 
@@ -297,7 +307,7 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Ex: 9842, Ahmed..."
+        placeholder="Search: #, client, exact amount, or scan receipt QR..."
         class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none"
       />
     </div>
@@ -429,6 +439,15 @@
 
       <!-- Modal Body -->
       <div class="p-6 overflow-y-auto space-y-4 flex-1">
+        <!-- Receipt QR (scan to find this sale) -->
+        <div class="flex items-center justify-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+          <img src={entityQrUrl(entityQrPayload('SALE', selectedSale.sale_number), 110)} alt="Sale QR" class="w-[110px] h-[110px]" />
+          <div class="text-xs text-pos-muted font-bold">
+            <p>Receipt QR / رمز الوصل</p>
+            <p class="font-mono text-pos-text">{entityQrPayload('SALE', selectedSale.sale_number)}</p>
+          </div>
+        </div>
+
         <!-- Customer & Payment Summary -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border text-xs">
           <div>

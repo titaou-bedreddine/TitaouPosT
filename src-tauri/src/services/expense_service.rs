@@ -115,3 +115,29 @@ pub fn delete_expense(db: &DbState, expense_id: i64) -> Result<(), String> {
     Ok(())
 }
 
+
+/// Edit a voucher: category/amount/method/recipient/notes/date. Cash
+/// movements are NOT rewritten (historical trail stays).
+pub fn update_expense(
+    db: &DbState,
+    expense_id: i64,
+    category_id: i64,
+    amount: i64,
+    payment_method: &str,
+    recipient: Option<String>,
+    receipt_reference: Option<String>,
+    notes: Option<String>,
+    date: String,
+) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "UPDATE expenses SET category_id = ?1, amount = ?2, payment_method = ?3, recipient = ?4,
+                receipt_reference = ?5, notes = ?6, date = ?7 WHERE id = ?8",
+        rusqlite::params![
+            category_id, amount, payment_method, recipient,
+            receipt_reference, notes, date, expense_id
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
