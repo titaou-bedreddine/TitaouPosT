@@ -354,10 +354,10 @@
         <table class="w-full text-start text-xs border-collapse">
           <thead>
             <tr class="border-b border-pos-border text-pos-muted font-bold">
-              <th class="p-3 text-start">Time</th>
-              <th class="p-3 text-start">Type</th>
-              <th class="p-3 text-start">Description</th>
-              <th class="p-3 text-end">Amount</th>
+              <th class="p-3 text-start">{t('reg_col_time')}</th>
+              <th class="p-3 text-start">{t('reg_col_type')}</th>
+              <th class="p-3 text-start">{t('reg_col_description')}</th>
+              <th class="p-3 text-end">{t('reg_col_amount')}</th>
             </tr>
           </thead>
           <tbody>

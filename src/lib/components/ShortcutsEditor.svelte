@@ -10,7 +10,9 @@
   export let bindings: Record<string, string> = {};
 
   // Canonical actions and their default keys (the POS preset).
-  export const DEFAULT_PRESET: Record<string, string> = {
+  // NOTE: not exported — Svelte component scripts allow only let/function
+  // exports; `export const` broke this component's instantiation.
+  const DEFAULT_PRESET: Record<string, string> = {
     new_sale: 'F1',
     checkout_print: 'F2',
     hold_cart: 'F3',

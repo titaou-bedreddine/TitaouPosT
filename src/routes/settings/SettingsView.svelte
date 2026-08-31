@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
   import { currentUser } from '../../lib/stores/auth';
@@ -1097,7 +1098,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'general' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Building class="w-4 h-4 mb-1" />
-        <span class="truncate">General</span>
+        <span class="truncate">{t('set_general')}</span>
       </button>
 
       <button
@@ -1124,7 +1125,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'notifications' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Bell class="w-4 h-4 mb-1" />
-        <span class="truncate">Notifications</span>
+        <span class="truncate">{t('set_notifications_tab')}</span>
       </button>
 
       <button
@@ -1151,7 +1152,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'shortcuts' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Keyboard class="w-4 h-4 mb-1" />
-        <span class="truncate">Shortcuts</span>
+        <span class="truncate">{t('set_shortcuts')}</span>
       </button>
 
       <button
@@ -1160,7 +1161,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'network' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Smartphone class="w-4 h-4 mb-1" />
-        <span class="truncate">Network & Mobile</span>
+        <span class="truncate">{t('set_network')}</span>
       </button>
 
       <button
@@ -1169,7 +1170,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'import_export' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Download class="w-4 h-4 mb-1" />
-        <span class="truncate">Import / Export</span>
+        <span class="truncate">{t('set_import_export')}</span>
       </button>
 
       <button
@@ -1178,7 +1179,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'activation' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <ShieldCheck class="w-4 h-4 mb-1" />
-        <span class="truncate">Activation</span>
+        <span class="truncate">{t('set_activation')}</span>
       </button>
 
       <button
@@ -1187,7 +1188,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'updates' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <RefreshCw class="w-4 h-4 mb-1" />
-        <span class="truncate">Updates</span>
+        <span class="truncate">{t('set_updates')}</span>
       </button>
 
       <button
@@ -1196,7 +1197,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'account' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Users class="w-4 h-4 mb-1" />
-        <span class="truncate">Users & Roles</span>
+        <span class="truncate">{t('set_account')}</span>
       </button>
 
       <button

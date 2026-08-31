@@ -402,7 +402,7 @@
 
       <div class="p-6 space-y-3">
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Expense Amount / المبلغ (DZD) *</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('exp_amount')} *</label>
           <input type="number" min="1" bind:value={amount} placeholder="Ex: 5000" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-base font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500" />
           <label class="block text-xs font-bold text-pos-muted mb-1 mt-2">{t('exp_expense_date')}</label>
           <input type="date" bind:value={expenseDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
@@ -433,7 +433,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Beneficiary / Recipient (المستفيد)</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('exp_beneficiary_label')}</label>
           <input type="text" bind:value={recipient} placeholder="Ex: Sonelgaz, Propriétaire, Chauffeur" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none" />
         </div>
 
@@ -511,7 +511,7 @@
           <span class="font-black text-pos-text uppercase">{previewExpense.payment_method}</span>
         </div>
         <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-pos-border">
-          <span class="text-pos-muted font-bold block text-[10px] uppercase">Beneficiary</span>
+          <span class="text-pos-muted font-bold block text-[10px] uppercase">{t('exp_beneficiary_label')}</span>
           <span class="font-black text-pos-text">{previewExpense.recipient || 'Divers'}</span>
         </div>
         <div class="p-3 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-800/60">

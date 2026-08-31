@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Employee, Payroll } from '../../lib/types';
+  import { t } from '../../lib/i18n';
   import {
     Plus, Users, Award, DollarSign, Calendar, AlertTriangle,
     Check, X, Printer, UserCheck, CreditCard, Clock
@@ -227,9 +228,9 @@
     <div>
       <h1 class="text-xl font-black text-pos-text flex items-center gap-2">
         <UserCheck class="w-6 h-6 text-sky-600" />
-        <span>Staff & Payroll Management (رواتب الموظفين)</span>
+        <span>{t('pay_title')}</span>
       </h1>
-      <p class="text-xs text-pos-muted mt-0.5">Manage employee contracts, base salaries, advances, and payroll slips</p>
+      <p class="text-xs text-pos-muted mt-0.5">{t('pay_subtitle')}</p>
     </div>
     <button
       on:click={openAddEmployee}
@@ -243,30 +244,30 @@
   {#if isAddOpen}
     <div class="bg-pos-card border border-pos-border rounded-2xl p-5 shadow-md space-y-4 animate-in zoom-in-95 duration-150">
       <div class="flex items-center justify-between border-b border-pos-border pb-3">
-        <h3 class="font-black text-sm text-pos-text">Register New Employee Profile</h3>
+        <h3 class="font-black text-sm text-pos-text">{t('pay_modal_new')}</h3>
         <button on:click={() => (isAddOpen = false)} class="text-pos-muted hover:text-pos-text"><X class="w-4 h-4" /></button>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
         <div>
-          <label class="block font-bold text-pos-muted mb-1">Employee Code *</label>
+          <label class="block font-bold text-pos-muted mb-1">{t('pay_field_code')} *</label>
           <input type="text" bind:value={code} placeholder="EMP-01" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-mono font-bold outline-none" />
         </div>
         <div>
-          <label class="block font-bold text-pos-muted mb-1">Full Name *</label>
+          <label class="block font-bold text-pos-muted mb-1">{t('pay_field_name')} *</label>
           <input type="text" bind:value={name} placeholder="Ahmed Benali" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-bold outline-none" />
         </div>
         <div>
-          <label class="block font-bold text-pos-muted mb-1">Job Title *</label>
+          <label class="block font-bold text-pos-muted mb-1">{t('pay_field_job')} *</label>
           <input type="text" bind:value={jobTitle} placeholder="Head Cashier" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text outline-none" />
         </div>
         <div>
-          <label class="block font-bold text-pos-muted mb-1">Base Monthly Salary (DZD) *</label>
+          <label class="block font-bold text-pos-muted mb-1">{t('pay_field_salary')} *</label>
           <input type="number" bind:value={baseSalary} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl font-mono font-black text-pos-text outline-none" />
         </div>
       </div>
       <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
         <button on:click={() => (isAddOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
-        <button on:click={handleSaveEmployee} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer">Save Employee</button>
+        <button on:click={handleSaveEmployee} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer">{t('pay_save_employee')}</button>
       </div>
     </div>
   {/if}
@@ -321,12 +322,12 @@
 
         <div class="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border text-xs">
           <div class="flex items-center justify-between">
-            <span class="text-pos-muted font-bold">Base Monthly:</span>
+            <span class="text-pos-muted font-bold">{t('pay_base_monthly')}:</span>
             <span class="font-bold font-mono text-pos-text">{emp.base_salary.toLocaleString()} DZD</span>
           </div>
           {#if advances > 0}
             <div class="flex items-center justify-between text-rose-600">
-              <span>Advances (تسبيقات):</span>
+              <span>{t('pay_advances')}:</span>
               <span class="font-mono font-bold">-{advances.toLocaleString()} DZD</span>
             </div>
           {/if}
@@ -422,7 +423,7 @@
   <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="font-black text-sm text-pos-text">Advances History — {historyEmployee.full_name}</h3>
+        <h3 class="font-black text-sm text-pos-text">{t('pay_advances_history')} — {historyEmployee.full_name}</h3>
         <button on:click={() => (historyEmployee = null)} class="text-pos-muted hover:text-pos-text p-1 rounded cursor-pointer">
           <X class="w-5 h-5" />
         </button>
@@ -436,7 +437,7 @@
           </div>
         {/each}
         {#if advanceLog.length === 0}
-          <p class="text-xs text-pos-muted text-center py-4">No advances recorded.</p>
+          <p class="text-xs text-pos-muted text-center py-4">{t('pay_no_advances')}</p>
         {/if}
       </div>
     </div>
@@ -449,7 +450,7 @@
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
       <h3 class="font-black text-sm text-pos-text flex items-center gap-2 text-rose-600">
         <Trash2 class="w-5 h-5" />
-        <span>Delete Employee (حذف موظف)</span>
+        <span>{t('pay_delete_employee')}</span>
       </h3>
       <p class="text-xs text-pos-muted">
         Delete <strong class="text-pos-text">{employeeToDelete.full_name}</strong>?

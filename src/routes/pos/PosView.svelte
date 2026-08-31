@@ -875,14 +875,14 @@
         <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-pos-border text-xs">
           <ArrowUpDown class="w-3.5 h-3.5 text-pos-muted" />
           <select bind:value={sortBy} on:change={loadProducts} class="bg-transparent text-pos-text font-bold outline-none cursor-pointer">
-            <option value="default">Default Sort</option>
-            <option value="name_asc">Name (A-Z)</option>
-            <option value="name_desc">Name (Z-A)</option>
-            <option value="price_asc">Price (Low → High)</option>
-            <option value="price_desc">Price (High → Low)</option>
-            <option value="stock">Most Stock</option>
-            <option value="best_sellers">Best Sellers (Most Sold)</option>
-            <option value="worst_sellers">Least Sold</option>
+            <option value="default">{t('sort_default')}</option>
+            <option value="name_asc">{t('sort_name_asc')}</option>
+            <option value="name_desc">{t('sort_name_desc')}</option>
+            <option value="price_asc">{t('sort_price_asc')}</option>
+            <option value="price_desc">{t('sort_price_desc')}</option>
+            <option value="stock">{t('sort_stock')}</option>
+            <option value="best_sellers">{t('sort_best')}</option>
+            <option value="worst_sellers">{t('sort_worst')}</option>
           </select>
         </div>
       </div>

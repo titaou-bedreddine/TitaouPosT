@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { Purchase, Supplier, Product } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
@@ -518,7 +519,7 @@
       class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
-      <span>New Purchase (فاتورة شراء جديدة)</span>
+      <span>{t('pur_new')}</span>
     </button>
   </div>
 
@@ -538,12 +539,12 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Invoice #</th>
-          <th class="p-3 text-start">Date</th>
-          <th class="p-3 text-start">Supplier / المورد</th>
-          <th class="p-3 text-end">Total Amount</th>
-          <th class="p-3 text-end">Paid (المدفوع)</th>
-          <th class="p-3 text-center">Status</th>
+          <th class="p-3 text-start">{t('pur_invoice_num')}</th>
+          <th class="p-3 text-start">{t('pur_col_date')}</th>
+          <th class="p-3 text-start">{t('pur_supplier_col')}</th>
+          <th class="p-3 text-end">{t('pur_col_total')}</th>
+          <th class="p-3 text-end">{t('pur_paid_col')}</th>
+          <th class="p-3 text-center">{t('pur_status')}</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
       </thead>
@@ -650,7 +651,7 @@
               data-scanner-input
               bind:value={searchQuery}
               on:keydown={(e) => e.key === 'Enter' && handleSearchEnter()}
-              placeholder="Search or scan a barcode + Enter to add directly..."
+              placeholder="{t('pur_search_hint')}"
               class="w-full bg-transparent border-0 text-xs font-bold text-pos-text outline-none"
             />
             {#if searchQuery}

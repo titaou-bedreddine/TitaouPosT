@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { Sale, User } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';

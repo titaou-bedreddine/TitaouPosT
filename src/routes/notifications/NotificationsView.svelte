@@ -46,7 +46,7 @@
             type: 'expiry',
             title: t('notif_expired_alert'),
             message: `Product "${p.name_fr || p.name_ar}" expired on ${p.expiry_date} (Stock: ${p.current_stock} pcs)`,
-            timestamp: 'Immediate Attention Required',
+            timestamp: t('notif_immediate'),
             related_id: p.id,
           });
         } else if (p.current_stock <= p.min_stock) {
@@ -55,7 +55,7 @@
             type: 'stock',
             title: t('notif_low_stock_alert'),
             message: `Product "${p.name_fr || p.name_ar}" has reached low stock threshold (${p.current_stock} pcs remaining)`,
-            timestamp: 'Stock Replenishment Recommended',
+            timestamp: t('notif_replenish'),
             related_id: p.id,
           });
         }
@@ -137,21 +137,21 @@
       on:click={() => (filterType = 'all')}
       class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'all' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
     >
-      All Alerts ({notifications.filter(n => !n.is_dismissed).length})
+      {t('notif_all_alerts')} ({notifications.filter(n => !n.is_dismissed).length})
     </button>
     <button
       type="button"
       on:click={() => (filterType = 'expiry')}
       class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'expiry' ? 'bg-rose-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
     >
-      Expiry Alerts ({notifications.filter(n => !n.is_dismissed && n.type === 'expiry').length})
+      {t('notif_expiry_alerts')} ({notifications.filter(n => !n.is_dismissed && n.type === 'expiry').length})
     </button>
     <button
       type="button"
       on:click={() => (filterType = 'stock')}
       class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'stock' ? 'bg-amber-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
     >
-      Low Stock ({notifications.filter(n => !n.is_dismissed && n.type === 'stock').length})
+      {t('notif_stock_alerts')} ({notifications.filter(n => !n.is_dismissed && n.type === 'stock').length})
     </button>
     <button
       type="button"

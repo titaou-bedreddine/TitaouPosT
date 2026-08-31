@@ -111,32 +111,32 @@
     <!-- Top 6 Metric Cards matching photo_2026-08-27_18-52-00.jpg -->
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Revenue (المداخيل)</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_sales')}</span>
         <div class="text-lg font-black font-mono text-sky-600 mt-1">{stats.today_sales.toLocaleString()} DZD</div>
       </div>
 
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Returns (المرتجعات)</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_returns')}</span>
         <div class="text-lg font-black font-mono text-amber-600 mt-1">{stats.returns_amount.toLocaleString()} DZD</div>
       </div>
 
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Net Revenue (الصافي)</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_net')}</span>
         <div class="text-lg font-black font-mono text-pos-text mt-1">{stats.net_revenue.toLocaleString()} DZD</div>
       </div>
 
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Cost of Goods Sold</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_cogs')}</span>
         <div class="text-lg font-black font-mono text-slate-500 mt-1">{stats.cost_of_goods.toLocaleString()} DZD</div>
       </div>
 
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Gross Profit (الهامش)</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_gross')}</span>
         <div class="text-lg font-black font-mono text-emerald-600 mt-1">{stats.gross_profit.toLocaleString()} DZD</div>
       </div>
 
       <div class="bg-pos-card border border-pos-border rounded-xl p-3.5 shadow-xs">
-        <span class="text-[11px] font-bold text-pos-muted">Average Basket (السلة)</span>
+        <span class="text-[11px] font-bold text-pos-muted">{t('dash_metric_basket')}</span>
         <div class="text-lg font-black font-mono text-indigo-600 mt-1">{stats.average_basket.toLocaleString()} DZD</div>
       </div>
     </div>
@@ -173,9 +173,9 @@
     {#if selectedTab === 'financial' && stats}
     <!-- Main Analytics Content matching photo_2026-08-27_18-52-04.jpg -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Left Column: Net Profit & Cash Flow -->
+      <!-- Left Column: {t('dash_tab_financial')} -->
       <div class="space-y-4">
-        <h3 class="font-extrabold text-sm text-pos-text">Net Profit & Cash Flow</h3>
+        <h3 class="font-extrabold text-sm text-pos-text">{t('dash_tab_financial')}</h3>
 
         <div class="bg-pos-card border-2 border-sky-500/40 rounded-2xl p-5 shadow-xs space-y-2">
           <span class="text-xs font-extrabold text-sky-600 uppercase tracking-wider">{t('dash_net_profit')}</span>

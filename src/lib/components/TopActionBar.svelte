@@ -243,7 +243,7 @@
         title="Checkout (F2) — Select customer, enter amount, get change/reste"
       >
         <Coins class="w-4 h-4 mb-0.5" />
-        <span class="text-xs font-black leading-tight">Checkout</span>
+        <span class="text-xs font-black leading-tight">{t('bar_checkout')}
         <span class="text-[9px] bg-black/25 px-1 rounded font-mono font-normal mt-0.5">F2</span>
       </button>
     </div>
