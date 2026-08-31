@@ -18,6 +18,8 @@
   let purchasePrice = 0;
   let salePrice = 0;
   let quantity = 1;
+  let errorMsg = '';
+  let isSaving = false;
   let barcodeInputEl: HTMLInputElement;
 
   $: if (isOpen && barcodeInputEl) {

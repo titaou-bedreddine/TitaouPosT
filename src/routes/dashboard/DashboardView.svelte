@@ -24,6 +24,15 @@
   let expensesList: any[] = [];
   let movementsList: any[] = [];
   let versementSales: any[] = [];
+  // Versement ticket modal: details + re-print. The actions in the versement
+  // table (view / load-in-POS / print) mutate this state.
+  let versementDetail: any | null = null;
+  let versementItems: any[] = [];
+  let isPrintingVersement = false;
+
+  // Props from App.svelte: hand the versement's items to the POS cart so the
+  // cashier can complete the due payment there.
+  export let onEditSaleInPos: (sale: any) => void = () => {};
 
   $: versementTotalPaid = versementSales.reduce((s2, x) => s2 + (x.paid_amount || 0), 0);
   $: versementTotalRemaining = versementSales.reduce((s2, x) => s2 + Math.max(0, (x.total_amount || 0) - (x.paid_amount || 0)), 0);
@@ -72,6 +81,69 @@
         : [];
     } catch {
       movementsList = [];
+    }
+  }
+
+  // --- Versement ticket actions (view / load-in-POS / print) ---
+
+  async function openVersementDetails(sale: any) {
+    versementDetail = sale;
+    versementItems = [];
+    try {
+      versementItems = await invoke<any[]>('get_sale_items', { saleId: sale.id });
+    } catch (e) {
+      console.error('Versement items:', e);
+    }
+  }
+
+  function loadVersementInPos(sale: any) {
+    onEditSaleInPos(sale);
+    versementDetail = null;
+  }
+
+  async function printVersementTicket(sale: any) {
+    if (isPrintingVersement) return;
+    isPrintingVersement = true;
+    try {
+      const [items, appSettings] = await Promise.all([
+        invoke<any[]>('get_sale_items', { saleId: sale.id }),
+        invoke<Record<string, string>>('get_all_settings').catch(() => ({} as Record<string, string>)),
+      ]);
+      const qrDataUrl = await entityQrDataUrl(`SALE:${sale.sale_number}`, 100).catch(
+        () => undefined
+      );
+      const html = buildReceiptHtml({
+        qrDataUrl,
+        shopName: appSettings['shop_name_fr'] || appSettings['shop_name_ar'] || 'TitaouPOS Superette',
+        shopAddress: appSettings['shop_address'] || 'Rue Principale, Alger',
+        shopPhone: appSettings['shop_phone'] || '0553444057',
+        shopRc: appSettings['shop_rc'] || undefined,
+        shopNif: appSettings['shop_nif'] || undefined,
+        saleNumber: sale.sale_number,
+        saleDate: sale.created_at,
+        cashierName: sale.cashier_name || 'Caisse',
+        customerName: sale.customer_name || 'Client Comptoir',
+        items: items.map((i) => ({
+          name: i.name_fr || i.name_ar || `#${i.product_id}`,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+          totalPrice: i.total_price,
+          discountPerUnit: i.discount_amount || 0,
+          isRefund: i.is_refund || false,
+        })),
+        subtotal: sale.total_amount,
+        discount: 0,
+        grandTotal: sale.total_amount,
+        paymentMethod: 'versement',
+        isCredit: true,
+        versementPaid: sale.paid_amount,
+        versementRemaining: Math.max(0, sale.total_amount - sale.paid_amount),
+      });
+      await printHtmlSilently(html, `Versement ${sale.sale_number}`);
+    } catch (e) {
+      console.error('Versement print failed:', e);
+    } finally {
+      isPrintingVersement = false;
     }
   }
 

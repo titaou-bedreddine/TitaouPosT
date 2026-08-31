@@ -10,6 +10,8 @@
 
   // Clicking a notification jumps to the page where it can be acted on.
   export let onRequestRoute: (route: string) => void = () => {};
+  // Product alerts open the product's editor directly in the POS.
+  export let onOpenProduct: (productId: number) => void = () => {};
 
   interface NotificationLog {
     id: number;
@@ -86,6 +88,16 @@
 
   function dismissNotification(id: number) {
     notifications = notifications.map(n => n.id === id ? { ...n, is_dismissed: true } : n);
+  }
+
+  // Deep-link: product alerts (expiry/stock) open that product's editor in
+  // the POS; the session card jumps to the register.
+  function handleCardClick(log: NotificationLog) {
+    if ((log.type === 'expiry' || log.type === 'stock') && log.related_id) {
+      onOpenProduct(log.related_id);
+    } else {
+      onRequestRoute('cash');
+    }
   }
 
   function dismissAll() {

@@ -37,6 +37,7 @@
   let currentStock = 0;
   let minStock = 5;
   let imagePath = '';
+  let isWebcamOpen = false;
   let expiryDate = '';
   let isBundle = false;
 

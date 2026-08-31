@@ -11,7 +11,7 @@
   import {
     Users, Plus, QrCode, DollarSign, Edit2, Trash2, Search,
     X, Check, Printer, FileText, Phone, MapPin, Building, History,
-    Eye, ShieldAlert
+    Eye, ShieldAlert, Pin, PinOff
   } from 'lucide-svelte';
 
   let customers: Customer[] = [];

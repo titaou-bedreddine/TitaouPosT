@@ -13,6 +13,28 @@
   let errorMsg = '';
   let isLoading = false;
   let appVersion = '';
+  let ipcDead = false;
+
+  // IPC watchdog: ping a cheap command on an interval. The webview<->Rust
+  // transport can silently wedge at boot; two consecutive missed pings
+  // (4s each) means login can never succeed, so offer a one-click Reload.
+  onMount(() => {
+    let missedPings = 0;
+    const watchdog = setInterval(async () => {
+      try {
+        await Promise.race([
+          invoke('get_app_version'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('ping timeout')), 4000)),
+        ]);
+        missedPings = 0;
+        ipcDead = false;
+      } catch {
+        missedPings++;
+        if (missedPings >= 2) ipcDead = true;
+      }
+    }, 2000);
+    return () => clearInterval(watchdog);
+  });
 
   onMount(async () => {
     try {

@@ -7,7 +7,7 @@
   import type { Supplier } from '../../lib/types';
   import {
     Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check, DollarSign, Eye, ShieldAlert,
-    Phone, Mail, MapPin, Building, FileSpreadsheet
+    Phone, Mail, MapPin, Building, FileSpreadsheet, Pin, PinOff
   } from 'lucide-svelte';
 
   let suppliers: Supplier[] = [];
@@ -15,6 +15,15 @@
   let isModalOpen = false;
   let previewSupplier: Supplier | null = null;
   let supplierHistory: any[] = [];
+
+  async function toggleSupplierPin(s: Supplier) {
+    try {
+      await invoke('toggle_supplier_pin', { supplierId: s.id, pinned: !(s as any).pinned });
+      await loadSuppliers();
+    } catch (e) {
+      console.warn('Pin failed:', e);
+    }
+  }
 
   // Full supplier card: shop header, details, dues and QR.
   async function printSupplierCard(x: Supplier) {
