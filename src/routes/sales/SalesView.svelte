@@ -246,8 +246,8 @@
         <ShoppingBag class="w-5 h-5" />
       </div>
       <div>
-        <h1 class="text-xl font-black text-pos-text tracking-tight">Sales History & Transactions / سجل المبيعات</h1>
-        <p class="text-xs text-pos-muted">Itemized sale breakdown, thermal reprint, debt status, and protected refunds</p>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">{t('sales_title')}</h1>
+        <p class="text-xs text-pos-muted">{t('sales_subtitle')}</p>
       </div>
     </div>
   </div>
@@ -259,7 +259,7 @@
         <ShoppingBag class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Transactions</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_transactions')}</p>
         <p class="text-base font-black font-mono text-pos-text">{totalSalesCount.toLocaleString()}</p>
       </div>
     </div>
@@ -269,7 +269,7 @@
         <DollarSign class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Total Revenue</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_total_revenue')}</p>
         <p class="text-base font-black font-mono text-emerald-600">{totalGrossRevenue.toLocaleString()} DZD</p>
       </div>
     </div>
@@ -279,7 +279,7 @@
         <CreditCard class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Net Paid</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_net_paid')}</p>
         <p class="text-base font-black font-mono text-blue-600">{totalNetPaid.toLocaleString()} DZD</p>
       </div>
     </div>
@@ -289,7 +289,7 @@
         <Layers class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Credit / Due</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_credit_due')}</p>
         <p class="text-base font-black font-mono text-amber-600">{totalDueCredit.toLocaleString()} DZD</p>
       </div>
     </div>
@@ -307,25 +307,25 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Search: #, client, exact amount, or scan receipt QR..."
+        placeholder={t('sales_search')}
         class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none"
       />
     </div>
 
     <div>
-      <label class="block text-[10px] font-bold text-pos-muted mb-1">From Date</label>
+      <label class="block text-[10px] font-bold text-pos-muted mb-1">{t('from_date')}</label>
       <input type="date" bind:value={startDate} on:change={loadSales} class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
     </div>
 
     <div>
-      <label class="block text-[10px] font-bold text-pos-muted mb-1">To Date</label>
+      <label class="block text-[10px] font-bold text-pos-muted mb-1">{t('to_date')}</label>
       <input type="date" bind:value={endDate} on:change={loadSales} class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
     </div>
 
     <div>
       <label class="block text-[10px] font-bold text-pos-muted mb-1">Status Filter</label>
       <select bind:value={selectedStatus} class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
-        <option value="all">All Statuses (الكل)</option>
+        <option value="all">{t('all')} ({t('filter_all')})</option>
         <option value="paid">Fully Paid (مدفوع بالكامل)</option>
         <option value="partial">Partial / Credit (غير مكتمل / دين)</option>
         <option value="cash">Cash Only (نقد)</option>
@@ -338,7 +338,7 @@
     <div>
       <label class="block text-[10px] font-bold text-pos-muted mb-1">Cashier</label>
       <select bind:value={selectedCashier} on:change={loadSales} class="w-full px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
-        <option value={null}>All Cashiers</option>
+        <option value={null}>{t('exp_all_users')}</option>
         {#each users as u}
           <option value={u.id}>{u.display_name || u.username}</option>
         {/each}
@@ -351,21 +351,21 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Sale #</th>
-          <th class="p-3 text-start">Date & Time</th>
-          <th class="p-3 text-start">Cashier</th>
-          <th class="p-3 text-start">Customer</th>
-          <th class="p-3 text-end">Total Amount</th>
-          <th class="p-3 text-end">Paid Amount</th>
-          <th class="p-3 text-center">Payment</th>
-          <th class="p-3 text-center">Status</th>
-          <th class="p-3 text-end">Actions</th>
+          <th class="p-3 text-start">{t('sales_sale_num')}</th>
+          <th class="p-3 text-start">{t('sales_date_time')}</th>
+          <th class="p-3 text-start">{t('sales_cashier')}</th>
+          <th class="p-3 text-start">{t('customer')}</th>
+          <th class="p-3 text-end">{t('sales_total_amount')}</th>
+          <th class="p-3 text-end">{t('sales_paid_amount')}</th>
+          <th class="p-3 text-center">{t('sales_payment')}</th>
+          <th class="p-3 text-center">{t('status')}</th>
+          <th class="p-3 text-end">{t('actions')}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-pos-border/40">
         {#if filteredSales.length === 0}
           <tr>
-            <td colspan="9" class="p-8 text-center text-pos-muted">No sales found matching the current filters.</td>
+            <td colspan="9" class="p-8 text-center text-pos-muted">{t('no_data')}</td>
           </tr>
         {:else}
           {#each filteredSales as s}
@@ -395,7 +395,7 @@
                     type="button"
                     on:click={(e) => { e.stopPropagation(); printReceipt(s); }}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
-                    title="Reprint Thermal Receipt"
+                    title={t('sales_reprint')}
                   >
                     <Printer class="w-4 h-4" />
                   </button>
@@ -403,7 +403,7 @@
                     type="button"
                     on:click={(e) => { e.stopPropagation(); openSaleDetails(s); }}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
-                    title="View Details"
+                    title={t('sales_view_details')}
                   >
                     <Eye class="w-4 h-4" />
                   </button>
@@ -514,7 +514,7 @@
           class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
         >
           <Trash2 class="w-4 h-4" />
-          <span>Delete / Cancel Sale</span>
+          <span>{t('btn_delete')}</span>
         </button>
 
         <div class="flex items-center gap-2">
@@ -525,7 +525,7 @@
             title="Re-open this sale in the POS cart"
           >
             <Pencil class="w-4 h-4" />
-            <span>Edit in POS / تعديل</span>
+            <span>{t('sales_edit_in_pos')}</span>
           </button>
           <button on:click={() => (isDetailModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
             Close
@@ -535,7 +535,7 @@
             class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
           >
             <Printer class="w-4 h-4" />
-            <span>Reprint Receipt</span>
+            <span>{t('print_receipt')}</span>
           </button>
         </div>
       </div>

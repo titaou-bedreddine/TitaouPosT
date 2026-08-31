@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { Expense } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
@@ -187,7 +188,7 @@
         <TrendingDown class="w-5 h-5" />
       </div>
       <div>
-        <h1 class="text-xl font-black text-pos-text tracking-tight">Expenses & Decaissements / إدارة المصاريف والمخرجات</h1>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">{t('exp_title')}</h1>
         <p class="text-xs text-pos-muted">Track store overhead and auto-deduct cash directly from active cash register session</p>
       </div>
     </div>
@@ -209,7 +210,7 @@
       class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
-      <span>New Expense Voucher (سند صرف جديد)</span>
+      <span>{t('exp_new')}</span>
     </button>
   </div>
 
@@ -235,7 +236,7 @@
       bind:value={selectedUserFilter}
       class="px-2.5 py-1.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
     >
-      <option value="">All Users (كل المستخدمين)</option>
+      <option value="">{t('exp_all_users')}</option>
       {#each usersWithExpenses as u}
         <option value={u}>{u}</option>
       {/each}
@@ -249,7 +250,7 @@
         <Receipt class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Vouchers</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('exp_vouchers')}</p>
         <p class="text-base font-black font-mono text-pos-text">{totalExpensesCount.toLocaleString()}</p>
       </div>
     </div>
@@ -259,7 +260,7 @@
         <DollarSign class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Total Spent</p>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('exp_total_spent')}</p>
         <p class="text-base font-black font-mono text-rose-600">{totalAmountSpent.toLocaleString()} DZD</p>
       </div>
     </div>
@@ -290,12 +291,12 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Voucher #</th>
-          <th class="p-3 text-start">Date</th>
-          <th class="p-3 text-start">Category (الفئة)</th>
-          <th class="p-3 text-start">Beneficiary (المستفيد)</th>
-          <th class="p-3 text-start">User (المستخدم)</th>
-          <th class="p-3 text-end">Amount (المبلغ)</th>
+          <th class="p-3 text-start">{t('exp_voucher_num')}</th>
+          <th class="p-3 text-start">{t('date')}</th>
+          <th class="p-3 text-start">{t('exp_category')}</th>
+          <th class="p-3 text-start">{t('exp_beneficiary')}</th>
+          <th class="p-3 text-start">{t('exp_user_col')}</th>
+          <th class="p-3 text-end">{t('exp_amount_col')}</th>
           <th class="p-3 text-center">Payment</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
@@ -333,7 +334,7 @@
                     type="button"
                     on:click={() => (previewExpense = exp)}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
-                    title="View Voucher"
+                    title={t('exp_voucher')}
                   >
                     <Eye class="w-4 h-4" />
                   </button>
@@ -352,7 +353,7 @@
                       errorMsg = '';
                     }}
                     class="p-1.5 text-pos-muted hover:text-amber-600 rounded-lg cursor-pointer"
-                    title="Edit Voucher (تعديل)"
+                    title={t('exp_edit')}
                   >
                     <Pencil class="w-4 h-4" />
                   </button>
@@ -360,7 +361,7 @@
                     type="button"
                     on:click={(e) => promptDelete(exp, e)}
                     class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg cursor-pointer"
-                    title="Delete Voucher"
+                    title={t('exp_delete_title')}
                   >
                     <Trash2 class="w-4 h-4" />
                   </button>
@@ -384,7 +385,7 @@
             <TrendingDown class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-base text-pos-text">New Expense Voucher (سند صرف جديد)</h3>
+            <h3 class="font-black text-base text-pos-text">{t('exp_new')}</h3>
             <p class="text-xs text-pos-muted">Deducts automatically from active cash drawer</p>
           </div>
         </div>
@@ -403,7 +404,7 @@
         <div>
           <label class="block text-xs font-bold text-pos-muted mb-1">Expense Amount / المبلغ (DZD) *</label>
           <input type="number" min="1" bind:value={amount} placeholder="Ex: 5000" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-base font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500" />
-          <label class="block text-xs font-bold text-pos-muted mb-1 mt-2">Expense Date (تاريخ المصروف)</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1 mt-2">{t('exp_expense_date')}</label>
           <input type="date" bind:value={expenseDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
         </div>
 

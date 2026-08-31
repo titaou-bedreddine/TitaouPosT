@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import {
     Bell, CheckCircle2, AlertTriangle, AlertOctagon,
@@ -43,7 +44,7 @@
           dynamicList.push({
             id: idCounter++,
             type: 'expiry',
-            title: '🚨 Expired Product Alert (منتج منتهي الصلاحية)',
+            title: t('notif_expired_alert'),
             message: `Product "${p.name_fr || p.name_ar}" expired on ${p.expiry_date} (Stock: ${p.current_stock} pcs)`,
             timestamp: 'Immediate Attention Required',
             related_id: p.id,
@@ -52,7 +53,7 @@
           dynamicList.push({
             id: idCounter++,
             type: 'stock',
-            title: '⚠️ Low Stock Alert (تنبيه نقص المخزون)',
+            title: t('notif_low_stock_alert'),
             message: `Product "${p.name_fr || p.name_ar}" has reached low stock threshold (${p.current_stock} pcs remaining)`,
             timestamp: 'Stock Replenishment Recommended',
             related_id: p.id,
@@ -64,7 +65,7 @@
       dynamicList.push({
         id: idCounter++,
         type: 'sale',
-        title: '✅ POS Cash Session Active',
+        title: t('notif_session_active'),
         message: 'Current register session #01 is online and synchronized with local database.',
         timestamp: 'Active Session',
       });
@@ -100,8 +101,8 @@
         <Bell class="w-5 h-5" />
       </div>
       <div>
-        <h1 class="text-xl font-black text-pos-text tracking-tight">Notification Feed & Live Alerts / مركز التنبيهات</h1>
-        <p class="text-xs text-pos-muted">Live event stream, expired item alerts, low inventory warnings & session notices</p>
+        <h1 class="text-xl font-black text-pos-text tracking-tight">{t('notif_title')}</h1>
+        <p class="text-xs text-pos-muted">{t('notif_subtitle')}</p>
       </div>
     </div>
 
@@ -174,7 +175,7 @@
         <div
           class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md cursor-pointer {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}"
           on:click={() => onRequestRoute(log.type === 'sale' ? 'sales' : 'inventory')}
-          title="Open relevant page"
+          title={t('notif_open_relevant')}
         >
           <div class="flex items-start gap-3 min-w-0">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 {log.type === 'expiry' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950' : log.type === 'stock' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950' : 'bg-sky-100 text-sky-600 dark:bg-sky-950'}">

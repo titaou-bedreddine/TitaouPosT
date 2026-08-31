@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { DashboardStats } from '../../lib/types';
   import { TrendingUp, ShoppingBag, AlertTriangle, ArrowDownRight, DollarSign, Wallet, Trophy, RefreshCw, Layers } from 'lucide-svelte';
@@ -89,7 +90,7 @@
   <!-- Header with Date Filters matching screenshot -->
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-black text-pos-text">Statistics & Business Analytics (الإحصائيات)</h1>
+      <h1 class="text-2xl font-black text-pos-text">{t('dash_title')}</h1>
       <p class="text-xs text-pos-muted mt-1">Real-time overview of revenue, profits, margins, and inventory performance</p>
     </div>
 
@@ -146,39 +147,27 @@
       <button
         on:click={() => selectedTab = 'financial'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'financial' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Financial Summary
-      </button>
+      >{t('dash_tab_financial')}</button>
       <button
         on:click={() => selectedTab = 'debts'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'debts' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Debts & Balances
-      </button>
+      >{t('dash_tab_debts')}</button>
       <button
         on:click={() => selectedTab = 'inventory'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'inventory' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Inventory Analytics
-      </button>
+      >{t('dash_tab_inventory')}</button>
       <button
         on:click={() => selectedTab = 'versement'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'versement' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Versements (تسبقة)
-      </button>
+      >{t('dash_tab_versement')}</button>
       <button
         on:click={() => selectedTab = 'expenses'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'expenses' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Expenses
-      </button>
+      >{t('dash_tab_expenses')}</button>
       <button
         on:click={() => selectedTab = 'caisse'}
         class="px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer {selectedTab === 'caisse' ? 'bg-sky-600 text-white shadow-xs' : 'bg-pos-card border border-pos-border text-pos-muted'}"
-      >
-        Caisse Transactions
-      </button>
+      >{t('dash_tab_caisse')}</button>
     </div>
 
     {#if selectedTab === 'financial' && stats}
@@ -189,16 +178,16 @@
         <h3 class="font-extrabold text-sm text-pos-text">Net Profit & Cash Flow</h3>
 
         <div class="bg-pos-card border-2 border-sky-500/40 rounded-2xl p-5 shadow-xs space-y-2">
-          <span class="text-xs font-extrabold text-sky-600 uppercase tracking-wider">Final Net Profit</span>
+          <span class="text-xs font-extrabold text-sky-600 uppercase tracking-wider">{t('dash_net_profit')}</span>
           <div class="text-3xl font-black font-mono text-sky-600">{stats.today_profit.toLocaleString()} DZD</div>
           <span class="inline-block text-[11px] font-bold text-sky-700 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded">
-            Profit Margin: {stats.today_sales > 0 ? Math.round((stats.today_profit / stats.today_sales) * 100) : 0}%
+            {t('dash_profit_margin')}: {stats.today_sales > 0 ? Math.round((stats.today_profit / stats.today_sales) * 100) : 0}%
           </span>
         </div>
 
         <div class="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span class="text-[11px] font-black text-emerald-800 uppercase">Cash In (المدخول)</span>
+            <span class="text-[11px] font-black text-emerald-800 uppercase">{t('dash_cash_in')}</span>
             <div class="text-xl font-black font-mono text-emerald-700 mt-1">{stats.today_sales.toLocaleString()} DZD</div>
           </div>
           <div class="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center">
@@ -208,7 +197,7 @@
 
         <div class="bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span class="text-[11px] font-black text-rose-800 uppercase">Cash Out (المصروفات)</span>
+            <span class="text-[11px] font-black text-rose-800 uppercase">{t('dash_cash_out')}</span>
             <div class="text-xl font-black font-mono text-rose-700 mt-1">{stats.today_expenses.toLocaleString()} DZD</div>
           </div>
           <div class="w-9 h-9 rounded-full bg-rose-500 text-white flex items-center justify-center">
@@ -222,7 +211,7 @@
         <div class="p-4 border-b border-pos-border flex items-center justify-between bg-slate-50 dark:bg-slate-800/40">
           <h3 class="font-extrabold text-xs text-pos-text flex items-center gap-2">
             <Trophy class="w-4 h-4 text-amber-500" />
-            <span>Top Profitable Products (المنتجات الأكثر ربحية)</span>
+            <span>{t('dash_top_products')}</span>
           </h3>
           <span class="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded">
             Top 15 Products
@@ -244,7 +233,7 @@
             {#if stats.top_products.length === 0}
               <tr>
                 <td colspan="6" class="p-12 text-center text-pos-muted font-semibold">
-                  No sales data available for the specified period.
+                  {t('dash_no_sales_period')}
                 </td>
               </tr>
             {:else}

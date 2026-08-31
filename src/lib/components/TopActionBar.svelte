@@ -165,10 +165,10 @@
         type="button"
         on:click={onOpenOtherArticle}
         class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 text-amber-900 dark:text-amber-200 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-        title="Other Product / منتج حر (Divers - Fast Price Entry)"
+        title={t('pos_other_product')}
       >
         <DollarSign class="w-4 h-4 text-amber-600 mb-0.5" />
-        <span class="text-xs font-black leading-tight">Divers</span>
+        <span class="text-xs font-black leading-tight">{t('pos_other_product')}</span>
         <span class="text-[9px] bg-amber-500/20 px-1 rounded font-mono font-normal mt-0.5">+ Price</span>
       </button>
     </div>
@@ -182,20 +182,20 @@
         type="button"
         on:click={cyclePaymentMode}
         class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {selectedPaymentMode === 'cash' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : selectedPaymentMode === 'tpe' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : selectedPaymentMode === 'versement' ? 'bg-violet-600 text-white ring-2 ring-violet-400' : 'bg-amber-600 text-white ring-2 ring-amber-400'}"
-        title="Click to Toggle: Cash -> TPE -> Credit -> Versement"
+        title={t('btn_payment_type')}
       >
         {#if selectedPaymentMode === 'cash'}
           <Banknote class="w-4 h-4 mb-0.5" />
-          <span class="text-xs font-black leading-tight">Cash (نقد)</span>
+          <span class="text-xs font-black leading-tight">{t('pos_payment_cash')}</span>
         {:else if selectedPaymentMode === 'tpe'}
           <CreditCard class="w-4 h-4 mb-0.5" />
-          <span class="text-xs font-black leading-tight">TPE (بطاقة)</span>
+          <span class="text-xs font-black leading-tight">{t('pos_payment_tpe')}</span>
         {:else if selectedPaymentMode === 'versement'}
           <Wallet class="w-4 h-4 mb-0.5" />
-          <span class="text-xs font-black leading-tight">Versement (تسبقة)</span>
+          <span class="text-xs font-black leading-tight">{t('pos_payment_versement')}</span>
         {:else}
           <Layers class="w-4 h-4 mb-0.5" />
-          <span class="text-xs font-black leading-tight">Credit (دين)</span>
+          <span class="text-xs font-black leading-tight">{t('pos_payment_credit')}</span>
         {/if}
         <span class="text-[9px] opacity-80 font-mono mt-0.5">Toggle ↻</span>
       </button>

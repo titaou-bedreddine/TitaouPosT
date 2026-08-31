@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { CashMovement, CashSession, Customer } from '../../lib/types';
   import { activeSession } from '../../lib/stores/session';
@@ -194,8 +195,8 @@
   <!-- Header with Tab Switcher -->
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-black text-pos-text">Cash Register Management (إدارة الصندوق)</h1>
-      <p class="text-xs text-pos-muted mt-1">Monitor daily cash sessions and register transactions</p>
+      <h1 class="text-2xl font-black text-pos-text">{t('reg_title')}</h1>
+      <p class="text-xs text-pos-muted mt-1">{t('reg_subtitle')}</p>
     </div>
 
     <!-- Toggle Buttons matching screenshot -->
@@ -203,15 +204,11 @@
       <button
         on:click={() => currentTab = 'current'}
         class="px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer {currentTab === 'current' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
-      >
-        Current Session
-      </button>
+      >{t('reg_current_session')}</button>
       <button
         on:click={() => currentTab = 'history'}
         class="px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer {currentTab === 'history' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
-      >
-        Session History
-      </button>
+      >{t('reg_session_history')}</button>
     </div>
   </div>
 
@@ -238,7 +235,7 @@
           class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
         >
           <Lock class="w-4 h-4" />
-          <span>Close Session</span>
+          <span>{t('reg_close_session')}</span>
         </button>
       </div>
 
@@ -247,7 +244,7 @@
         <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <Wallet class="w-4 h-4 text-sky-500" />
-            <span>Opening Balance</span>
+            <span>{t('reg_opening_balance')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-pos-text">
             {$activeSession.opening_amount.toLocaleString()} DZD
@@ -257,7 +254,7 @@
         <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <TrendingUp class="w-4 h-4 text-emerald-500" />
-            <span>Total Sales</span>
+            <span>{t('reg_total_sales')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-emerald-600">
             {($activeSession.total_sales || 0).toLocaleString()} DZD
@@ -267,7 +264,7 @@
         <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <ArrowDownRight class="w-4 h-4 text-rose-500" />
-            <span>Total Expenses</span>
+            <span>{t('reg_total_expenses')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-rose-600">
             {($activeSession.total_expenses || 0).toLocaleString()} DZD
@@ -277,7 +274,7 @@
         <div class="bg-sky-600 text-white rounded-2xl p-4 shadow-md">
           <span class="text-xs font-bold text-sky-100 flex items-center gap-1.5 mb-2">
             <DollarSign class="w-4 h-4 text-white" />
-            <span>Current Balance</span>
+            <span>{t('reg_current_balance')}</span>
           </span>
           <div class="text-2xl font-black font-mono">
             {$activeSession.expected_cash.toLocaleString()} DZD
@@ -325,7 +322,7 @@
           class="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
         >
           <ArrowDownCircle class="w-4 h-4 text-emerald-600" />
-          <span>Cash Deposit (إيداع نقدي)</span>
+          <span>{t('reg_deposit')}</span>
         </button>
 
         <button
@@ -333,7 +330,7 @@
           class="p-3.5 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
         >
           <ArrowUpCircle class="w-4 h-4 text-amber-600" />
-          <span>Cash Withdrawal (سحب نقدي)</span>
+          <span>{t('reg_withdrawal')}</span>
         </button>
 
         <button
@@ -341,14 +338,14 @@
           class="p-3.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
         >
           <Plus class="w-4 h-4 text-rose-600" />
-          <span>Add Expense (مصروف من الصندوق)</span>
+          <span>{t('reg_add_expense')}</span>
         </button>
       </div>
 
       <!-- Transaction Log Table matching screenshot -->
       <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
         <div class="p-4 border-b border-pos-border flex items-center justify-between bg-slate-50 dark:bg-slate-800/40">
-          <h3 class="font-extrabold text-xs text-pos-text">Transaction Log</h3>
+          <h3 class="font-extrabold text-xs text-pos-text">{t('reg_transaction_log')}</h3>
           <button on:click={loadData} class="p-1 text-pos-muted hover:text-pos-text cursor-pointer">
             <RefreshCw class="w-4 h-4" />
           </button>
@@ -366,7 +363,7 @@
           <tbody>
             {#if movements.length === 0}
               <tr>
-                <td colspan="4" class="p-8 text-center text-pos-muted">لا توجد حركات بعد</td>
+                <td colspan="4" class="p-8 text-center text-pos-muted">{t('reg_no_movements')}</td>
               </tr>
             {:else}
               {#each movements as m}
@@ -388,15 +385,15 @@
         <div class="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mx-auto mb-4 font-bold">
           <Lock class="w-7 h-7" />
         </div>
-        <h3 class="text-base font-black text-pos-text mb-1">No Active Session (الصندوق مغلق)</h3>
-        <p class="text-xs font-bold text-pos-muted mb-5">Open a new cash register session to begin registering sales and movements.</p>
+        <h3 class="text-base font-black text-pos-text mb-1">{t('reg_no_session')}</h3>
+        <p class="text-xs font-bold text-pos-muted mb-5">{t('reg_open_hint')}</p>
         <button
           type="button"
           on:click={() => { startupAmount = 10000; startupReason = 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
           class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2 mx-auto"
         >
           <Plus class="w-4 h-4" />
-          <span>Open New Session (فتح صندوق جديد)</span>
+          <span>{t('reg_open_new_session')}</span>
         </button>
       </div>
     {/if}
@@ -406,22 +403,22 @@
       <DateQuickFilters bind:startDate={fromDate} bind:endDate={toDate} onChange={loadData} />
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">From</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('from_date')}</label>
           <input type="date" bind:value={fromDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
         </div>
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">To</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('to_date')}</label>
           <input type="date" bind:value={toDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
         </div>
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Employee</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('employee')}</label>
           <select class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold">
             <option>جميع الموظفين</option>
           </select>
         </div>
         <button class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer">
           <Search class="w-4 h-4" />
-          <span>Search</span>
+          <span>{t('btn_search')}</span>
         </button>
       </div>
 
@@ -498,7 +495,7 @@
       <div class="bg-pos-card border border-pos-border rounded-xl p-5 w-full max-w-sm space-y-3">
         <h3 class="font-extrabold text-sm text-pos-text">Close Cash Session (إغلاق الصندوق)</h3>
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Counted Cash in Drawer (DZD)</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('reg_counted_cash')} (DZD)</label>
           <input type="number" bind:value={countedCash} on:focus={(e) => (e.target as HTMLInputElement).select()} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded text-xl font-mono font-bold text-pos-text" />
         </div>
         <input type="text" bind:value={closeNotes} placeholder="Closing notes..." class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded text-xs text-pos-text" />

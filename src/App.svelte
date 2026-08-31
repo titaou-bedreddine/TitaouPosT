@@ -302,7 +302,7 @@
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'notifications' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Bell class="w-4 h-4" />
-          <span>Notifications & Alerts</span>
+          <span>{t('nav_notifications')}</span>
         </button>
 
         <button
@@ -327,7 +327,7 @@
           title="Open Cash Drawer (F10)"
         >
           <CreditCard class="w-4 h-4" />
-          <span>Open Cash Drawer / درج النقود</span>
+          <span>{t('btn_drawer')}</span>
         </button>
 
         <!-- Clean User Card Horizontal with Compact Language Selector -->

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { CartItem } from '../types';
   import { currentLocale } from '../i18n';
+  import { t } from '../i18n';
   import {
     updateItemQuantity,
     applyItemDiscount,
@@ -200,10 +201,10 @@
         type="button"
         on:click={() => (showDiscountInput = !showDiscountInput)}
         class="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer {item.discount_amount > 0 ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-pos-muted hover:text-pos-text'}"
-        title="Item Remise"
+        title={t('pos_item_discount')}
       >
         <Percent class="w-3 h-3" />
-        <span>{item.discount_amount > 0 ? `-${item.discount_amount}` : 'Remise'}</span>
+        <span>{item.discount_amount > 0 ? `-$\{item.discount_amount\}` : t('pos_remise')}</span>
       </button>
 
       <!-- Item Refund Toggle Button -->
@@ -214,7 +215,7 @@
         title="Item Refund Toggle"
       >
         <Undo2 class="w-3 h-3" />
-        <span>{item.is_refund ? 'Refund' : 'Normal'}</span>
+        <span>{item.is_refund ? t('pos_refund_badge') : t('pos_normal')}</span>
       </button>
 
       <!-- Delete Item Button -->
@@ -222,7 +223,7 @@
         type="button"
         on:click={() => removeFromCart(item.product_id, item.is_refund)}
         class="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer transition"
-        title="Remove Item"
+        title={t('pos_remove_item')}
       >
         <Trash2 class="w-3.5 h-3.5" />
       </button>
@@ -232,7 +233,7 @@
   <!-- Inline Discount Input Popover -->
   {#if showDiscountInput}
     <div class="p-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-pos-border flex items-center gap-2 animate-in fade-in duration-100 flex-wrap">
-      <span class="text-[10px] font-bold text-pos-muted">Discount DZD / unit:</span>
+      <span class="text-[10px] font-bold text-pos-muted">{t('pos_item_discount')} DZD/u:</span>
       <input
         bind:this={discountInputEl}
         use:focusDiscountInput
@@ -253,7 +254,7 @@
         disabled={discountInvalid}
         class="px-2 py-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black rounded-lg cursor-pointer"
       >
-        Apply
+        {t('pos_apply_discount')}
       </button>
       {#if item.discount_amount > 0}
         <button
@@ -261,7 +262,7 @@
           on:click={clearDiscount}
           class="px-2 py-1 text-[10px] font-bold text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
         >
-          Clear
+          {t('pos_clear_discount')}
         </button>
       {/if}
       <button

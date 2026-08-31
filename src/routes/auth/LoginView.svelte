@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { t } from '../../lib/i18n';
   import { currentUser } from '../../lib/stores/auth';
   import type { User } from '../../lib/types';
   import { Lock, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
@@ -92,7 +93,7 @@
     <div class="space-y-4">
       <!-- User Selection Dropdown -->
       <div>
-        <label class="block text-xs font-bold text-slate-400 mb-1">Select User / اختر المستخدم</label>
+        <label class="block text-xs font-bold text-slate-400 mb-1">{t('login_username')}</label>
         <div class="relative">
           <select
             bind:value={selectedUsername}
@@ -116,7 +117,7 @@
 
       <div>
         <div class="flex items-center justify-between mb-1">
-          <label class="block text-xs font-bold text-slate-400">Password / كلمة المرور</label>
+          <label class="block text-xs font-bold text-slate-400">{t('login_password')}</label>
           <button
             type="button"
             on:click={() => (showPassword = !showPassword)}

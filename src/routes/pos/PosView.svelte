@@ -850,9 +850,9 @@
     <div class="bg-emerald-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md animate-in slide-in-from-top-2">
       <div class="flex items-center gap-2">
         <CheckCircle2 class="w-4 h-4" />
-        <span>Sale Completed Successfully: #{lastSaleSuccessNumber}</span>
+        <span>{t('pos_sale_completed')}: #{lastSaleSuccessNumber}</span>
       </div>
-      <button on:click={() => (lastSaleSuccessNumber = '')} class="underline cursor-pointer">Dismiss</button>
+      <button on:click={() => (lastSaleSuccessNumber = '')} class="underline cursor-pointer">{t('pos_dismiss')}</button>
     </div>
   {/if}
 
@@ -931,8 +931,8 @@
             <div class="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-900/60 flex items-center justify-center group-hover:rotate-90 transition duration-200 mb-2">
               <Plus class="w-6 h-6" />
             </div>
-            <span class="font-black text-xs text-center">Add Product</span>
-            <span class="text-[10px] text-pos-muted font-bold">إضافة منتج جديد</span>
+            <span class="font-black text-xs text-center">{t('add_product_hint')}</span>
+            <span class="text-[10px] text-pos-muted font-bold">　</span>
           </button>
 
           <!-- Product Catalog Cards with Category Borders and Pen Icon -->
@@ -990,13 +990,13 @@
         <div class="p-2.5 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between text-amber-800 dark:text-amber-300 text-xs">
           <div class="flex items-center gap-1.5 font-bold">
             <AlertCircle class="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Cash session is closed / الصندوق مغلق</span>
+            <span>{t('pos_session_closed')}</span>
           </div>
           <button
             on:click={() => (isCashDrawerOpen = true)}
             class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-black text-[11px] rounded-lg cursor-pointer"
           >
-            Open Session
+            {t('pos_open_session')}
           </button>
         </div>
       {/if}
@@ -1006,9 +1006,9 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <ShoppingBag class="w-4 h-4 text-sky-600" />
-            <span class="font-extrabold text-xs text-pos-text">Shopping Cart</span>
+            <span class="font-extrabold text-xs text-pos-text">{t('pos_shopping_cart')}</span>
             <span class="text-[11px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.2 rounded-full font-mono">
-              {$cartItems.length} items
+              {$cartItems.length} {t('pos_items')}
             </span>
           </div>
           {#if $cartItems.length > 0}
@@ -1029,14 +1029,14 @@
             type="button"
             on:click={() => (isCustomerSelectorOpen = !isCustomerSelectorOpen)}
             class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold cursor-pointer hover:border-sky-400 transition {isCustomerSelectorOpen ? 'ring-2 ring-sky-400 border-sky-400' : ''}"
-            title="Select customer for this sale"
+            title={t('pos_select_customer')}
           >
             <span class="flex items-center gap-2 min-w-0">
               <UserRound class="w-3.5 h-3.5 {$selectedCustomer?.id === DEFAULT_WALKIN_CUSTOMER_ID ? 'text-pos-muted' : 'text-sky-600'} shrink-0" />
-              <span class="truncate text-pos-text">{$selectedCustomer?.name || 'Client Comptoir / زبون عادي'}</span>
+              <span class="truncate text-pos-text">{$selectedCustomer?.name || t('pos_walkin')}</span>
               {#if $selectedCustomer && $selectedCustomer.balance > 0}
                 <span class="text-[9px] font-mono font-black text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded-full shrink-0">
-                  {$selectedCustomer.balance.toLocaleString()} DZD dette
+                  {$selectedCustomer.balance.toLocaleString()} DZD {t('pos_debt')}
                 </span>
               {/if}
             </span>
@@ -1054,7 +1054,7 @@
                   >
                     <span class="min-w-0">
                       <span class="text-[11px] font-black block truncate">{c.name}</span>
-                      <span class="text-[9px] text-pos-muted block truncate">{c.phone || 'No phone'}</span>
+                      <span class="text-[9px] text-pos-muted block truncate">{c.phone || t('pos_no_phone')}</span>
                     </span>
                     {#if c.balance > 0}
                       <span class="text-[9px] font-mono font-black text-rose-600 shrink-0">{c.balance.toLocaleString()}</span>
@@ -1073,11 +1073,11 @@
               type="button"
               on:click={() => (isSupplierSelectorOpen = !isSupplierSelectorOpen)}
               class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-sky-400 rounded-xl text-xs font-bold cursor-pointer transition {isSupplierSelectorOpen ? 'ring-2 ring-sky-400' : ''}"
-              title="Select supplier for this purchase"
+              title={t('pos_select_supplier')}
             >
               <span class="flex items-center gap-2 min-w-0">
                 <Truck class="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                <span class="truncate text-pos-text">{$selectedSupplier?.name || 'Fournisseur Divers / مورد متنوع'}</span>
+                <span class="truncate text-pos-text">{$selectedSupplier?.name || t('pos_select_supplier')}</span>
                 {#if $selectedSupplier && $selectedSupplier.balance > 0}
                   <span class="text-[9px] font-mono font-black text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded-full shrink-0">
                     {$selectedSupplier.balance.toLocaleString()} DZD due
@@ -1132,7 +1132,7 @@
             <div class="flex items-center gap-1.5">
               <Percent class="w-3.5 h-3.5 text-purple-600" />
               <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider">
-                Remise appliquée{$globalDiscountMode === 'percent' ? ` (${$globalDiscountValue}%)` : ''}
+                {t('pos_remise_applied')}{$globalDiscountMode === 'percent' ? ` (${$globalDiscountValue}%)` : ''}
               </span>
             </div>
             <div class="text-end">
@@ -1140,7 +1140,7 @@
                 -{$globalDiscountAmount.toLocaleString()} <span class="text-[10px] font-bold">DZD</span>
               </span>
               <span class="text-[10px] font-bold text-pos-muted block">
-                Sous-Total: {$cartSubtotal.toLocaleString()} DZD
+                {t('subtotal')}: {$cartSubtotal.toLocaleString()} DZD
               </span>
             </div>
           </div>
@@ -1148,8 +1148,8 @@
 
         <div class="flex items-center justify-between p-2.5 bg-sky-50/50 dark:bg-sky-950/30 rounded-xl border border-sky-200/60 dark:border-sky-800/60">
           <div>
-            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">TOTAL PAYABLE</span>
-            <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} lines</span>
+            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">{t('total_payable')}</span>
+            <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} {t('pos_items')}</span>
           </div>
           <span class="text-3xl lg:text-4xl font-black font-mono tracking-tight transition-all duration-200 hover:scale-105 {$cartGrandTotal < 0 ? 'text-amber-600' : 'text-sky-600 dark:text-sky-400'}">
             {$cartGrandTotal.toLocaleString()} <span class="text-sm font-bold">DZD</span>
@@ -1162,7 +1162,7 @@
           disabled={$cartItems.length === 0}
           class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-black text-sm rounded-xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98"
         >
-          <span>Checkout [{selectedPaymentMode.toUpperCase()}]</span>
+          <span>{t('pos_checkout_cash')} [{selectedPaymentMode.toUpperCase()}]</span>
           <ArrowRight class="w-4 h-4" />
         </button>
       </div>
