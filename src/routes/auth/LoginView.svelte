@@ -148,6 +148,19 @@
         />
       </div>
 
+      {#if ipcDead}
+        <div class="p-3 bg-rose-100 text-rose-800 text-xs font-bold rounded-xl flex items-center justify-between gap-2">
+          <span>Backend connection stuck — click Reload / انقطع الاتصال الداخلي</span>
+          <button
+            type="button"
+            on:click={() => window.location.reload()}
+            class="px-3 py-1.5 bg-rose-600 text-white text-xs font-black rounded-lg cursor-pointer shrink-0"
+          >
+            Reload
+          </button>
+        </div>
+      {/if}
+
       <button
         type="button"
         on:click={handleLogin}

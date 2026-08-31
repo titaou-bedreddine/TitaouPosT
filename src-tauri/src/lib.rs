@@ -12,6 +12,7 @@ use tauri::Manager;
 pub fn run() {
     let db_state = DbState::new().expect("Failed to initialize database");
 
+    server::set_diag_db(DbState::new().expect("diag db"));
     server::start_local_api_server();
 
     tauri::Builder::default()
