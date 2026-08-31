@@ -338,6 +338,14 @@ pub fn delete_sale(db: &DbState, sale_id: i64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    crate::services::notifier_service::notify_if_enabled(
+        db,
+        "notify_history_change",
+        format!("[HIST] Vente supprimee | Sale #{} annulee et supprimee de l historique", sale_id),
+    );
+
     Ok(())
 }
 #[cfg(test)]

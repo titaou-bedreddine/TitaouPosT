@@ -19,6 +19,22 @@
   let isDebtModalOpen = false;
   let selectedCustomer: Customer | null = null;
   let previewCustomer: Customer | null = null;
+  let customerHistory: any[] = [];
+
+  // Sales history for the previewed customer.
+  async function loadCustomerHistory(c: Customer) {
+    try {
+      const sales = await invoke<any[]>('list_sales', {
+        startDate: null,
+        endDate: null,
+        userId: null,
+        limit: 500,
+      });
+      customerHistory = sales.filter((s) => s.customer_id === c.id).slice(0, 50);
+    } catch {
+      customerHistory = [];
+    }
+  }
 
   let name = '';
   let phone = '';
@@ -210,7 +226,7 @@
         {:else}
           {#each filteredCustomers as c}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-              <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => (previewCustomer = c)}>
+              <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => { previewCustomer = c; loadCustomerHistory(c); }}>
                 {c.name}
               </td>
               <td class="p-3 font-mono text-pos-muted">{c.phone || '—'}</td>

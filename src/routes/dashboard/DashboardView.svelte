@@ -12,7 +12,51 @@
 
   onMount(async () => {
     await loadStats();
+    await loadTabData();
   });
+
+  // Per-tab data
+  let customersList: any[] = [];
+  let suppliersList: any[] = [];
+  let productsList: any[] = [];
+  let expensesList: any[] = [];
+  let movementsList: any[] = [];
+
+  $: totalCustomerDebt = customersList.reduce((s, c) => s + Math.max(0, c.balance || 0), 0);
+  $: totalSupplierDue = suppliersList.reduce((s, x) => s + Math.max(0, x.balance || 0), 0);
+  $: inventoryValue = productsList.reduce((s, p) => s + (p.purchase_price || 0) * (p.current_stock || 0), 0);
+  $: lowStock = productsList.filter((p) => p.current_stock <= (p.min_stock || 0));
+  $: expensesFiltered = expensesList.filter((e) => {
+    if (fromDate && e.date < fromDate) return false;
+    if (toDate && e.date > toDate) return false;
+    return true;
+  });
+  $: expensesTotal = expensesFiltered.reduce((s, e) => s + e.amount, 0);
+
+  async function loadTabData() {
+    try {
+      const [cs, ss, ps, es] = await Promise.all([
+        invoke<any[]>('list_customers'),
+        invoke<any[]>('list_suppliers'),
+        invoke<any[]>('search_products', { query: '', categoryId: null, searchType: 'all' }),
+        invoke<any[]>('list_expenses'),
+      ]);
+      customersList = cs;
+      suppliersList = ss;
+      productsList = ps;
+      expensesList = es;
+    } catch (e) {
+      console.warn('Dashboard tab data:', e);
+    }
+    try {
+      const session = await invoke<any>('get_active_cash_session', { userId: 1 });
+      movementsList = session
+        ? await invoke<any[]>('list_cash_movements', { sessionId: session.id })
+        : [];
+    } catch {
+      movementsList = [];
+    }
+  }
 
   async function loadStats() {
     try {
@@ -80,6 +124,7 @@
         <div class="text-lg font-black font-mono text-indigo-600 mt-1">{stats.average_basket.toLocaleString()} DZD</div>
       </div>
     </div>
+    {/if}
 
     <!-- Category Tabs matching screenshot -->
     <div class="flex items-center gap-2 border-b border-pos-border pb-2 overflow-x-auto">
@@ -115,6 +160,7 @@
       </button>
     </div>
 
+    {#if selectedTab === 'financial' && stats}
     <!-- Main Analytics Content matching photo_2026-08-27_18-52-04.jpg -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Left Column: Net Profit & Cash Flow -->
@@ -195,6 +241,165 @@
           </tbody>
         </table>
       </div>
+    </div>
+  {:else if selectedTab === 'debts'}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-pos-card border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4 shadow-xs">
+        <h3 class="font-black text-xs text-pos-text mb-3">Customer Debts (ديون الزبائن) — {totalCustomerDebt.toLocaleString()} DZD</h3>
+        <div class="max-h-80 overflow-y-auto space-y-1.5">
+          {#each customersList.filter(c => (c.balance || 0) > 0).slice(0, 30) as c}
+            <div class="flex items-center justify-between p-2 bg-rose-50/60 dark:bg-rose-950/20 rounded-lg text-xs">
+              <span class="font-bold text-pos-text truncate">{c.name}</span>
+              <span class="font-mono font-black text-rose-600">{(c.balance || 0).toLocaleString()} DZD</span>
+            </div>
+          {/each}
+          {#if customersList.filter(c => (c.balance || 0) > 0).length === 0}
+            <p class="text-xs text-pos-muted text-center py-4">No customer debts.</p>
+          {/if}
+        </div>
+      </div>
+      <div class="bg-pos-card border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 shadow-xs">
+        <h3 class="font-black text-xs text-pos-text mb-3">Supplier Dues (ديون الموردين) — {totalSupplierDue.toLocaleString()} DZD</h3>
+        <div class="max-h-80 overflow-y-auto space-y-1.5">
+          {#each suppliersList.filter(x => (x.balance || 0) > 0).slice(0, 30) as x}
+            <div class="flex items-center justify-between p-2 bg-amber-50/60 dark:bg-amber-950/20 rounded-lg text-xs">
+              <span class="font-bold text-pos-text truncate">{x.name}</span>
+              <span class="font-mono font-black text-amber-600">{(x.balance || 0).toLocaleString()} DZD</span>
+            </div>
+          {/each}
+          {#if suppliersList.filter(x => (x.balance || 0) > 0).length === 0}
+            <p class="text-xs text-pos-muted text-center py-4">No supplier dues.</p>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {:else if selectedTab === 'inventory'}
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-pos-card border border-pos-border rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-pos-muted uppercase">Inventory Value (achat)</span>
+          <div class="text-xl font-black font-mono text-sky-600">{inventoryValue.toLocaleString()} DZD</div>
+        </div>
+        <div class="bg-pos-card border border-pos-border rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-pos-muted uppercase">Distinct Products</span>
+          <div class="text-xl font-black font-mono text-pos-text">{productsList.length}</div>
+        </div>
+        <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-amber-700 uppercase">Low Stock</span>
+          <div class="text-xl font-black font-mono text-amber-600">{lowStock.length}</div>
+        </div>
+        <div class="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-rose-700 uppercase">Out of Stock</span>
+          <div class="text-xl font-black font-mono text-rose-600">{productsList.filter(p => (p.current_stock || 0) <= 0).length}</div>
+        </div>
+      </div>
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
+        <div class="p-3 border-b border-pos-border font-black text-xs text-pos-text bg-slate-50 dark:bg-slate-800/40">
+          Products to Restock (منتجات تحتاج تعبئة) — Top 20
+        </div>
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-pos-muted font-bold">
+            <tr>
+              <th class="p-2.5 text-start">Product</th>
+              <th class="p-2.5 text-center">Stock</th>
+              <th class="p-2.5 text-center">Min</th>
+              <th class="p-2.5 text-end">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-pos-border/40">
+            {#each lowStock.slice(0, 20) as p}
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <td class="p-2.5 font-bold text-pos-text">{p.name_fr || p.name_ar}</td>
+                <td class="p-2.5 text-center font-mono font-black {(p.current_stock || 0) <= 0 ? 'text-rose-600' : 'text-amber-600'}">{p.current_stock}</td>
+                <td class="p-2.5 text-center font-mono text-pos-muted">{p.min_stock}</td>
+                <td class="p-2.5 text-end">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black {(p.current_stock || 0) <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}">
+                    {(p.current_stock || 0) <= 0 ? 'OUT' : 'LOW'}
+                  </span>
+                </td>
+              </tr>
+            {/each}
+            {#if lowStock.length === 0}
+              <tr><td colspan="4" class="p-6 text-center text-pos-muted">All products are above their minimum stock.</td></tr>
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {:else if selectedTab === 'expenses'}
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-rose-700 uppercase">Expenses in Range</span>
+          <div class="text-xl font-black font-mono text-rose-600">{expensesTotal.toLocaleString()} DZD</div>
+        </div>
+        <div class="bg-pos-card border border-pos-border rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-pos-muted uppercase">Vouchers</span>
+          <div class="text-xl font-black font-mono text-pos-text">{expensesFiltered.length}</div>
+        </div>
+        <div class="bg-pos-card border border-pos-border rounded-2xl p-4">
+          <span class="text-[10px] font-bold text-pos-muted uppercase">Average Voucher</span>
+          <div class="text-xl font-black font-mono text-pos-text">{(expensesFiltered.length > 0 ? Math.round(expensesTotal / expensesFiltered.length) : 0).toLocaleString()} DZD</div>
+        </div>
+      </div>
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-pos-muted font-bold">
+            <tr>
+              <th class="p-2.5 text-start">Voucher</th>
+              <th class="p-2.5 text-start">Date</th>
+              <th class="p-2.5 text-start">Category</th>
+              <th class="p-2.5 text-start">User</th>
+              <th class="p-2.5 text-end">Amount</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-pos-border/40">
+            {#each expensesFiltered.slice(0, 30) as e}
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <td class="p-2.5 font-mono font-bold text-rose-600">#{e.expense_number}</td>
+                <td class="p-2.5 font-mono text-pos-muted">{e.date}</td>
+                <td class="p-2.5 font-bold text-pos-text">{e.category_name || 'Général'}</td>
+                <td class="p-2.5 text-pos-muted">{e.user_name || 'User #' + e.user_id}</td>
+                <td class="p-2.5 text-end font-mono font-black text-rose-600">{e.amount.toLocaleString()} DZD</td>
+              </tr>
+            {/each}
+            {#if expensesFiltered.length === 0}
+              <tr><td colspan="5" class="p-6 text-center text-pos-muted">No expenses in the selected range.</td></tr>
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {:else if selectedTab === 'caisse'}
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
+      <div class="p-3 border-b border-pos-border font-black text-xs text-pos-text bg-slate-50 dark:bg-slate-800/40">
+        Register Movements — Active Session (حركات الصندوق)
+      </div>
+      <table class="w-full text-xs">
+        <thead class="bg-slate-50 dark:bg-slate-800/60 text-pos-muted font-bold">
+          <tr>
+            <th class="p-2.5 text-start">Time</th>
+            <th class="p-2.5 text-start">Type</th>
+            <th class="p-2.5 text-start">Reason</th>
+            <th class="p-2.5 text-end">Amount</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-pos-border/40">
+          {#each movementsList.slice(0, 50) as m}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="p-2.5 font-mono text-pos-muted">{m.created_at}</td>
+              <td class="p-2.5 font-bold uppercase">{m.type_name || m.type}</td>
+              <td class="p-2.5 text-pos-text truncate">{m.reason || '-'}</td>
+              <td class="p-2.5 text-end font-mono font-black {m.amount < 0 ? 'text-rose-600' : 'text-emerald-600'}">
+                {m.amount.toLocaleString()} DZD
+              </td>
+            </tr>
+          {/each}
+          {#if movementsList.length === 0}
+            <tr><td colspan="4" class="p-6 text-center text-pos-muted">No active session movements.</td></tr>
+          {/if}
+        </tbody>
+      </table>
     </div>
   {/if}
 </div>

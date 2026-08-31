@@ -184,5 +184,13 @@ pub fn delete_purchase(db: &DbState, purchase_id: i64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    crate::services::notifier_service::notify_if_enabled(
+        db,
+        "notify_history_change",
+        format!("[HIST] Achat supprime | Purchase #{} annule, stock et balance fournisseur corriges", purchase_id),
+    );
+
     Ok(())
 }

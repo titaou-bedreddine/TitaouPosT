@@ -75,6 +75,31 @@
     }
   }
 
+  // One-click settlement of an invoice's remaining due: books a supplier
+  // payment from the active cash session drawer.
+  async function quickPaySupplierDue(pur: Purchase) {
+    const due = pur.total - pur.paid_amount;
+    if (due <= 0) return;
+    try {
+      const { activeSession } = await import('../../lib/stores/session');
+      const { currentUser } = await import('../../lib/stores/auth');
+      await invoke('record_supplier_debt_payment', {
+        input: {
+          supplier_id: pur.supplier_id,
+          amount: due,
+          payment_method: 'cash',
+          reference: pur.invoice_number,
+          session_id: activeSession?.id ?? null,
+          user_id: currentUser?.id || 1,
+          notes: `Full settlement of invoice ${pur.invoice_number} / تسديد كامل للفاتورة`,
+        },
+      });
+      await loadData();
+    } catch (e: any) {
+      alert('Payment failed: ' + (typeof e === 'string' ? e : e.message || e));
+    }
+  }
+
   async function printPurchaseInvoice(pur: Purchase) {
     try {
       isPrintingPurchase = true;
@@ -508,6 +533,16 @@
                   <button on:click={() => openPreview(pur)} class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer" title="View Details">
                     <Eye class="w-4 h-4" />
                   </button>
+                  {#if pur.paid_amount < pur.total}
+                    <button
+                      type="button"
+                      on:click={() => quickPaySupplierDue(pur)}
+                      class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg cursor-pointer transition active:scale-95"
+                      title="Pay the remaining due from the drawer"
+                    >
+                      {(pur.total - pur.paid_amount).toLocaleString()} DZD Due (تسديد)
+                    </button>
+                  {/if}
                 </div>
               </td>
             </tr>

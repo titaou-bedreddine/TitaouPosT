@@ -61,9 +61,17 @@
     isPrintLabelOpen = true;
   }
 
+  // In POS purchase mode the host asks for the new supplier cost before
+  // the line is added; otherwise the card adds at shelf price directly.
+  export let onAddToCart: ((p: Product) => void) | undefined = undefined;
+
   function handleClick() {
     isClicked = true;
     setTimeout(() => (isClicked = false), 250);
+    if (onAddToCart) {
+      onAddToCart(product);
+      return;
+    }
     addToCart(product, 1, $isRefundMode);
   }
 
@@ -145,7 +153,7 @@
       <button
         type="button"
         on:click={(e) => movePinned(e, -1)}
-        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition opacity-0 group-hover:opacity-100 focus:opacity-100"
         title="Move pinned up (تقديم)"
       >
         <ChevronUp class="w-3.5 h-3.5" />
@@ -153,7 +161,7 @@
       <button
         type="button"
         on:click={(e) => movePinned(e, 1)}
-        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition"
+        class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 hover:scale-110 shadow-xs flex items-center justify-center cursor-pointer transition opacity-0 group-hover:opacity-100 focus:opacity-100"
         title="Move pinned down (تأخير)"
       >
         <ChevronDown class="w-3.5 h-3.5" />

@@ -428,6 +428,8 @@ pub struct Purchase {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Expense {
     pub id: i64,
+    #[serde(default)]
+    pub user_name: Option<String>,
     pub expense_number: String,
     pub category_id: i64,
     pub category_name: Option<String>,

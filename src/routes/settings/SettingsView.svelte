@@ -67,6 +67,9 @@
     notify_each_expense: 'false',
     notify_opening_cash: 'false',
     notify_supplier_payment: 'false',
+    notify_price_change: 'false',
+    notify_qty_change: 'false',
+    notify_history_change: 'false',
     notify_each_refund: 'true',
     notify_expiry: 'true',
     notify_low_stock: 'true',
@@ -312,6 +315,7 @@
   onMount(async () => {
     await loadAutostart();
     await loadPrinters();
+    await loadShortcutBindings();
     try {
       const v = await invoke<string>('get_app_version');
       if (v) {
@@ -349,6 +353,37 @@
 
   // Autostart with Windows (HKCU Run key, applied immediately).
   let autostartEnabled = false;
+
+  // Rebindable POS shortcuts (persisted as JSON in app_settings).
+  let shortcutBindings: Record<string, string> = {
+    new_sale: 'F1',
+    checkout_print: 'F2',
+    hold_cart: 'F3',
+    remise: 'F4',
+    returns: 'F5',
+    edit_qty: 'F6',
+    toggle_products: 'F7',
+    toggle_register: 'F8',
+    toggle_sales: 'F9',
+    cycle_mode: 'F10',
+    cycle_payment: 'F11',
+    quick_checkout: 'F12',
+    open_drawer: 'Control',
+  };
+
+  async function loadShortcutBindings() {
+    try {
+      const raw = await invoke<string | null>('get_setting', { key: 'pos_shortcuts' });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          shortcutBindings = { ...shortcutBindings, ...parsed };
+        }
+      }
+    } catch {
+      // Keep defaults.
+    }
+  }
 
   // Installed printers for the invoice/receipt printer selector.
   let printerList: string[] = [];
@@ -388,6 +423,16 @@
     setTimeout(() => {
       saveSuccessMsg = '';
     }, 3500);
+  }
+
+  // Toggles must take effect IMMEDIATELY: a cashier flipping "notify on
+  // every sale" and never clicking Save would silently get no alerts.
+  function autoSaveSettings() {
+    invoke('set_multiple_settings', {
+      settings: Object.fromEntries(
+        Object.entries(settings).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ),
+    }).catch((e) => console.warn('Auto-save settings failed:', e));
   }
 
   async function saveAllSettings() {
@@ -1745,39 +1790,39 @@
             <h3 class="font-black text-sm text-pos-text">Alert Triggers</h3>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Instant notification on every sale</span>
-              <input type="checkbox" bind:checked={settings.notify_each_sale} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_each_sale} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Notification on refunds & returns</span>
-              <input type="checkbox" bind:checked={settings.notify_each_refund} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_each_refund} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Near-expired (under 30 days) & expired items alert</span>
-              <input type="checkbox" bind:checked={settings.notify_expiry} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_expiry} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Low stock & inventory depletion alert</span>
-              <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Cash deposits into the drawer (إيداع الصندوق)</span>
-              <input type="checkbox" bind:checked={settings.notify_cash_in} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_cash_in} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Cash withdrawals & expenses (سحب/مصاريف)</span>
-              <input type="checkbox" bind:checked={settings.notify_cash_out} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_cash_out} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Every recorded expense (كل مصروف)</span>
-              <input type="checkbox" bind:checked={settings.notify_each_expense} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_each_expense} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Opening cash of a new session (رصيد افتتاحي)</span>
-              <input type="checkbox" bind:checked={settings.notify_opening_cash} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_opening_cash} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Supplier debt payments (تسديد الموردين)</span>
-              <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
           </div>
 
@@ -1788,7 +1833,7 @@
                 <span>Enable automatic recap</span>
                 <p class="text-[10px] text-pos-muted font-normal">Sends a sales/cash/expenses summary every X while the app is open</p>
               </div>
-              <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" />
+              <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">Recap frequency</label>
@@ -2220,68 +2265,9 @@
         </div>
 
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Focus Barcode Search</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F1</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Quick Add / New Product</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F2</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Switch Mode (Sale / Refund / Purchase)</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F3</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Hold Active Sale</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-amber-600 rounded-lg shadow-inner">F4</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Resume Held Sales Modal</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-amber-600 rounded-lg shadow-inner">F5</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Edit Selected Item Quantity</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F6</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Apply Discount / Remise</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F7</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Select Customer Account</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F8</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Quick Cash Pay & Print Receipt</span>
-              <kbd class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 font-mono font-black text-emerald-700 dark:text-emerald-300 rounded-lg shadow-inner">F9</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Kick Open Serial Cash Drawer</span>
-              <kbd class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 font-mono font-black text-emerald-700 dark:text-emerald-300 rounded-lg shadow-inner">F10</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Split / Card / TPE Payment Modal</span>
-              <kbd class="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 font-mono font-black text-sky-600 rounded-lg shadow-inner">F11</kbd>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <span class="font-bold text-pos-text">Clear / Cancel Active Cart</span>
-              <kbd class="px-2.5 py-1 bg-rose-100 dark:bg-rose-950 font-mono font-black text-rose-600 rounded-lg shadow-inner">F12</kbd>
-            </div>
-          </div>
-        </div>
+          <div class="bg-pos-card rounded-2xl p-1">
+        <ShortcutsEditor bind:bindings={shortcutBindings} />
+      </div></div>
       </div>
 
     <!-- 4. NETWORK & MOBILE APP TAB -->

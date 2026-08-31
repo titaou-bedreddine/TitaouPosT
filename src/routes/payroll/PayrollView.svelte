@@ -7,11 +7,15 @@
     Check, X, Printer, UserCheck, CreditCard, Clock
   } from 'lucide-svelte';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { Pencil, Trash2 } from 'lucide-svelte';
   import { activeSession } from '../../lib/stores/session';
   import { currentUser } from '../../lib/stores/auth';
 
   let employees: Employee[] = [];
   let isAddOpen = false;
+  // Editing reuses the add modal; delete asks for confirmation.
+  let editingEmployeeId: number | null = null;
+  let employeeToDelete: Employee | null = null;
 
   let code = '';
   let name = '';
@@ -33,6 +37,21 @@
 
   // Active advance/absence logs in memory for session display
   let advancesMap: Record<number, number> = {};
+  // Full advance log per employee for the history section.
+  let advanceLog: any[] = [];
+  let historyEmployee: Employee | null = null;
+
+  async function openAdvanceHistory(emp: Employee) {
+    historyEmployee = emp;
+    try {
+      advanceLog = await invoke<any[]>('list_employee_advances', {
+        employeeId: emp.id,
+        month: null,
+      });
+    } catch {
+      advanceLog = [];
+    }
+  }
   let absencesMap: Record<number, number> = {};
 
   onMount(async () => {
@@ -46,7 +65,7 @@
     try {
       const month = new Date().toISOString().slice(0, 7);
       const list = await invoke<any[]>('list_employee_advances', {
-        employeeId: null,
+        employeeId: editingEmployeeId,
         month,
       });
       advancesMap = {};
@@ -63,6 +82,37 @@
       employees = await invoke<Employee[]>('list_employees');
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  function openAddEmployee() {
+    editingEmployeeId = null;
+    code = '';
+    name = '';
+    jobTitle = '';
+    baseSalary = 0;
+    phone = '';
+    isAddOpen = true;
+  }
+
+  function openEditEmployee(emp: Employee) {
+    editingEmployeeId = emp.id;
+    code = emp.employee_code || '';
+    name = emp.full_name || '';
+    jobTitle = emp.job_title || '';
+    baseSalary = emp.base_salary || 0;
+    phone = (emp as any).phone || '';
+    isAddOpen = true;
+  }
+
+  async function handleDeleteEmployee() {
+    if (!employeeToDelete) return;
+    try {
+      await invoke('delete_employee', { employeeId: employeeToDelete.id });
+      employeeToDelete = null;
+      await loadEmployees();
+    } catch (e: any) {
+      alert('Failed to delete employee: ' + (e.message || e));
     }
   }
 
@@ -175,7 +225,7 @@
       <p class="text-xs text-pos-muted mt-0.5">Manage employee contracts, base salaries, advances, and payroll slips</p>
     </div>
     <button
-      on:click={() => (isAddOpen = true)}
+      on:click={openAddEmployee}
       class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
@@ -221,7 +271,7 @@
       {@const dailyRate = Math.round(emp.base_salary / 30)}
       {@const absenceDeduction = daysAbsent * dailyRate}
       {@const netSalary = Math.max(0, emp.base_salary - advances - absenceDeduction)}
-      <div class="bg-pos-card border border-pos-border rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition">
+      <div class="relative bg-pos-card border border-pos-border rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition group">
         <div>
           <div class="flex items-center justify-between mb-2">
             <span class="font-mono text-xs font-black text-sky-600 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded-lg border border-sky-200 dark:border-sky-800">
@@ -230,6 +280,32 @@
             <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
               ACTIVE
             </span>
+          </div>
+          <div class="absolute top-3 end-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+            <button
+              type="button"
+              on:click={() => openEditEmployee(emp)}
+              class="p-1.5 bg-white/95 dark:bg-slate-800/95 text-pos-muted hover:text-sky-600 rounded-lg shadow-xs cursor-pointer"
+              title="Edit employee (تعديل)"
+            >
+              <Pencil class="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              on:click={() => (employeeToDelete = emp)}
+              class="p-1.5 bg-white/95 dark:bg-slate-800/95 text-pos-muted hover:text-rose-600 rounded-lg shadow-xs cursor-pointer"
+              title="Delete employee (حذف)"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              on:click={() => openAdvanceHistory(emp)}
+              class="px-2 py-1 bg-white/95 dark:bg-slate-800/95 text-pos-muted hover:text-sky-600 rounded-lg shadow-xs cursor-pointer text-[10px] font-black"
+              title="Avances & payments history (السجل)"
+            >
+              History
+            </button>
           </div>
 
           <h3 class="font-black text-base text-pos-text leading-tight">{emp.full_name}</h3>
@@ -330,6 +406,51 @@
       <div class="flex justify-end gap-2 pt-2">
         <button on:click={() => (selectedEmpForAbsence = null)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl">Cancel</button>
         <button on:click={recordAbsence} class="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl">Confirm Deduction</button>
+      </div>
+    </div>
+  </div>
+{/if}
+<!-- Employee Advances History -->
+{#if historyEmployee}
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-black text-sm text-pos-text">Advances History — {historyEmployee.full_name}</h3>
+        <button on:click={() => (historyEmployee = null)} class="text-pos-muted hover:text-pos-text p-1 rounded cursor-pointer">
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+      <div class="max-h-72 overflow-y-auto space-y-1.5">
+        {#each advanceLog as adv}
+          <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg text-xs">
+            <span class="font-mono text-pos-muted">{adv.date}</span>
+            <span class="text-pos-text truncate max-w-[160px]">{adv.reason || 'Avance sur salaire'}</span>
+            <span class="font-mono font-black text-rose-600">{adv.amount.toLocaleString()} DZD</span>
+          </div>
+        {/each}
+        {#if advanceLog.length === 0}
+          <p class="text-xs text-pos-muted text-center py-4">No advances recorded.</p>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Delete Employee Confirmation -->
+{#if employeeToDelete}
+  <div class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
+      <h3 class="font-black text-sm text-pos-text flex items-center gap-2 text-rose-600">
+        <Trash2 class="w-5 h-5" />
+        <span>Delete Employee (حذف موظف)</span>
+      </h3>
+      <p class="text-xs text-pos-muted">
+        Delete <strong class="text-pos-text">{employeeToDelete.full_name}</strong>?
+        Their advances and payroll history stay in the records.
+      </p>
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (employeeToDelete = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={handleDeleteEmployee} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">Confirm Delete</button>
       </div>
     </div>
   </div>

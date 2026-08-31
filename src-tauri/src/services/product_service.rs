@@ -196,12 +196,20 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
 
     let is_scalable_int = if input.is_scalable { 1 } else { 0 };
 
+    // For the Telegram price/quantity change alerts.
+    let mut old_state: Option<(i64, i64, f64)> = None; // (purchase, sale, stock)
+
     let id = if let Some(pid) = product_id {
         // Fetch old prices for price history
         let old_prices: Option<(i64, i64)> = tx.query_row(
             "SELECT purchase_price, sale_price FROM products WHERE id = ?1",
             [pid],
             |r| Ok((r.get(0)?, r.get(1)?)),
+        ).ok();
+        old_state = tx.query_row(
+            "SELECT purchase_price, sale_price, current_stock FROM products WHERE id = ?1",
+            [pid],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ).ok();
 
         if let Some((old_pur, old_sale)) = old_prices {
@@ -313,6 +321,33 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    // Telegram alerts for price / stock-quantity changes (fire-and-forget).
+    if let (Some(_pid), Some((old_pur, old_sale, old_stock))) = (product_id, old_state) {
+        let name = if input.name_fr.is_empty() { input.name_ar.clone() } else { input.name_fr.clone() };
+        if old_pur != input.purchase_price || old_sale != input.sale_price {
+            crate::services::notifier_service::notify_if_enabled(
+                db,
+                "notify_price_change",
+                format!(
+                    "[PRICE] Changement de Prix | Produit: {} | Achat: {} -> {} DZD | Vente: {} -> {} DZD",
+                    name, old_pur, input.purchase_price, old_sale, input.sale_price
+                ),
+            );
+        }
+        if (old_stock - input.current_stock).abs() >= f64::EPSILON {
+            crate::services::notifier_service::notify_if_enabled(
+                db,
+                "notify_qty_change",
+                format!(
+                    "[QTY] Changement de Quantite | Produit: {} | Stock: {} -> {}",
+                    name, old_stock, input.current_stock
+                ),
+            );
+        }
+    }
+
     Ok(id)
 }
 

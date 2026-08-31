@@ -12,6 +12,16 @@
   let searchQuery = '';
   let isModalOpen = false;
   let previewSupplier: Supplier | null = null;
+  let supplierHistory: any[] = [];
+
+  async function loadSupplierHistory(x: Supplier) {
+    try {
+      const purchases = await invoke<any[]>('list_purchases');
+      supplierHistory = purchases.filter((pur) => pur.supplier_id === x.id).slice(0, 50);
+    } catch {
+      supplierHistory = [];
+    }
+  }
   let isDebtModalOpen = false;
   let payingSupplier: Supplier | null = null;
 
@@ -168,7 +178,7 @@
         {:else}
           {#each filteredSuppliers as s}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-              <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => (previewSupplier = s)}>
+              <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => { previewSupplier = s; loadSupplierHistory(s); }}>
                 {s.name}
               </td>
               <td class="p-3 text-pos-muted">{s.contact_person || '—'}</td>
@@ -292,7 +302,7 @@
             <p class="text-xs text-pos-muted">{previewSupplier.contact_person || 'Principal Commercial Contact'}</p>
           </div>
         </div>
-        <button on:click={() => (previewSupplier = null)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
+        <button on:click={() => { previewSupplier = null; loadSupplierHistory(null); }} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
           <X class="w-5 h-5" />
         </button>
       </div>
@@ -304,6 +314,25 @@
             <p class="text-[10px] uppercase font-black tracking-wider">Supplier Account Balance (حساب المورد)</p>
             <p class="text-xl font-black font-mono">{previewSupplier.balance.toLocaleString()} DZD</p>
           </div>
+        <div class="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border p-3">
+          <h4 class="font-black text-xs text-pos-text mb-2">Purchase History (سجل الفواتير) — {supplierHistory.length}</h4>
+          <div class="max-h-56 overflow-y-auto space-y-1">
+            {#each supplierHistory as pur}
+              <div class="flex items-center justify-between p-2 bg-pos-card rounded-lg text-xs border border-pos-border/60">
+                <span class="font-mono font-bold text-sky-600 truncate">#{pur.invoice_number}</span>
+                <span class="text-pos-muted font-mono">{pur.date}</span>
+                <span class="font-mono font-black text-pos-text">{pur.total.toLocaleString()} DZD</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black {pur.paid_amount >= pur.total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                  {pur.paid_amount >= pur.total ? 'PAID' : 'DUE ' + (pur.total - pur.paid_amount).toLocaleString()}
+                </span>
+              </div>
+            {/each}
+            {#if supplierHistory.length === 0}
+              <p class="text-xs text-pos-muted text-center py-3">No purchase invoices for this supplier.</p>
+            {/if}
+          </div>
+        </div>
+
           <div class="flex items-center gap-2">
             {#if previewSupplier.balance > 0}
               <button
@@ -356,7 +385,7 @@
       </div>
 
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end">
-        <button on:click={() => (previewSupplier = null)} class="px-5 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
+        <button on:click={() => { previewSupplier = null; loadSupplierHistory(null); }} class="px-5 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Close</button>
       </div>
     </div>
   </div>

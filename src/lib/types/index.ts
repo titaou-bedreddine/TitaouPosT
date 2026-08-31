@@ -209,6 +209,7 @@ export interface Purchase {
 
 export interface Expense {
   id: number;
+  user_name?: string;
   expense_number: string;
   category_id: number;
   category_name?: string;

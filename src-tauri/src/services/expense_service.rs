@@ -75,9 +75,10 @@ pub fn list_expenses(db: &DbState) -> Result<Vec<Expense>, String> {
         .prepare(
             "SELECT e.id, e.expense_number, e.category_id, ec.name_ar, e.amount,
                     e.payment_method, e.session_id, e.user_id, e.recipient, e.receipt_reference,
-                    e.date, e.notes, e.created_at
+                    e.date, e.notes, e.created_at, u.display_name
              FROM expenses e
              LEFT JOIN expense_categories ec ON e.category_id = ec.id
+             LEFT JOIN users u ON e.user_id = u.id
              ORDER BY e.id DESC LIMIT 200",
         )
         .map_err(|e| e.to_string())?;
@@ -86,6 +87,7 @@ pub fn list_expenses(db: &DbState) -> Result<Vec<Expense>, String> {
         .query_map([], |row| {
             Ok(Expense {
                 id: row.get(0)?,
+                user_name: row.get::<_, Option<String>>(13)?,
                 expense_number: row.get(1)?,
                 category_id: row.get(2)?,
                 category_name: row.get(3)?,

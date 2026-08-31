@@ -39,6 +39,7 @@
   let updateProgress = 0;
   let updateError = '';
   let isCashDrawerOpen = false;
+  let isDeveloperPopupOpen = false;
 
   // Download the signed update package in-app, install it, and relaunch —
   // no browser, no separate installer window.
@@ -110,6 +111,14 @@
   onMount(async () => {
     // Disable right-click context menu across Tauri POS desktop app
     window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // F5 must NEVER reload the webview (it wiped the session = looked like
+    // a logout). The POS binds its own F5 action per the shortcuts scheme.
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+        e.preventDefault();
+      }
+    });
 
     // Auto-select text on input focus for fast barcode/number replacement.
     // Fields marked data-no-autoselect (e.g. invoice numbers the user edits
@@ -446,7 +455,7 @@
 
       <div class="flex-1 overflow-hidden">
         {#if currentRoute === 'pos'}
-          <PosView />
+          <PosView onNavigate={(r) => (currentRoute = r)} />
         {:else if currentRoute === 'sales'}
           <SalesView onRequestPosRoute={() => (currentRoute = 'pos')} />
         {:else if currentRoute === 'cash'}
@@ -477,5 +486,49 @@
   <!-- Stale-session prompt: close yesterday's session, then open today's -->
   {#if $isAuthenticated}
     <CashDrawerModal isOpen={isCashDrawerOpen} onClose={() => (isCashDrawerOpen = false)} />
+
+    {#if isDeveloperPopupOpen}
+      <div class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <h3 class="font-black text-sm text-pos-text">Contact the Developer (المطور)</h3>
+          <p class="text-xs text-pos-muted">
+            Titaou Bedreddine — TitaouPOS developer. Reach out for support, features or licensing.
+          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              on:click={() => window.open('https://wa.me/213553444057', '_blank')}
+              class="px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl border border-emerald-200 dark:border-emerald-800 cursor-pointer"
+            >
+              WhatsApp
+            </button>
+            <button
+              type="button"
+              on:click={() => window.open('https://t.me/titaou_bedreddine', '_blank')}
+              class="px-3 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 text-sky-700 dark:text-sky-300 text-xs font-bold rounded-xl border border-sky-200 dark:border-sky-800 cursor-pointer"
+            >
+              Telegram
+            </button>
+            <button
+              type="button"
+              on:click={() => window.open('tel:0553444057', '_blank')}
+              class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-pos-text text-xs font-bold rounded-xl border border-pos-border cursor-pointer"
+            >
+              Call 0553444057
+            </button>
+            <button
+              type="button"
+              on:click={() => window.open('https://afaqtech.netlify.app/', '_blank')}
+              class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-pos-text text-xs font-bold rounded-xl border border-pos-border cursor-pointer"
+            >
+              Website
+            </button>
+          </div>
+          <button on:click={() => (isDeveloperPopupOpen = false)} class="w-full px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer">
+            Close
+          </button>
+        </div>
+      </div>
+    {/if}
   {/if}
 {/if}

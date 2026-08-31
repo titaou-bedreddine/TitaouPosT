@@ -59,6 +59,16 @@ pub fn record_employee_advance(db: &DbState, input: EmployeeAdvanceInput) -> Res
     // Book the expense (category 7 = Avances Salaires). Paid from the
     // session drawer when session_id is provided: the drawer movement and
     // expected_cash update are handled by the same insert.
+    // Real employee name for the expense recipient (was "Employee #3").
+    let employee_name: String = {
+        let row = tx.query_row(
+            "SELECT name FROM employees WHERE id = ?1",
+            [input.employee_id],
+            |r| r.get::<_, String>(0),
+        );
+        row.unwrap_or_else(|_| format!("#{}", input.employee_id))
+    };
+
     tx.execute(
         "INSERT INTO expenses (expense_number, category_id, amount, payment_method, session_id, user_id, recipient, date, notes)
          VALUES (?1, 7, ?2, 'cash', ?3, ?4, ?5, ?6, ?7)",
@@ -67,7 +77,7 @@ pub fn record_employee_advance(db: &DbState, input: EmployeeAdvanceInput) -> Res
             input.amount,
             input.session_id,
             input.user_id,
-            format!("Employee #{}", input.employee_id),
+            employee_name,
             date,
             format!("Salary advance / سلفة راتب: {}", input.reason.as_deref().unwrap_or("Avance sur salaire")),
         ],

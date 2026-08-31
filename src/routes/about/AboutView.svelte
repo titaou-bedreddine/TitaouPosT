@@ -5,9 +5,20 @@
     CheckCircle2, ExternalLink
   } from 'lucide-svelte';
 
+  import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+
   const developerName = 'Titaou Bedreddine';
   const developerPhone = '0553444057';
-  const appVersion = 'v0.2.0-PRO (Offline Desktop Edition)';
+  let appVersion = '...';
+
+  onMount(async () => {
+    try {
+      appVersion = 'v' + (await invoke<string>('get_app_version')) + ' PRO (Offline Desktop Edition)';
+    } catch {
+      appVersion = 'PRO (Offline Desktop Edition)';
+    }
+  });
 
   function openExternal(url: string) {
     window.open(url, '_blank');

@@ -90,7 +90,7 @@
       <button
         type="button"
         on:click={handleNewSale}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
         title="F1 - New Sale (Auto-holds active cart)"
       >
         <PlusCircle class="w-4 h-4 mb-0.5" />
@@ -102,7 +102,7 @@
         type="button"
         on:click={clearCart}
         disabled={$cartItems.length === 0}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
         title="Del - Clear Cart"
       >
         <Trash2 class="w-4 h-4 mb-0.5" />
@@ -113,7 +113,7 @@
       <button
         type="button"
         on:click={handleHoldClick}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 relative shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 relative shrink-0"
         title="F3 - {$cartItems.length > 0 ? 'Click to Hold Active Cart' : 'Open Held Sales List'}"
       >
         <PauseCircle class="w-4 h-4 text-amber-500 mb-0.5" />
@@ -135,7 +135,7 @@
       <button
         type="button"
         on:click={handleRefundToggle}
-        class="flex flex-col items-center justify-center w-18 h-12 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0 {$isRefundMode ? 'bg-amber-600 text-white ring-2 ring-amber-300' : 'bg-slate-200 dark:bg-slate-700 text-pos-text hover:bg-slate-300'}"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0 {$isRefundMode ? 'bg-amber-600 text-white ring-2 ring-amber-300' : 'bg-slate-200 dark:bg-slate-700 text-pos-text hover:bg-slate-300'}"
         title="Toggle Refund on All Items"
       >
         <Undo2 class="w-4 h-4 mb-0.5" />
@@ -146,7 +146,7 @@
       <button
         type="button"
         on:click={handleRemiseToggle}
-        class="flex flex-col items-center justify-center w-18 h-12 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0 {$globalDiscountMode !== 'none' ? 'bg-purple-600 text-white ring-2 ring-purple-300' : 'bg-slate-200 dark:bg-slate-700 text-pos-text hover:bg-slate-300'}"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0 {$globalDiscountMode !== 'none' ? 'bg-purple-600 text-white ring-2 ring-purple-300' : 'bg-slate-200 dark:bg-slate-700 text-pos-text hover:bg-slate-300'}"
         title="F4 - Global Remise (% or DZD)"
       >
         <Percent class="w-4 h-4 mb-0.5" />
@@ -158,7 +158,7 @@
       <button
         type="button"
         on:click={onOpenOtherArticle}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 text-amber-900 dark:text-amber-200 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 text-amber-900 dark:text-amber-200 rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
         title="Other Product / منتج حر (Divers - Fast Price Entry)"
       >
         <DollarSign class="w-4 h-4 text-amber-600 mb-0.5" />
@@ -175,7 +175,7 @@
       <button
         type="button"
         on:click={cyclePaymentMode}
-        class="flex flex-col items-center justify-center w-22 h-12 rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {selectedPaymentMode === 'cash' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : selectedPaymentMode === 'tpe' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : selectedPaymentMode === 'versement' ? 'bg-violet-600 text-white ring-2 ring-violet-400' : 'bg-amber-600 text-white ring-2 ring-amber-400'}"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {selectedPaymentMode === 'cash' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : selectedPaymentMode === 'tpe' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : selectedPaymentMode === 'versement' ? 'bg-violet-600 text-white ring-2 ring-violet-400' : 'bg-amber-600 text-white ring-2 ring-amber-400'}"
         title="Click to Toggle: Cash -> TPE -> Credit -> Versement"
       >
         {#if selectedPaymentMode === 'cash'}
@@ -203,7 +203,7 @@
       <button
         type="button"
         on:click={cyclePosMode}
-        class="flex flex-col items-center justify-center w-22 h-12 rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {$posMode === 'sale' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : $posMode === 'purchase' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : 'bg-rose-600 text-white ring-2 ring-rose-400'}"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 shadow-sm active:scale-95 {$posMode === 'sale' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : $posMode === 'purchase' ? 'bg-sky-600 text-white ring-2 ring-sky-400' : 'bg-rose-600 text-white ring-2 ring-rose-400'}"
         title="Click to Toggle: Sale → Purchase (supplier) → Broken (damaged)"
       >
         {#if $posMode === 'sale'}
@@ -222,7 +222,7 @@
       <button
         type="button"
         on:click={onOpenCashDrawer}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
         title="F9 - Cash Register (صندوق Caisse)"
       >
         <DollarSign class="w-4 h-4 text-emerald-500 mb-0.5" />
@@ -233,7 +233,7 @@
       <button
         type="button"
         on:click={onCheckout}
-        class="flex flex-col items-center justify-center w-18 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-center transition shadow-xs cursor-pointer active:scale-95 shrink-0"
         title="Checkout (F2) — Select customer, enter amount, get change/reste"
       >
         <Coins class="w-4 h-4 mb-0.5" />
@@ -250,7 +250,7 @@
       <button
         type="button"
         on:click={() => (autoPrintEnabled = !autoPrintEnabled)}
-        class="flex flex-col items-center justify-center w-18 h-12 rounded-xl text-center transition cursor-pointer shrink-0 {autoPrintEnabled ? 'bg-sky-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-pos-muted'}"
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 {autoPrintEnabled ? 'bg-sky-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-pos-muted'}"
         title="Toggle Auto Print Receipt on Checkout"
       >
         <Printer class="w-4 h-4 mb-0.5" />

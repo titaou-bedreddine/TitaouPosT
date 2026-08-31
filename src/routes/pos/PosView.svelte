@@ -3,11 +3,14 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, restoreActiveCart } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, restoreActiveCart, holdCurrentSale } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlSilently, buildReceiptHtml } from '../../lib/utils/printer';
   import { normalizeBarcode } from '../../lib/utils/barcode';
+
+  // Route navigation for F7 (products) / F8 (register) / F9 (sales).
+  export let onNavigate: (route: string) => void = () => {};
 
   import TopActionBar from '../../lib/components/TopActionBar.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
@@ -48,6 +51,7 @@
 
   let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   let autoPrintEnabled = true;
+  let suppressNextPrint = false;
   let autoDrawerEnabled = true;
   let isFastCheckingOut = false;
 
@@ -86,6 +90,27 @@
   // POS rule: idle seconds before the search bar re-steals focus (0 = off).
   let autofocusTimerSeconds = 0;
 
+  // Rebindable shortcuts (Settings > Shortcuts persists these).
+  const DEFAULT_SHORTCUTS: Record<string, string> = {
+    new_sale: 'F1',
+    checkout_print: 'F2',
+    hold_cart: 'F3',
+    remise: 'F4',
+    returns: 'F5',
+    edit_qty: 'F6',
+    toggle_products: 'F7',
+    toggle_register: 'F8',
+    toggle_sales: 'F9',
+    cycle_mode: 'F10',
+    cycle_payment: 'F11',
+    quick_checkout: 'F12',
+    open_drawer: 'Control',
+  };
+  let shortcuts: Record<string, string> = { ...DEFAULT_SHORTCUTS };
+  function isKey(action: string, e: KeyboardEvent): boolean {
+    return shortcuts[action] === e.key;
+  }
+
   let cartContainerEl: HTMLDivElement;
 
   onMount(async () => {
@@ -107,6 +132,18 @@
       currentTime = new Date().toLocaleTimeString();
       currentDate = new Date().toLocaleDateString();
     }, 1000);
+
+    try {
+      const raw = await invoke<string | null>('get_setting', { key: 'pos_shortcuts' });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          shortcuts = { ...shortcuts, ...parsed };
+        }
+      }
+    } catch {
+      // Defaults stand.
+    }
 
     await loadCategories();
     await loadUnits();
@@ -336,6 +373,14 @@
     await executeCheckout(null, undefined);
   }
 
+  // Cycle the payment mode: Cash -> TPE -> Credit -> Versement (F11).
+  function cyclePaymentMode() {
+    if (selectedPaymentMode === 'cash') selectedPaymentMode = 'tpe';
+    else if (selectedPaymentMode === 'tpe') selectedPaymentMode = 'credit';
+    else if (selectedPaymentMode === 'credit') selectedPaymentMode = 'versement';
+    else selectedPaymentMode = 'cash';
+  }
+
   // Purchase & Broken mode checkouts: purchases add stock from the
   // supplier; broken writes quantity off and books an expense.
   async function executeModeCheckout(mode: 'purchase' | 'broken') {
@@ -501,8 +546,10 @@
 
       await invoke('create_sale', { input: saleInput });
 
-      // Silent Auto-Print
-      if (autoPrintEnabled) {
+      // Silent Auto-Print (F12 quick checkout skips it for this sale).
+      const printThisSale = autoPrintEnabled && !suppressNextPrint;
+      suppressNextPrint = false;
+      if (printThisSale) {
         let appSettings: Record<string, string> = {};
         try {
           appSettings = await invoke<Record<string, string>>('get_all_settings');
@@ -694,20 +741,36 @@
       barcodeBuffer += e.key;
     }
 
-    // Function keys shortcuts
-    if (e.key === 'F1') {
+    // Function keys shortcuts (defaults; rebindable in Settings > Shortcuts).
+    if (isKey('new_sale', e)) {
+      // New sale: HOLD the current cart first (never silently lose it),
+      // then clear for the next customer.
       e.preventDefault();
-      clearCart();
-    } else if (e.key === 'F2') {
+      if ($cartItems.length > 0) {
+        holdCurrentSale();
+      } else {
+        clearCart();
+      }
+    } else if (isKey('checkout_print', e)) {
+      // Checkout + print.
       e.preventDefault();
       handleFastCheckout();
-    } else if (e.key === 'F3') {
+    } else if (isKey('hold_cart', e)) {
+      // Hold the current cart (park it for the customer to come back).
       e.preventDefault();
-      isHeldSalesOpen = true;
-    } else if (e.key === 'F4') {
+      if ($cartItems.length > 0) {
+        holdCurrentSale();
+      } else {
+        isHeldSalesOpen = true;
+      }
+    } else if (isKey('remise', e)) {
       e.preventDefault();
       isRemiseOpen = true;
-    } else if (e.key === 'F6') {
+    } else if (isKey('returns', e)) {
+      // Returns / refunds dialog.
+      e.preventDefault();
+      isReturnDamagedOpen = true;
+    } else if (isKey('edit_qty', e)) {
       e.preventDefault();
       // Enter quantity-edit mode on the first cart line (or the next one if
       // already editing).
@@ -717,24 +780,40 @@
       } else {
         qtyEditTarget.set(itemKey($cartItems[0]));
       }
-    } else if (e.key === 'F7') {
+    } else if (isKey('toggle_products', e)) {
+      // Toggle products page (inventory).
       e.preventDefault();
-      // Cycle the POS mode directly: Sale -> Purchase -> Broken.
+      onNavigate('inventory');
+    } else if (isKey('toggle_register', e)) {
+      // Toggle the cash register page.
+      e.preventDefault();
+      onNavigate('cash');
+    } else if (isKey('toggle_sales', e)) {
+      // Toggle the sales history page.
+      e.preventDefault();
+      onNavigate('sales');
+    } else if (isKey('cycle_mode', e)) {
+      // Cycle the POS mode: Sale -> Purchase -> Broken.
+      e.preventDefault();
       if ($posMode === 'sale') $posMode = 'purchase';
       else if ($posMode === 'purchase') $posMode = 'broken';
       else $posMode = 'sale';
-    } else if (e.key === 'F8') {
+    } else if (isKey('cycle_payment', e)) {
+      // Cycle the payment mode: Cash -> TPE -> Credit -> Versement.
       e.preventDefault();
-      isReturnDamagedOpen = true;
-    } else if (e.key === 'F9') {
+      cyclePaymentMode();
+    } else if (isKey('quick_checkout', e)) {
+      // Quick checkout WITHOUT printing the receipt.
       e.preventDefault();
-      isCashDrawerOpen = true;
-    } else if (e.key === 'F10') {
+      suppressNextPrint = true;
+      handleFastCheckout();
+    } else if (isKey('open_drawer', e)) {
+      // Kick the cash drawer open.
       e.preventDefault();
       try {
         invoke('open_serial_cash_drawer', { comPort: 1, baudRate: 9600 });
-      } catch (e) {
-        console.warn(e);
+      } catch (err) {
+        console.warn(err);
       }
     }
   }
@@ -852,6 +931,7 @@
               categoryColor={cat?.color || '#0284c7'}
               onEditProduct={handleOpenEdit}
               onPinned={loadProducts}
+              onAddToCart={addProductToCart}
               pinnedIds={products.filter(p => p.pinned).map(p => p.id)}
             />
           {/each}
@@ -860,9 +940,13 @@
     </div>
 
     <!-- RIGHT PANEL: Shopping Cart with Animated Store Title -->
-    <div class="w-[410px] flex flex-col shrink-0 bg-pos-card border border-pos-border rounded-2xl shadow-xs overflow-hidden">
-      <!-- Big Animated Store Header -->
-      <div class="p-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-700 text-white shadow-xs">
+    <div class="w-[410px] flex flex-col shrink-0 bg-pos-card border rounded-2xl shadow-xs overflow-hidden transition-colors {$posMode === 'purchase' ? 'border-amber-400 ring-1 ring-amber-400/50' : $posMode === 'broken' ? 'border-rose-400 ring-1 ring-rose-400/50' : 'border-pos-border'}">
+      <!-- Big Animated Store Header (color = current POS mode) -->
+      <div class="p-3 bg-gradient-to-r text-white shadow-xs transition-colors duration-300 {$posMode === 'purchase'
+        ? 'from-amber-600 via-orange-600 to-amber-700'
+        : $posMode === 'broken'
+        ? 'from-rose-700 via-red-700 to-rose-800'
+        : 'from-sky-600 via-indigo-600 to-sky-700'}">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <div class="w-10 h-10 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md shrink-0">
@@ -877,9 +961,14 @@
               </p>
             </div>
           </div>
-          <div class="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>Live</span>
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {$posMode === 'purchase' ? 'bg-amber-300 text-amber-900' : $posMode === 'broken' ? 'bg-rose-300 text-rose-900' : 'bg-emerald-300 text-emerald-900'}">
+              {$posMode === 'purchase' ? 'شراء / ACHAT' : $posMode === 'broken' ? 'تالف / CASSÉ' : 'بيع / VENTE'}
+            </span>
+            <div class="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>Live</span>
+            </div>
           </div>
         </div>
       </div>

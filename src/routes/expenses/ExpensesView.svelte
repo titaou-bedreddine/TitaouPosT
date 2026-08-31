@@ -18,12 +18,21 @@
 
   // Date-range filter for the loaded expense list.
   let filterStartDate = '';
+  let selectedUserFilter = ''; // '' = all users
   let filterEndDate = '';
   let expenseDate = new Date().toISOString().split('T')[0];
+
+  $: usersWithExpenses = Array.from(
+    new Set(expenses.map((e) => e.user_name || `User #${e.user_id}`))
+  ).sort();
 
   $: filteredExpenses = expenses.filter((e) => {
     if (filterStartDate && e.date < filterStartDate) return false;
     if (filterEndDate && e.date > filterEndDate) return false;
+    if (selectedUserFilter) {
+      const who = e.user_name || `User #${e.user_id}`;
+      if (who !== selectedUserFilter) return false;
+    }
     return true;
   });
 
@@ -192,7 +201,33 @@
   </div>
 
   <!-- Quick Date Presets -->
-  <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} class="shrink-0" />
+  <div class="flex items-center gap-3 flex-wrap shrink-0">
+    <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} />
+    <div class="flex items-center gap-1.5">
+      <input
+        type="date"
+        bind:value={filterStartDate}
+        title="From date"
+        class="px-2.5 py-1.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none"
+      />
+      <span class="text-xs text-pos-muted font-bold">→</span>
+      <input
+        type="date"
+        bind:value={filterEndDate}
+        title="To date"
+        class="px-2.5 py-1.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none"
+      />
+    </div>
+    <select
+      bind:value={selectedUserFilter}
+      class="px-2.5 py-1.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
+    >
+      <option value="">All Users (كل المستخدمين)</option>
+      {#each usersWithExpenses as u}
+        <option value={u}>{u}</option>
+      {/each}
+    </select>
+  </div>
 
   <!-- Real Statistics Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
@@ -246,6 +281,7 @@
           <th class="p-3 text-start">Date</th>
           <th class="p-3 text-start">Category (الفئة)</th>
           <th class="p-3 text-start">Beneficiary (المستفيد)</th>
+          <th class="p-3 text-start">User (المستخدم)</th>
           <th class="p-3 text-end">Amount (المبلغ)</th>
           <th class="p-3 text-center">Payment</th>
           <th class="p-3 text-end">Actions</th>
@@ -263,6 +299,7 @@
               <td class="p-3 font-mono text-pos-muted">{exp.date}</td>
               <td class="p-3 font-bold text-pos-text">{exp.category_name || 'Général'}</td>
               <td class="p-3 text-pos-muted">{exp.recipient || 'Divers'}</td>
+              <td class="p-3 text-pos-muted font-semibold">{exp.user_name || `User #${exp.user_id}`}</td>
               <td class="p-3 text-end font-mono font-black text-rose-600">{exp.amount.toLocaleString()} DZD</td>
               <td class="p-3 text-center">
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {exp.payment_method === 'cash' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-sky-100 text-sky-800'}">
