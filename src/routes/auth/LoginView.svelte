@@ -45,7 +45,13 @@
     try {
       isLoading = true;
       errorMsg = '';
-      const user = await invoke<User | null>('login', { username: uname, password: pwd });
+      // Hard timeout: the login backend can take ~1s (Argon2) but must
+      // never hang the button forever — if it does, surface it instead of
+      // spinning, so the cashier can retry or restart.
+      const user = await Promise.race([
+        invoke<User | null>('login', { username: uname, password: pwd }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+      ]);
       if (user) {
         currentUser.set(user);
         $currentUser = user;

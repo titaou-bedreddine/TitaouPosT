@@ -94,8 +94,11 @@
   // NOTE: must stay OUTSIDE onMount — a `$:` inside it is a dead JS label
   // that runs once (before login, user null) and never again, leaving the
   // POS showing "cash session closed" until the register page is visited.
+  let sessionLoadInFlight = false;
+
   async function loadActiveSession() {
-    if (!$currentUser) return;
+    if (!$currentUser || sessionLoadInFlight) return;
+    sessionLoadInFlight = true;
     try {
       const session = await invoke<CashSession | null>('get_active_cash_session', { userId: $currentUser.id });
       $activeSession = session;
@@ -106,6 +109,8 @@
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      sessionLoadInFlight = false;
     }
   }
 
@@ -200,6 +205,12 @@
     logout();
   }
 </script>
+
+{#if showFirstSetup}
+  <!-- First-run wizard shows BEFORE login so a fresh install configures the
+       shop before any credentials are involved. -->
+  <FirstSetupWizard onDone={() => (showFirstSetup = false)} />
+{/if}
 
 {#if !$isAuthenticated}
   <LoginView />
@@ -538,10 +549,6 @@
 
   <!-- Stale-session prompt: close yesterday's session, then open today's -->
   {#if $isAuthenticated}
-    {#if showFirstSetup}
-      <FirstSetupWizard onDone={() => (showFirstSetup = false)} />
-    {/if}
-
     <CashDrawerModal isOpen={isCashDrawerOpen} onClose={() => (isCashDrawerOpen = false)} />
 
     {#if isDeveloperPopupOpen}

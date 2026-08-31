@@ -376,3 +376,51 @@ mod tests {
         assert!(get_active_session(&state, 1).unwrap().is_none());
     }
 }
+
+#[cfg(test)]
+mod login_probe {
+    use super::*;
+    use crate::auth::authenticate_user;
+
+    // Reproduce the login-then-session chain the UI runs after sign-in,
+    // against the REAL user database. If this hangs, we found the bug.
+    #[test]
+    fn probe_login_chain_real_db() {
+        let state = crate::database::DbState::new().expect("db open");
+        let t0 = std::time::Instant::now();
+        let user = authenticate_user(&state, "admin", "admin");
+        println!("login -> {:?} in {:?}", user.as_ref().map(|u| u.is_some()), t0.elapsed());
+        assert!(t0.elapsed().as_secs() < 10, "login hung");
+
+        let t1 = std::time::Instant::now();
+        let s = get_active_session(&state, 1);
+        println!("session -> ok={} in {:?}", s.is_ok(), t1.elapsed());
+        assert!(t1.elapsed().as_secs() < 10, "session fetch hung");
+
+        let t2 = std::time::Instant::now();
+        let g = crate::services::settings_service::get_all_settings(&state);
+        println!("settings -> ok={} in {:?}", g.is_ok(), t2.elapsed());
+        assert!(t2.elapsed().as_secs() < 10, "settings fetch hung");
+    }
+}
+
+#[cfg(test)]
+mod fresh_db_probe {
+    // Simulate a FRESH INSTALL (empty APPDATA db): migrations + seeds must
+    // all succeed, or the app opens with every invoke failing = the login
+    // hang + missing wizard the user saw after uninstall/reinstall.
+    #[test]
+    fn probe_fresh_install_boot() {
+        let state = crate::database::DbState::new().expect("FRESH BOOT: DbState::new failed");
+        let t0 = std::time::Instant::now();
+        let users = crate::auth::list_active_users(&state);
+        println!("fresh users -> {:?}", users.as_ref().map(|u| u.len()));
+        assert!(users.map(|u| !u.is_empty()).unwrap_or(false), "fresh db has no users to log in with");
+        let login = crate::auth::authenticate_user(&state, "admin", "admin");
+        println!("fresh login -> {:?} in {:?}", login.as_ref().map(|u| u.is_some()), t0.elapsed());
+        assert!(t0.elapsed().as_secs() < 10, "fresh login hung");
+        let settings = crate::services::settings_service::get_all_settings(&state);
+        println!("fresh settings -> ok={} in {:?}", settings.is_ok(), t0.elapsed());
+        assert!(settings.is_ok(), "fresh settings fetch failed");
+    }
+}
