@@ -62,6 +62,8 @@ pub fn run() {
             commands::list_suppliers,
             commands::save_supplier,
             commands::delete_supplier,
+            commands::record_supplier_debt_payment,
+            commands::list_supplier_debt_payments,
             commands::create_purchase,
             commands::get_purchase_items,
             commands::delete_purchase,
@@ -73,6 +75,8 @@ pub fn run() {
             commands::save_employee,
             commands::delete_employee,
             commands::list_payrolls,
+            commands::record_employee_advance,
+            commands::list_employee_advances,
             commands::get_all_settings,
             commands::set_setting,
             commands::set_multiple_settings,
@@ -105,6 +109,7 @@ pub fn run() {
             commands::check_github_update,
             commands::set_autostart,
             commands::get_autostart,
+            commands::list_printers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

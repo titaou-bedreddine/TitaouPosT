@@ -106,7 +106,22 @@ impl DbState {
             (3, 'نقل وتوصيل', 'Transport & Livraison', 'Transport & Delivery', 'Frais de transport', 1),
             (4, 'صيانة وإصلاح', 'Maintenance & Réparation', 'Maintenance', 'Entretien matériel', 1),
             (5, 'مستلزمات وتغليف', 'Fournitures & Emballage', 'Supplies & Packaging', 'Sacs et emballage', 1),
-            (6, 'مصاريف عامة متنوعة', 'Divers / Général', 'General Expenses', 'Dépenses diverses', 1);
+            (6, 'مصاريف عامة متنوعة', 'Divers / Général', 'General Expenses', 'Dépenses diverses', 1),
+            (7, 'سلف للموظفين', 'Avances Salaires', 'Salary Advances', 'Avances sur salaire', 1);
+        ");
+
+        // Salary advances (avance sur salaire): persisted, deductible from
+        // the next payroll, and booked as an expense when paid in cash.
+        let _ = conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS employee_advances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                amount INTEGER NOT NULL,
+                reason TEXT,
+                date DATE NOT NULL,
+                expense_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         ");
 
         // Seed default Walk-in Customer if not present

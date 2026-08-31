@@ -435,6 +435,11 @@
     // Common reset for suggestions on every open.
     nameSuggestions = [];
     showNameSuggestions = false;
+    // A rejected save (e.g. duplicate name/barcode) must not haunt the next
+    // product the cashier opens.
+    errorMsg = '';
+    duplicateBarcodeWarning = '';
+    currentBarcodeTyped = '';
   }
 
   $: if (isOpen && (!lastIsOpen || (product ? product.id : null) !== lastProductId || initialBarcode !== lastInitialBarcode || extraBarcode !== lastExtraBarcode)) {

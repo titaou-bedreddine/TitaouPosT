@@ -27,6 +27,7 @@
   import CheckoutModal from '../../lib/components/CheckoutModal.svelte';
   import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
   import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
+  import PurchasePriceModal from '../../lib/components/PurchasePriceModal.svelte';
 
   import { customers, selectedCustomerId, selectedCustomer, refreshCustomers, DEFAULT_WALKIN_CUSTOMER_ID } from '../../lib/stores/customers';
   import { suppliers, selectedSupplierId, selectedSupplier, refreshSuppliers } from '../../lib/stores/suppliers';
@@ -68,6 +69,8 @@
   let isOtherArticleOpen = false;
 
   let isUnknownBarcodeModalOpen = false;
+  // Purchase mode: the product waiting for its new supplier price.
+  let purchasePriceTarget: Product | null = null;
   let unknownScannedBarcode = '';
   let initialBarcodeForNewProduct = '';
   let editingProductWithExtraBarcode = '';
@@ -167,6 +170,11 @@
       });
 
       // Sort products
+      // Pinned products ALWAYS float to the top, in their manual order,
+      // whatever the selected sort — the backend already returns them
+      // first, but the client sort below would have re-buried them.
+      const pinned = list.filter(p => p.pinned).sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0));
+
       if (sortBy === 'name_asc') {
         list.sort((a, b) => ((a.name_fr || a.name_ar || '') as string).localeCompare((b.name_fr || b.name_ar || '') as string));
       } else if (sortBy === 'name_desc') {
@@ -183,7 +191,7 @@
         list.sort((a, b) => (a.total_sold || 0) - (b.total_sold || 0));
       }
 
-      products = list;
+      products = [...pinned, ...list.filter(p => !p.pinned)];
 
       // Scanned-barcode auto-add is handled ONLY by the window-level Enter
       // handler (rapid-input detection): adding here too made one scan fire
@@ -207,7 +215,7 @@
 
       const matched = list.find(p => p.barcodes?.includes(code) || p.sku === code);
       if (matched) {
-        addToCart(matched, 1, $isRefundMode);
+        await addProductToCart(matched);
         searchQuery = '';
         await loadProducts();
       } else {
@@ -217,6 +225,24 @@
     } catch (e) {
       console.error('Error looking up scanned barcode:', e);
     }
+  }
+
+  // Adding a product to the cart: in PURCHASE mode the cashier is buying
+  // stock, so a small dialog first asks the new purchase cost (prefilled
+  // with the product's current one); sale mode adds at the shelf price.
+  async function addProductToCart(product: Product) {
+    if ($posMode === 'purchase') {
+      purchasePriceTarget = product;
+      return;
+    }
+    addToCart(product, 1, $isRefundMode);
+  }
+
+  function handlePurchasePriceConfirm(price: number, _salePrice: number) {
+    if (!purchasePriceTarget) return;
+    // Buy at the entered cost: the cart's unit_price mirrors sale_price.
+    addToCart({ ...purchasePriceTarget, sale_price: price }, 1, $isRefundMode);
+    purchasePriceTarget = null;
   }
 
   function handleCategoryClick(catId: number | null) {
@@ -321,16 +347,16 @@
         const total = $cartItems.reduce((s, i) => s + Math.round(i.unit_price * i.quantity), 0);
         await invoke('create_purchase', {
           input: {
-            invoiceNumber: 'ACH-' + stamp,
-            supplierId: $selectedSupplierId ?? 1,
-            userId: $currentUser?.id || 1,
+            invoice_number: 'ACH-' + stamp,
+            supplier_id: $selectedSupplierId ?? 1,
+            user_id: $currentUser?.id || 1,
             date: new Date().toISOString().split('T')[0],
             subtotal: total,
             discount: 0,
             tax: 0,
             total,
-            paidAmount: total,
-            paymentMethod: 'cash',
+            paid_amount: total,
+            payment_method: 'cash',
             items: $cartItems.map((i) => ({
               product_id: i.product_id,
               quantity: i.quantity,
@@ -348,16 +374,16 @@
         const total = $cartItems.reduce((s, i) => s + Math.round(i.unit_price * i.quantity), 0);
         await invoke('create_purchase', {
           input: {
-            invoiceNumber: 'BRK-' + stamp,
-            supplierId: 1,
-            userId: $currentUser?.id || 1,
+            invoice_number: 'BRK-' + stamp,
+            supplier_id: 1,
+            user_id: $currentUser?.id || 1,
             date: new Date().toISOString().split('T')[0],
             subtotal: total,
             discount: 0,
             tax: 0,
             total: 0,
-            paidAmount: 0,
-            paymentMethod: 'cash',
+            paid_amount: 0,
+            payment_method: 'cash',
             items: $cartItems.map((i) => ({
               product_id: i.product_id,
               quantity: -i.quantity,
@@ -653,6 +679,15 @@
         const code = barcodeBuffer;
         barcodeBuffer = '';
         handleScannedBarcode(code);
+        return;
+      }
+      // Enter with a short/typed query: if the live search narrowed the
+      // catalog to exactly one product, add it straight to the cart.
+      if (searchQuery.trim() && products.length === 1) {
+        e.preventDefault();
+        addToCart(products[0], 1, $isRefundMode);
+        searchQuery = '';
+        loadProducts();
         return;
       }
     } else if (e.key.length === 1) {
@@ -1148,5 +1183,12 @@
   <OtherArticleModal
     isOpen={isOtherArticleOpen}
     onClose={() => (isOtherArticleOpen = false)}
+  />
+
+  <PurchasePriceModal
+    isOpen={purchasePriceTarget !== null}
+    product={purchasePriceTarget}
+    onClose={() => (purchasePriceTarget = null)}
+    onConfirm={handlePurchasePriceConfirm}
   />
 </div>

@@ -280,6 +280,17 @@ pub struct Customer {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SupplierPaymentInput {
+    pub supplier_id: i64,
+    pub amount: i64,
+    pub payment_method: String,
+    pub reference: Option<String>,
+    pub session_id: Option<i64>,
+    pub user_id: i64,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomerPaymentInput {
     pub customer_id: i64,
     pub amount: i64,
@@ -516,4 +527,38 @@ pub struct TopProductStat {
     pub revenue: i64,
     pub cost: i64,
     pub profit: i64,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SupplierPaymentRow {
+    pub id: i64,
+    pub supplier_id: i64,
+    pub amount: i64,
+    pub payment_method: String,
+    pub reference: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EmployeeAdvance {
+    pub id: i64,
+    pub employee_id: i64,
+    pub employee_name: Option<String>,
+    pub amount: i64,
+    pub reason: Option<String>,
+    pub date: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EmployeeAdvanceInput {
+    pub employee_id: i64,
+    pub amount: i64,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub date: String,
+    #[serde(default)]
+    pub session_id: Option<i64>,
+    #[serde(default)]
+    pub user_id: i64,
 }

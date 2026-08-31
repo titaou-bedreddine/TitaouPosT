@@ -1,5 +1,5 @@
 use crate::database::DbState;
-use crate::models::Payroll;
+use crate::models::{Payroll, EmployeeAdvance, EmployeeAdvanceInput};
 use rusqlite::Result;
 
 pub fn list_payrolls(db: &DbState) -> Result<Vec<Payroll>, String> {
@@ -40,4 +40,120 @@ pub fn list_payrolls(db: &DbState) -> Result<Vec<Payroll>, String> {
 
     let list: Vec<Payroll> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+/// Record a salary advance: persisted (survives restarts), and when paid
+/// from the drawer it is booked as an "Avances Salaires" expense so the
+/// Expenses page, register and statistics all reflect it.
+pub fn record_employee_advance(db: &DbState, input: EmployeeAdvanceInput) -> Result<i64, String> {
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let now = chrono::Local::now();
+    let date = if input.date.is_empty() {
+        now.format("%Y-%m-%d").to_string()
+    } else {
+        input.date.clone()
+    };
+    let expense_number = format!("ADV-{}", now.format("%Y%m%d%H%M%S"));
+
+    // Book the expense (category 7 = Avances Salaires). Paid from the
+    // session drawer when session_id is provided: the drawer movement and
+    // expected_cash update are handled by the same insert.
+    tx.execute(
+        "INSERT INTO expenses (expense_number, category_id, amount, payment_method, session_id, user_id, recipient, date, notes)
+         VALUES (?1, 7, ?2, 'cash', ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![
+            expense_number,
+            input.amount,
+            input.session_id,
+            input.user_id,
+            format!("Employee #{}", input.employee_id),
+            date,
+            format!("Salary advance / سلفة راتب: {}", input.reason.as_deref().unwrap_or("Avance sur salaire")),
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    let expense_id = tx.last_insert_rowid();
+
+    // Drawer movement: money OUT of the register.
+    if let Some(sid) = input.session_id {
+        tx.execute(
+            "INSERT INTO cash_movements (session_id, user_id, type, amount, reason, reference_type, reference_id)
+             VALUES (?1, ?2, 'salary_payment', ?3, ?4, 'expense', ?5)",
+            rusqlite::params![
+                sid,
+                input.user_id,
+                -input.amount,
+                format!("Salary Advance / سلفة راتب EXP-{}", expense_number),
+                expense_id
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        tx.execute(
+            "UPDATE cash_sessions SET expected_cash = expected_cash - ?1 WHERE id = ?2",
+            rusqlite::params![input.amount, sid],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.execute(
+        "INSERT INTO employee_advances (employee_id, amount, reason, date, expense_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![input.employee_id, input.amount, input.reason, date, expense_id],
+    )
+    .map_err(|e| e.to_string())?;
+    let advance_id = tx.last_insert_rowid();
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    crate::services::notifier_service::notify_if_enabled(
+        db,
+        "notify_each_expense",
+        format!("\u{1f4b8} *Avance Salarie* EXP-{}\n\u{1f4b0} Montant: *{} DZD*\n\u{1f464} Employe #{}", expense_number, input.amount, input.employee_id),
+    );
+
+    Ok(advance_id)
+}
+
+/// Advances for an employee (optionally only the given month), newest first.
+pub fn list_employee_advances(db: &DbState, employee_id: Option<i64>, month: Option<String>) -> Result<Vec<EmployeeAdvance>, String> {
+    let conn = db.conn.lock().unwrap();
+
+    let mut sql = String::from(
+        "SELECT ea.id, ea.employee_id, e.name, ea.amount, ea.reason, ea.date, ea.created_at
+         FROM employee_advances ea
+         LEFT JOIN employees e ON ea.employee_id = e.id
+         WHERE 1=1",
+    );
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if let Some(eid) = employee_id {
+        sql.push_str(&format!(" AND ea.employee_id = {}", eid));
+    }
+    if let Some(m) = &month {
+        if !m.is_empty() {
+            // Month filter "YYYY-MM"
+            sql.push_str(" AND substr(ea.date, 1, 7) = ?");
+            params.push(Box::new(m.clone()));
+        }
+    }
+    sql.push_str(" ORDER BY ea.id DESC LIMIT 200");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            Ok(EmployeeAdvance {
+                id: row.get(0)?,
+                employee_id: row.get(1)?,
+                employee_name: row.get(2)?,
+                amount: row.get(3)?,
+                reason: row.get(4)?,
+                date: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows.filter_map(|r| r.ok()).collect())
 }

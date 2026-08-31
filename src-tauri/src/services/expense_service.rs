@@ -12,13 +12,17 @@ pub fn add_expense(
     recipient: Option<String>,
     receipt_reference: Option<String>,
     notes: Option<String>,
+    date: Option<String>,
 ) -> Result<String, String> {
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     let now = chrono::Local::now();
     let expense_number = format!("EXP-{}", now.format("%Y%m%d%H%M%S"));
-    let today_date = now.format("%Y-%m-%d").to_string();
+    // Caller-provided expense date; defaults to today.
+    let today_date = date
+        .filter(|d| !d.is_empty())
+        .unwrap_or_else(|| now.format("%Y-%m-%d").to_string());
 
     tx.execute(
         "INSERT INTO expenses (expense_number, category_id, amount, payment_method, session_id, user_id, recipient, receipt_reference, date, notes)
@@ -54,6 +58,14 @@ pub fn add_expense(
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    crate::services::notifier_service::notify_if_enabled(
+        db,
+        "notify_each_expense",
+        format!("\u{1f4b8} *Depense* {}\n\u{1f4b0} Montant: *{} DZD*", expense_number, amount),
+    );
+
     Ok(expense_number)
 }
 

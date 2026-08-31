@@ -5,6 +5,8 @@
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
+  import ProductEditModal from '../../lib/components/ProductEditModal.svelte';
+  import type { Category, Unit } from '../../lib/types';
   import {
     FileSpreadsheet, Plus, Trash2, CheckCircle2, Search, Package,
     Printer, Eye, Edit3, X, Tag, DollarSign, ArrowRight, Truck,
@@ -43,6 +45,91 @@
   let errorMsg = '';
   let previewPurchase: Purchase | null = null;
 
+  // Editing a saved invoice: loads its items into the create modal so the
+  // cashier can fix quantities/prices and re-save as a corrected invoice.
+  let editingPurchase: Purchase | null = null;
+  let isPrintingPurchase = false;
+
+  async function editPurchaseInvoice(pur: Purchase) {
+    try {
+      const savedItems = await invoke<any[]>('get_purchase_items', { purchaseId: pur.id });
+      const mapped = savedItems.map((it) => ({
+        product_id: it.product_id,
+        name: it.product_name || it.product_name_ar || '#' + it.product_id,
+        barcode: '',
+        quantity: it.quantity,
+        unit_cost: it.unit_cost,
+        sale_price: it.sale_price || it.unit_cost,
+        total: it.total,
+      }));
+      editingPurchase = pur;
+      isCreateOpen = true;
+      items = mapped;
+      invoiceNumber = pur.invoice_number + '-C';
+      invoiceDate = pur.date;
+      selectedSupplierId = pur.supplier_id;
+      paidManuallyEdited = true;
+      paidAmount = pur.paid_amount;
+    } catch (e: any) {
+      alert('Failed to load invoice for editing: ' + (e.message || e));
+    }
+  }
+
+  async function printPurchaseInvoice(pur: Purchase) {
+    try {
+      isPrintingPurchase = true;
+      const items = await invoke<any[]>('get_purchase_items', { purchaseId: pur.id });
+      const settings = await invoke<Record<string, string>>('get_all_settings');
+      const shopName = settings['shop_name_fr'] || 'TitaouPOS';
+      const rows = items.map((it) => `
+        <tr>
+          <td style="padding:3px 4px;border-bottom:1px dashed #000;">${it.product_name || it.product_name_ar || '#' + it.product_id}</td>
+          <td style="text-align:center;padding:3px 4px;border-bottom:1px dashed #000;">${it.quantity}</td>
+          <td style="text-align:right;padding:3px 4px;border-bottom:1px dashed #000;">${it.unit_cost.toLocaleString()}</td>
+          <td style="text-align:right;padding:3px 4px;border-bottom:1px dashed #000;">${it.total.toLocaleString()}</td>
+        </tr>`).join('');
+      const html = `
+        <div style="width:80mm;font-family:monospace;font-size:11px;padding:4mm;">
+          <p style="text-align:center;font-weight:900;font-size:15px;margin:0;">${shopName}</p>
+          <p style="text-align:center;font-size:10px;margin:2px 0;">BON D'ACHAT / سند شراء</p>
+          <hr style="border-top:1px dashed #000;" />
+          <div style="display:flex;justify-content:space-between;font-size:10px;">
+            <span>N° <strong>${pur.invoice_number}</strong></span>
+            <span>${pur.date}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;">
+            <span>Fournisseur: <strong>${pur.supplier_name || '-'}</strong></span>
+          </div>
+          <hr style="border-top:1px dashed #000;" />
+          <table style="width:100%;border-collapse:collapse;font-size:10px;">
+            <thead>
+              <tr><th style="text-align:left;">Article</th><th style="text-align:center;">Qté</th><th style="text-align:right;">P.U</th><th style="text-align:right;">Total</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin-top:6px;">
+            <span>TOTAL:</span><span>${pur.total.toLocaleString()} DZD</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;">
+            <span>Payé:</span><span>${pur.paid_amount.toLocaleString()} DZD</span>
+          </div>
+          <p style="text-align:center;font-size:8px;margin-top:8px;">TitaouPOS • Titaou Bedreddine</p>
+        </div>
+      `;
+      const { printHtmlSilently } = await import('../../lib/utils/printer');
+      printHtmlSilently(html, 'Purchase ' + pur.invoice_number);
+    } catch (e: any) {
+      alert('Print failed: ' + (e.message || e));
+    } finally {
+      isPrintingPurchase = false;
+    }
+  }
+
+  // Inline product creation from the invoice screen.
+  let isProductCreateOpen = false;
+  let modalCategories: Category[] = [];
+  let modalUnits: Unit[] = [];
+
   // Quick date-range filter for the loaded purchase list.
   let filterStartDate = '';
   let filterEndDate = '';
@@ -73,6 +160,8 @@
         selectedSupplierId = suppliers[0].id;
       }
       products = await invoke<Product[]>('search_products', { query: '', categoryId: null, searchType: 'all' });
+      modalCategories = await invoke<Category[]>('get_categories');
+      modalUnits = await invoke<Unit[]>('get_units');
     } catch (e) {
       console.error(e);
     }
@@ -202,8 +291,11 @@
     items = items.map(i => ({ ...i, total: i.quantity * i.unit_cost }));
     // Paid-to-supplier tracks the invoice total until the cashier edits it
     // manually (typing or a preset); after that their choice sticks.
+    // Compute the total LOCALLY: the reactive `subtotal` still holds the
+    // previous render's value here, which made the field lag one edit
+    // behind (e.g. 10000 shown for a 100000 invoice).
     if (!paidManuallyEdited) {
-      paidAmount = subtotal;
+      paidAmount = items.reduce((sum, i) => sum + i.total, 0);
     }
   }
 
@@ -361,7 +453,14 @@
 
     <button
       type="button"
-      on:click={() => { isCreateOpen = true; errorMsg = ''; paidManuallyEdited = false; paidAmount = 0; }}
+      on:click={() => {
+        isCreateOpen = true;
+        errorMsg = '';
+        // Each new invoice starts empty — no leftovers from the last one.
+        items = [];
+        paidManuallyEdited = false;
+        paidAmount = 0;
+      }}
       class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
     >
       <Plus class="w-4 h-4" />
@@ -485,6 +584,15 @@
             {#if searchQuery}
               <button on:click={() => (searchQuery = '')} class="text-pos-muted hover:text-pos-text p-1"><X class="w-3.5 h-3.5" /></button>
             {/if}
+            <button
+              type="button"
+              on:click={() => (isProductCreateOpen = true)}
+              class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-black rounded-xl shrink-0 flex items-center gap-1 cursor-pointer transition active:scale-95"
+              title="Create a new product (إضافة منتج جديد)"
+            >
+              <Plus class="w-3.5 h-3.5" />
+              <span class="hidden sm:inline">New Product</span>
+            </button>
           </div>
 
           <!-- Live Instant Search Dropdown Cards -->
@@ -690,14 +798,33 @@
       </div>
 
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
-        <button
-          type="button"
-          on:click={promptDeletePurchase}
-          class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
-        >
-          <Trash2 class="w-4 h-4" />
-          <span>Delete Invoice (حذف)</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            on:click={() => { editPurchaseInvoice(previewPurchase); previewPurchase = null; }}
+            class="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+          >
+            <Edit3 class="w-4 h-4" />
+            <span>Load for Correction (تعديل)</span>
+          </button>
+          <button
+            type="button"
+            on:click={() => printPurchaseInvoice(previewPurchase)}
+            disabled={isPrintingPurchase}
+            class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+          >
+            <Printer class="w-4 h-4" />
+            <span>{isPrintingPurchase ? 'Printing...' : 'Print (طباعة)'}</span>
+          </button>
+          <button
+            type="button"
+            on:click={promptDeletePurchase}
+            class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 class="w-4 h-4" />
+            <span>Delete (حذف)</span>
+          </button>
+        </div>
         <button on:click={() => (previewPurchase = null)} class="px-5 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
           Close
         </button>
@@ -741,3 +868,17 @@
     </div>
   </div>
 {/if}
+
+<!-- Inline Product Creation -->
+<ProductEditModal
+  isOpen={isProductCreateOpen}
+  product={null}
+  categories={modalCategories}
+  units={modalUnits}
+  initialBarcode={''}
+  extraBarcode={''}
+  onClose={() => (isProductCreateOpen = false)}
+  onSaved={async () => {
+    products = await invoke<Product[]>('search_products', { query: '', categoryId: null, searchType: 'all' });
+  }}
+/>

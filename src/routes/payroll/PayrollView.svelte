@@ -7,6 +7,8 @@
     Check, X, Printer, UserCheck, CreditCard, Clock
   } from 'lucide-svelte';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { activeSession } from '../../lib/stores/session';
+  import { currentUser } from '../../lib/stores/auth';
 
   let employees: Employee[] = [];
   let isAddOpen = false;
@@ -35,7 +37,26 @@
 
   onMount(async () => {
     await loadEmployees();
+    await loadAdvances();
   });
+
+  // Advances are persisted in the backend (booked as expenses too) — this
+  // month's records rebuild the session map after a restart.
+  async function loadAdvances() {
+    try {
+      const month = new Date().toISOString().slice(0, 7);
+      const list = await invoke<any[]>('list_employee_advances', {
+        employeeId: null,
+        month,
+      });
+      advancesMap = {};
+      for (const adv of list) {
+        advancesMap[adv.employee_id] = (advancesMap[adv.employee_id] || 0) + adv.amount;
+      }
+    } catch (e) {
+      console.warn('Could not load advances:', e);
+    }
+  }
 
   async function loadEmployees() {
     try {
@@ -71,10 +92,26 @@
     }
   }
 
-  function recordAdvance() {
+  async function recordAdvance() {
     if (!selectedEmpForAdvance || advanceAmount <= 0) return;
-    const empId = selectedEmpForAdvance.id;
-    advancesMap[empId] = (advancesMap[empId] || 0) + advanceAmount;
+    const emp = selectedEmpForAdvance;
+    try {
+      // Persisted + booked as an "Avances Salaires" expense; cash advances
+      // leave the drawer (register + statistics reflect them).
+      await invoke('record_employee_advance', {
+        input: {
+          employee_id: emp.id,
+          amount: advanceAmount,
+          reason: advanceReason || 'Avance sur salaire',
+          date: advanceDate,
+          session_id: $activeSession?.id ?? null,
+          user_id: $currentUser?.id || 1,
+        },
+      });
+      advancesMap[emp.id] = (advancesMap[emp.id] || 0) + advanceAmount;
+    } catch (e: any) {
+      alert('Failed to record advance: ' + (typeof e === 'string' ? e : e.message || e));
+    }
     selectedEmpForAdvance = null;
     advanceAmount = 0;
   }

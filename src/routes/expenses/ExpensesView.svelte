@@ -5,6 +5,7 @@
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import {
     Plus, DollarSign, Trash2, Eye, Printer, X, Check,
     TrendingDown, Calendar, User, Receipt, AlertTriangle,
@@ -14,6 +15,17 @@
   let expenses: Expense[] = [];
   let isAddOpen = false;
   let previewExpense: Expense | null = null;
+
+  // Date-range filter for the loaded expense list.
+  let filterStartDate = '';
+  let filterEndDate = '';
+  let expenseDate = new Date().toISOString().split('T')[0];
+
+  $: filteredExpenses = expenses.filter((e) => {
+    if (filterStartDate && e.date < filterStartDate) return false;
+    if (filterEndDate && e.date > filterEndDate) return false;
+    return true;
+  });
 
   let amount = 0;
   let categoryId = 1;
@@ -43,9 +55,10 @@
   }
 
   // Real Top Statistics
-  $: totalExpensesCount = expenses.length;
-  $: totalAmountSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
-  $: totalCashDeducted = expenses.filter(e => e.payment_method === 'cash').reduce((sum, e) => sum + e.amount, 0);
+  // Statistics reflect the active date filter.
+  $: totalExpensesCount = filteredExpenses.length;
+  $: totalAmountSpent = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  $: totalCashDeducted = filteredExpenses.filter(e => e.payment_method === 'cash').reduce((sum, e) => sum + e.amount, 0);
   $: totalOtherPayments = totalAmountSpent - totalCashDeducted;
 
   async function handleAddExpense() {
@@ -66,6 +79,7 @@
         paymentMethod,
         sessionId,
         userId,
+        date: expenseDate,
         recipient: recipient || null,
         receiptReference: receiptRef || null,
         notes: notes || null,
@@ -177,6 +191,9 @@
     </button>
   </div>
 
+  <!-- Quick Date Presets -->
+  <DateQuickFilters bind:startDate={filterStartDate} bind:endDate={filterEndDate} onChange={() => {}} class="shrink-0" />
+
   <!-- Real Statistics Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
     <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
@@ -235,12 +252,12 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-pos-border/40">
-        {#if expenses.length === 0}
+        {#if filteredExpenses.length === 0}
           <tr>
             <td colspan="7" class="p-8 text-center text-pos-muted">No expense records recorded yet.</td>
           </tr>
         {:else}
-          {#each expenses as exp}
+          {#each filteredExpenses as exp}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-mono font-bold text-rose-600">#{exp.expense_number}</td>
               <td class="p-3 font-mono text-pos-muted">{exp.date}</td>
@@ -317,6 +334,8 @@
         <div>
           <label class="block text-xs font-bold text-pos-muted mb-1">Expense Amount / المبلغ (DZD) *</label>
           <input type="number" min="1" bind:value={amount} placeholder="Ex: 5000" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-base font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500" />
+          <label class="block text-xs font-bold text-pos-muted mb-1 mt-2">Expense Date (تاريخ المصروف)</label>
+          <input type="date" bind:value={expenseDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
         </div>
 
         <div class="grid grid-cols-2 gap-3">

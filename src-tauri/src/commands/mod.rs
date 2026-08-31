@@ -2,7 +2,7 @@ use crate::auth::authenticate_user;
 use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
-    Payroll, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, Unit, User, UserAccount, Role,
+    Payroll, EmployeeAdvance, EmployeeAdvanceInput, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, SupplierPaymentInput, SupplierPaymentRow, Unit, User, UserAccount, Role,
     CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry,
 };
 use crate::services::{
@@ -59,7 +59,12 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
     }
 
     // ShellExecute "print" verb on the PDF: default handler prints silently.
-    let printed = print_pdf_windows(&pdf_path);
+    // Settings can override the target printer (invoice printer).
+    let printer = settings
+        .get("invoice_printer_name")
+        .cloned()
+        .unwrap_or_default();
+    let printed = print_pdf_windows(&pdf_path, &printer);
     let _ = std::fs::remove_file(&pdf_path);
     if !printed {
         return Err("No default PDF printer handler available".to_string());
@@ -68,7 +73,7 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
 }
 
 #[cfg(windows)]
-fn print_pdf_windows(path: &std::path::Path) -> bool {
+fn print_pdf_windows(path: &std::path::Path, printer_name: &str) -> bool {
     // Layered silent printing: each step falls back to the next so a stock
     // Windows machine (Edge as default PDF app, no print verb registered)
     // still prints without any dialog.
@@ -81,7 +86,7 @@ fn print_pdf_windows(path: &std::path::Path) -> bool {
     if shell_execute_print(path) {
         return true;
     }
-    if sumatra_print(path) {
+    if sumatra_print(path, printer_name) {
         return true;
     }
     adobe_print(path)
@@ -117,13 +122,15 @@ fn shell_execute_print(path: &std::path::Path) -> bool {
 }
 
 #[cfg(windows)]
-fn sumatra_print(path: &std::path::Path) -> bool {
+#[cfg(windows)]
+#[cfg(windows)]
+fn sumatra_print(path: &std::path::Path, printer_name: &str) -> bool {
     use std::os::windows::process::CommandExt;
     let candidates = [
-        "C:\\Program Files\\SumatraPDF\\SumatraPDF.exe".to_string(),
-        "C:\\Program Files (x86)\\SumatraPDF\\SumatraPDF.exe".to_string(),
+        r"C:\Program Files\SumatraPDF\SumatraPDF.exe".to_string(),
+        r"C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe".to_string(),
         format!(
-            "{}\\SumatraPDF\\SumatraPDF.exe",
+            r"{}\SumatraPDF\SumatraPDF.exe",
             std::env::var("LOCALAPPDATA").unwrap_or_default()
         ),
     ];
@@ -131,8 +138,13 @@ fn sumatra_print(path: &std::path::Path) -> bool {
         if !std::path::Path::new(&exe).exists() {
             continue;
         }
-        let ok = std::process::Command::new(&exe)
-            .arg("-print-to-default")
+        let mut cmd = std::process::Command::new(&exe);
+        if printer_name.is_empty() {
+            cmd.arg("-print-to-default");
+        } else {
+            cmd.arg("-print-to").arg(printer_name);
+        }
+        let ok = cmd
             .arg("-silent")
             .arg(path)
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
@@ -437,6 +449,16 @@ pub fn delete_supplier(db: State<'_, DbState>, supplier_id: i64) -> Result<(), S
 }
 
 #[tauri::command]
+pub fn record_supplier_debt_payment(db: State<'_, DbState>, input: SupplierPaymentInput) -> Result<i64, String> {
+    supplier_service::record_supplier_debt_payment(&db, input)
+}
+
+#[tauri::command]
+pub fn list_supplier_debt_payments(db: State<'_, DbState>, supplier_id: i64) -> Result<Vec<SupplierPaymentRow>, String> {
+    supplier_service::list_supplier_debt_payments(&db, supplier_id)
+}
+
+#[tauri::command]
 pub fn create_purchase(db: State<'_, DbState>, input: CreatePurchaseInput) -> Result<String, String> {
     purchase_service::create_purchase(&db, input)
 }
@@ -468,9 +490,10 @@ pub fn add_expense(
     recipient: Option<String>,
     receipt_reference: Option<String>,
     notes: Option<String>,
+    date: Option<String>,
 ) -> Result<String, String> {
     expense_service::add_expense(
-        &db, category_id, amount, &payment_method, session_id, user_id, recipient, receipt_reference, notes,
+        &db, category_id, amount, &payment_method, session_id, user_id, recipient, receipt_reference, notes, date,
     )
 }
 
@@ -514,6 +537,16 @@ pub fn save_employee(
 #[tauri::command]
 pub fn delete_employee(db: State<'_, DbState>, employee_id: i64) -> Result<(), String> {
     employee_service::delete_employee(&db, employee_id)
+}
+
+#[tauri::command]
+pub fn record_employee_advance(db: State<'_, DbState>, input: EmployeeAdvanceInput) -> Result<i64, String> {
+    payroll_service::record_employee_advance(&db, input)
+}
+
+#[tauri::command]
+pub fn list_employee_advances(db: State<'_, DbState>, employee_id: Option<i64>, month: Option<String>) -> Result<Vec<EmployeeAdvance>, String> {
+    payroll_service::list_employee_advances(&db, employee_id, month)
 }
 
 #[tauri::command]
@@ -947,5 +980,31 @@ pub fn get_autostart() -> Result<bool, String> {
     #[cfg(not(windows))]
     {
         Ok(false)
+    }
+}
+
+/// List installed printer names so Settings can offer a choice.
+#[tauri::command]
+pub fn list_printers() -> Result<Vec<String>, String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let output = std::process::Command::new("wmic")
+            .args(["printer", "get", "name"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output()
+            .map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&output.stdout).to_string();
+        let names: Vec<String> = text
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("name"))
+            .map(|l| l.to_string())
+            .collect();
+        Ok(names)
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(Vec::new())
     }
 }

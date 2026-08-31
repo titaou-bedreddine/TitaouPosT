@@ -48,6 +48,7 @@
     auto_cut_paper: 'true',
     open_drawer_on_sale: 'true',
     drawer_com_port: '1',
+    invoice_printer_name: '',
     drawer_baud_rate: '9600',
     scale_enabled: 'true',
     scale_model: 'ACLAS LH51 / LS M3 / TS',
@@ -61,6 +62,11 @@
     telegram_chat_id: '',
     notify_daily_summary: 'true',
     notify_each_sale: 'false',
+    notify_cash_in: 'false',
+    notify_cash_out: 'false',
+    notify_each_expense: 'false',
+    notify_opening_cash: 'false',
+    notify_supplier_payment: 'false',
     notify_each_refund: 'true',
     notify_expiry: 'true',
     notify_low_stock: 'true',
@@ -305,6 +311,7 @@
 
   onMount(async () => {
     await loadAutostart();
+    await loadPrinters();
     try {
       const v = await invoke<string>('get_app_version');
       if (v) {
@@ -342,6 +349,17 @@
 
   // Autostart with Windows (HKCU Run key, applied immediately).
   let autostartEnabled = false;
+
+  // Installed printers for the invoice/receipt printer selector.
+  let printerList: string[] = [];
+
+  async function loadPrinters() {
+    try {
+      printerList = await invoke<string[]>('list_printers');
+    } catch {
+      printerList = [];
+    }
+  }
 
   async function loadAutostart() {
     try {
@@ -1171,6 +1189,23 @@
     <!-- 2. INVOICES & PRINTING TAB -->
     {:else if currentTab === 'invoices'}
       <div class="max-w-5xl space-y-6">
+        <!-- Invoice / Receipt Printer Selection -->
+        <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-pos-border flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <h4 class="text-xs font-black text-pos-text">Invoice / Receipt Printer (طابعة الوصولات)</h4>
+            <p class="text-[11px] text-pos-muted">Prints receipts, invoices and vouchers. Empty = system default printer.</p>
+          </div>
+          <select
+            bind:value={settings.invoice_printer_name}
+            class="px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer max-w-[220px]"
+          >
+            <option value="">Default Windows Printer</option>
+            {#each printerList as pr}
+              <option value={pr}>{pr}</option>
+            {/each}
+          </select>
+        </div>
+
         <div class="flex items-center justify-between">
           <div>
             <h2 class="text-base font-black text-pos-text">Thermal Receipts & Invoice Printing / إعدادات طباعة الوصولات</h2>
@@ -1723,6 +1758,26 @@
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Low stock & inventory depletion alert</span>
               <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Cash deposits into the drawer (إيداع الصندوق)</span>
+              <input type="checkbox" bind:checked={settings.notify_cash_in} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Cash withdrawals & expenses (سحب/مصاريف)</span>
+              <input type="checkbox" bind:checked={settings.notify_cash_out} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Every recorded expense (كل مصروف)</span>
+              <input type="checkbox" bind:checked={settings.notify_each_expense} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Opening cash of a new session (رصيد افتتاحي)</span>
+              <input type="checkbox" bind:checked={settings.notify_opening_cash} class="rounded text-sky-600" />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Supplier debt payments (تسديد الموردين)</span>
+              <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" />
             </label>
           </div>
 

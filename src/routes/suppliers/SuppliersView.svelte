@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import SupplierDebtModal from '../../lib/components/SupplierDebtModal.svelte';
   import type { Supplier } from '../../lib/types';
   import {
-    Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check,
+    Truck, Plus, QrCode, Edit2, Trash2, Search, X, Check, DollarSign,
     Phone, Mail, MapPin, Building, FileSpreadsheet
   } from 'lucide-svelte';
 
@@ -11,6 +12,8 @@
   let searchQuery = '';
   let isModalOpen = false;
   let previewSupplier: Supplier | null = null;
+  let isDebtModalOpen = false;
+  let payingSupplier: Supplier | null = null;
 
   let name = '';
   let contactPerson = '';
@@ -301,9 +304,21 @@
             <p class="text-[10px] uppercase font-black tracking-wider">Supplier Account Balance (حساب المورد)</p>
             <p class="text-xl font-black font-mono">{previewSupplier.balance.toLocaleString()} DZD</p>
           </div>
-          <span class="px-3 py-1 bg-purple-600 text-white text-xs font-black rounded-xl shadow-xs">
-            {previewSupplier.balance > 0 ? 'PAYABLE DUE' : 'CLEAR'}
-          </span>
+          <div class="flex items-center gap-2">
+            {#if previewSupplier.balance > 0}
+              <button
+                type="button"
+                on:click={() => { payingSupplier = previewSupplier; isDebtModalOpen = true; }}
+                class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <DollarSign class="w-3.5 h-3.5" />
+                <span>Pay Debt (تسديد)</span>
+              </button>
+            {/if}
+            <span class="px-3 py-1 bg-purple-600 text-white text-xs font-black rounded-xl shadow-xs">
+              {previewSupplier.balance > 0 ? 'PAYABLE DUE' : 'CLEAR'}
+            </span>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -346,3 +361,9 @@
     </div>
   </div>
 {/if}
+<SupplierDebtModal
+  isOpen={isDebtModalOpen}
+  supplier={payingSupplier}
+  onClose={() => (isDebtModalOpen = false)}
+  onPaymentRecorded={loadSuppliers}
+/>

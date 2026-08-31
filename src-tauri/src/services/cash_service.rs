@@ -155,6 +155,7 @@ pub fn add_cash_movement(db: &DbState, session_id: i64, user_id: i64, movement_t
         -amount.abs()
     };
 
+    let reason_for_log = reason.clone();
     tx.execute(
         "INSERT INTO cash_movements (session_id, user_id, type, amount, reason)
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -191,6 +192,28 @@ pub fn add_cash_movement(db: &DbState, session_id: i64, user_id: i64, movement_t
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    // Telegram alerts for drawer money movement (fire-and-forget).
+    match movement_type {
+        "cash_in" => crate::services::notifier_service::notify_if_enabled(
+            db,
+            "notify_cash_in",
+            format!("\u{1f4b0} *Entree Caisse*\nMontant: *{} DZD*\nMotif: {}", amount, reason_for_log.as_deref().unwrap_or("-")),
+        ),
+        "cash_out" => crate::services::notifier_service::notify_if_enabled(
+            db,
+            "notify_cash_out",
+            format!("\u{1f4b8} *Sortie Caisse*\nMontant: *{} DZD*\nMotif: {}", amount, reason_for_log.as_deref().unwrap_or("-")),
+        ),
+        "opening_balance" => crate::services::notifier_service::notify_if_enabled(
+            db,
+            "notify_opening_cash",
+            format!("\u{1f3e6} *Ouverture Caisse*\nFond de caisse: *{} DZD*", amount),
+        ),
+        _ => {}
+    }
+
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Info, Phone, MessageCircle, Globe, Video, Facebook,
+    Info, Phone, MessageCircle, Globe, Video, Facebook, Instagram, Youtube as YoutubeIcon, Music2,
     ShieldCheck, Sparkles, Cpu, HardDrive, Database, Layers,
     CheckCircle2, ExternalLink
   } from 'lucide-svelte';
@@ -89,7 +89,7 @@
         <div class="grid grid-cols-2 gap-2 text-xs">
           <button
             type="button"
-            on:click={() => openExternal(`https://wa.me/213${developerPhone.slice(1)}`)}
+            on:click={() => openExternal('https://wa.me/213553444057')}
             class="p-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-center gap-2 cursor-pointer transition"
           >
             <MessageCircle class="w-4 h-4 text-emerald-600" />
@@ -98,7 +98,7 @@
 
           <button
             type="button"
-            on:click={() => openExternal('https://facebook.com')}
+            on:click={() => openExternal('https://web.facebook.com/AfakTech40')}
             class="p-2.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-center gap-2 cursor-pointer transition"
           >
             <Facebook class="w-4 h-4 text-blue-600" />
@@ -107,7 +107,7 @@
 
           <button
             type="button"
-            on:click={() => openExternal('https://tiktok.com')}
+            on:click={() => openExternal('https://tiktok.com/@afaq_dz_official_?lang=en')}
             class="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-pos-text font-bold rounded-xl border border-pos-border flex items-center justify-center gap-2 cursor-pointer transition"
           >
             <Video class="w-4 h-4 text-slate-700 dark:text-slate-300" />
@@ -116,11 +116,29 @@
 
           <button
             type="button"
-            on:click={() => openExternal('https://youtube.com')}
+            on:click={() => openExternal('https://www.youtube.com/@AfaqTechDZ')}
             class="p-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold rounded-xl border border-rose-200 dark:border-rose-800 flex items-center justify-center gap-2 cursor-pointer transition"
           >
             <Video class="w-4 h-4 text-rose-600" />
             <span>YouTube</span>
+          </button>
+
+          <button
+            type="button"
+            on:click={() => openExternal('https://instagram.com/titaou.bedreddine')}
+            class="p-2.5 bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 font-bold rounded-xl border border-pink-200 dark:border-pink-800 flex items-center justify-center gap-2 cursor-pointer transition"
+          >
+            <Instagram class="w-4 h-4 text-pink-600" />
+            <span>Instagram</span>
+          </button>
+
+          <button
+            type="button"
+            on:click={() => openExternal('https://afaqtech.netlify.app/')}
+            class="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-pos-text font-bold rounded-xl border border-pos-border flex items-center justify-center gap-2 cursor-pointer transition"
+          >
+            <Globe class="w-4 h-4 text-sky-600" />
+            <span>Website</span>
           </button>
         </div>
       </div>
