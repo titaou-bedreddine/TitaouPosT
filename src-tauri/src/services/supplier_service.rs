@@ -9,7 +9,7 @@ pub fn list_suppliers(db: &DbState) -> Result<Vec<Supplier>, String> {
             "SELECT id, name, contact_person, phone, email, address, rc, nif, nis, ai, qr_code, balance, notes, is_active, created_at
              FROM suppliers
              WHERE is_active = 1
-             ORDER BY id DESC",
+             ORDER BY COALESCE(pinned, 0) DESC, COALESCE(pin_order, 0) ASC, id DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -112,6 +112,18 @@ pub fn record_supplier_debt_payment(db: &DbState, input: SupplierPaymentInput) -
     )
     .map_err(|e| e.to_string())?;
 
+    // When the payment settles a specific invoice (reference = invoice
+    // number), raise the invoice's paid_amount too — otherwise the DUE
+    // button would stay on the invoice list after paying it.
+    if let Some(ref invoice_ref) = input.reference {
+        let _ = tx.execute(
+            "UPDATE purchases
+             SET paid_amount = MIN(total, paid_amount + ?1)
+             WHERE invoice_number = ?2",
+            rusqlite::params![input.amount, invoice_ref],
+        );
+    }
+
     if input.payment_method == "cash" {
         if let Some(sid) = input.session_id {
             tx.execute(
@@ -174,4 +186,30 @@ pub fn list_supplier_debt_payments(db: &DbState, supplier_id: i64) -> Result<Vec
         .map_err(|e| e.to_string())?;
 
     Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Pin/unpin a supplier: pinned suppliers float to the top of the list.
+pub fn toggle_supplier_pin(db: &DbState, supplier_id: i64, pinned: bool) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    if pinned {
+        let max_order: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(pin_order), 0) FROM suppliers WHERE pinned = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        conn.execute(
+            "UPDATE suppliers SET pinned = 1, pin_order = ?1 WHERE id = ?2",
+            rusqlite::params![max_order + 1, supplier_id],
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE suppliers SET pinned = 0, pin_order = 0 WHERE id = ?1",
+            [supplier_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

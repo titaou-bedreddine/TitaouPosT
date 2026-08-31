@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import {
     cartItems, heldSalesList, refreshHeldSales, clearCart, holdCurrentSale,
-    globalDiscountMode, globalDiscountValue, computeCartDiscount, parseHeldCart,
+    globalDiscountMode, globalDiscountValue, computeCartDiscount, parseHeldCart, posMode,
   } from '../stores/cart';
   import { currentUser } from '../stores/auth';
   import type { HeldSale } from '../types';
@@ -60,6 +60,18 @@
       $cartItems = items;
       $globalDiscountMode = discountMode;
       $globalDiscountValue = discountValue;
+
+      // A cart held from a specific mode returns in that mode: the hold
+      // note carries a [SALE MODE] / [PURCHASE MODE] / [BROKEN MODE] tag.
+      const note = (sale.notes || '').toUpperCase();
+      if (note.includes('[PURCHASE MODE]')) {
+        posMode.set('purchase');
+      } else if (note.includes('[BROKEN MODE]')) {
+        posMode.set('broken');
+      } else {
+        posMode.set('sale');
+      }
+
       await handleDelete(sale.id);
       onClose();
     } catch (e) {

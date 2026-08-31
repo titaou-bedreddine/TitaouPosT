@@ -1,5 +1,5 @@
 use crate::database::DbState;
-use crate::models::{Category, Product, ProductInput, Unit};
+use crate::models::{Category, Product, ProductInput, Unit, ProductPackaging, PackagingInput};
 use rusqlite::Result;
 
 pub fn search_products(
@@ -483,5 +483,60 @@ pub fn reorder_pinned_products(db: &DbState, ordered_ids: Vec<i64>) -> Result<()
         )
         .map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Units-in-packaging: carton 24 / fardeau 6 / palette 672 / plateau 30 eggs.
+// ---------------------------------------------------------------------------
+
+/// All packagings of a product.
+pub fn list_packagings(db: &DbState, product_id: i64) -> Result<Vec<ProductPackaging>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, product_id, name, units_per_package, sale_price, COALESCE(is_default, 0)
+             FROM product_packagings WHERE product_id = ?1 ORDER BY units_per_package ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([product_id], |row| {
+            Ok(ProductPackaging {
+                id: row.get(0)?,
+                product_id: row.get(1)?,
+                name: row.get(2)?,
+                units_per_package: row.get(3)?,
+                sale_price: row.get(4)?,
+                is_default: row.get::<_, i64>(5)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Replace a product's packaging definitions (called from the product editor).
+pub fn save_packagings(db: &DbState, product_id: i64, inputs: Vec<PackagingInput>) -> Result<(), String> {
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM product_packagings WHERE product_id = ?1", [product_id])
+        .map_err(|e| e.to_string())?;
+    for input in &inputs {
+        if input.units_per_package <= 1 || input.name.trim().is_empty() {
+            continue; // single unit is not a packaging
+        }
+        tx.execute(
+            "INSERT INTO product_packagings (product_id, name, units_per_package, sale_price, is_default)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                product_id,
+                input.name.trim(),
+                input.units_per_package,
+                input.sale_price,
+                if input.is_default { 1 } else { 0 }
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -21,6 +21,7 @@
   import NotificationsView from './routes/notifications/NotificationsView.svelte';
   import LoginView from './routes/auth/LoginView.svelte';
   import CashDrawerModal from './lib/components/CashDrawerModal.svelte';
+  import FirstSetupWizard from './lib/components/FirstSetupWizard.svelte';
 
   import { printHtmlDirectly } from './lib/utils/printer';
 
@@ -40,6 +41,10 @@
   let updateError = '';
   let isCashDrawerOpen = false;
   let isDeveloperPopupOpen = false;
+  let showFirstSetup = false;
+
+  // Set by notifications: open this product's editor when the POS mounts.
+  let posOpenProductId: number | null = null;
 
   // Download the signed update package in-app, install it, and relaunch —
   // no browser, no separate installer window.
@@ -119,6 +124,17 @@
         e.preventDefault();
       }
     });
+
+    // First-launch setup wizard: shows once until completed.
+    try {
+      const setup = await invoke<string | null>('get_setting', { key: 'first_setup_completed' });
+      if (!setup) {
+        showFirstSetup = true;
+      }
+    } catch {
+      // Missing setting = never ran: show the wizard.
+      showFirstSetup = true;
+    }
 
     // Auto-select text on input focus for fast barcode/number replacement.
     // Fields marked data-no-autoselect (e.g. invoice numbers the user edits
@@ -455,7 +471,7 @@
 
       <div class="flex-1 overflow-hidden">
         {#if currentRoute === 'pos'}
-          <PosView onNavigate={(r) => (currentRoute = r)} />
+          <PosView onNavigate={(r) => (currentRoute = r)} initialOpenProductId={posOpenProductId} onProductOpened={() => (posOpenProductId = null)} />
         {:else if currentRoute === 'sales'}
           <SalesView onRequestPosRoute={() => (currentRoute = 'pos')} />
         {:else if currentRoute === 'cash'}
@@ -473,9 +489,46 @@
       {:else if currentRoute === 'payroll'}
         <PayrollView />
       {:else if currentRoute === 'dashboard'}
-        <DashboardView />
+        <DashboardView
+          onEditSaleInPos={async (sale) => {
+            // Load the versement's items into the POS cart to complete the
+            // payment (sell) or cancel it (delete on checkout).
+            try {
+              const items = await invoke<any[]>('get_sale_items', { saleId: sale.id });
+              const mapped = items.map((i) => ({
+                product_id: i.product_id,
+                sku: i.sku || '',
+                barcode: i.barcode || '',
+                name_ar: i.name_ar || '',
+                name_fr: i.name_fr || '',
+                name_en: i.name_en || '',
+                image_path: i.image_path,
+                unit_price: i.unit_price,
+                quantity: i.quantity,
+                discount_amount: i.discount_amount || 0,
+                tax_amount: i.tax_amount || 0,
+                total_price: i.total_price,
+                is_refund: i.is_refund || false,
+              }));
+              const { clearCart, cartItems, posMode } = await import('./lib/stores/cart');
+              clearCart();
+              cartItems.set(mapped);
+              posMode.set('sale');
+              currentRoute = 'pos';
+            } catch (e) {
+              console.error('Versement load failed:', e);
+            }
+          }}
+        />
       {:else if currentRoute === 'notifications'}
-        <NotificationsView onRequestRoute={(r) => (currentRoute = r)} />
+        <NotificationsView
+          onRequestRoute={(r) => (currentRoute = r)}
+          onOpenProduct={(productId) => {
+            // Product alerts: jump to the POS and open that product's editor.
+            currentRoute = 'pos';
+            posOpenProductId = productId;
+          }}
+        />
       {:else if currentRoute === 'settings'}
         <SettingsView />
       {/if}
@@ -485,6 +538,10 @@
 
   <!-- Stale-session prompt: close yesterday's session, then open today's -->
   {#if $isAuthenticated}
+    {#if showFirstSetup}
+      <FirstSetupWizard onDone={() => (showFirstSetup = false)} />
+    {/if}
+
     <CashDrawerModal isOpen={isCashDrawerOpen} onClose={() => (isCashDrawerOpen = false)} />
 
     {#if isDeveloperPopupOpen}

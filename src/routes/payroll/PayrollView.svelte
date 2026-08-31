@@ -66,7 +66,7 @@
     try {
       const month = new Date().toISOString().slice(0, 7);
       const list = await invoke<any[]>('list_employee_advances', {
-        employeeId: editingEmployeeId,
+        employeeId: null,
         month,
       });
       advancesMap = {};
@@ -84,6 +84,18 @@
     } catch (e) {
       console.error(e);
     }
+  }
+
+  // Generate the next free employee code (EMP-01, EMP-02...).
+  function generateEmployeeCode() {
+    let maxNum = 0;
+    for (const e of employees) {
+      const m = /^EMP-(\d+)$/.exec((e.employee_code || '').trim());
+      if (m) {
+        maxNum = Math.max(maxNum, parseInt(m[1], 10));
+      }
+    }
+    code = 'EMP-' + String(maxNum + 1).padStart(2, '0');
   }
 
   function openAddEmployee() {
@@ -250,7 +262,17 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_code')} *</label>
-          <input type="text" bind:value={code} placeholder="EMP-01" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-mono font-bold outline-none" />
+          <div class="flex items-center gap-1.5">
+            <input type="text" bind:value={code} placeholder="EMP-01" class="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-mono font-bold outline-none" />
+            <button
+              type="button"
+              on:click={generateEmployeeCode}
+              class="px-2.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-xl cursor-pointer shrink-0"
+              title="Generate the next free code"
+            >
+              GEN
+            </button>
+          </div>
         </div>
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_name')} *</label>

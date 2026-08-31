@@ -8,9 +8,40 @@
   export let onClose: () => void;
   // Confirm receives the final purchase price; the caller uses it as the
   // cart line's unit_price (POS purchase mode buys at cost).
-  export let onConfirm: (price: number, salePrice: number) => void = () => {};
+  export let onConfirm: (price: number, salePrice: number, qty?: number) => void = () => {};
 
   let purchasePrice = 0;
+  // Units-in-packaging: pick 1 carton = 24 pcs instead of typing 24.
+  interface Packaging {
+    id: number;
+    name: string;
+    unitsPerPackage: number;
+    salePrice: number;
+  }
+  let packagings: Packaging[] = [];
+  let selectedPackaging: number | null = null; // packaging id
+  let packagingCount = 1;
+
+  $: if (product) {
+    // Load packaging definitions for this product.
+    invoke<any[]>('list_packagings', { productId: product.id })
+      .then((list) => {
+        packagings = list.map((p) => ({
+          id: p.id,
+          name: p.name,
+          unitsPerPackage: p.units_per_package,
+          salePrice: p.sale_price,
+        }));
+        selectedPackaging = null;
+        packagingCount = 1;
+      })
+      .catch(() => (packagings = []));
+  }
+
+  // Effective base-unit quantity: packagings multiply.
+  $: effectiveQty = selectedPackaging
+    ? packagingCount * (packagings.find((p) => p.id === selectedPackaging)?.unitsPerPackage || 1)
+    : 1;
   let salePrice = 0;
   let marginPercent = 0;
   let errorMsg = '';
@@ -70,7 +101,7 @@
     } catch {
       // Never block the purchase flow on the side update.
     }
-    onConfirm(purchasePrice, salePrice || product.sale_price);
+    onConfirm(purchasePrice, salePrice || product.sale_price, effectiveQty);
     onClose();
   }
 </script>
@@ -121,6 +152,43 @@
           />
         </div>
       </div>
+
+      {#if packagings.length > 0}
+        <div class="space-y-1.5">
+          <span class="text-[10px] font-bold text-pos-muted block">Packaging (التغليف):</span>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              on:click={() => (selectedPackaging = null)}
+              class="px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer {selectedPackaging === null ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-pos-muted'}"
+            >
+              1 unit
+            </button>
+            {#each packagings as pk}
+              <button
+                type="button"
+                on:click={() => (selectedPackaging = pk.id)}
+                class="px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer {selectedPackaging === pk.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-pos-muted'}"
+              >
+                1 {pk.name} = {pk.unitsPerPackage}u
+              </button>
+            {/each}
+            {#if selectedPackaging}
+              <div class="flex items-center gap-1 ms-1">
+                <span class="text-[10px] font-bold text-pos-muted">×</span>
+                <input
+                  type="number"
+                  min="1"
+                  inputmode="numeric"
+                  bind:value={packagingCount}
+                  class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono font-black text-pos-text outline-none"
+                />
+                <span class="text-[10px] font-black text-emerald-600">= {effectiveQty} u</span>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
 
       <div class="flex items-center gap-1.5 flex-wrap">
         <span class="text-[10px] font-bold text-pos-muted flex items-center gap-1">

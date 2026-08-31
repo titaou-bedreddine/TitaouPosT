@@ -50,9 +50,40 @@ pub fn set_multiple_settings(db: &DbState, settings: HashMap<String, String>) ->
 }
 
 pub fn get_hwid() -> String {
-    "4e67912a-d4ee-49bc-9bd0-6dccc402a6e6".to_string()
+    // Real machine fingerprint: volume serial + hostname hash. Stable
+    // across reboots, unique per PC (the licensing unit).
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let out = std::process::Command::new("cmd")
+            .args(["/C", "vol C:"])
+            .creation_flags(0x08000000)
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default();
+        let serial = out
+            .lines()
+            .find(|l| l.contains("Serial Number"))
+            .and_then(|l| l.split(':').nth(1))
+            .map(|s| s.trim().replace('-', ""))
+            .unwrap_or_default();
+        let machine = std::env::var("COMPUTERNAME").unwrap_or_default();
+        // Short stable hash of serial+machine.
+        let combined = format!("{}:{}", serial, machine);
+        let mut hash: u64 = 5381;
+        for b in combined.bytes() {
+            hash = hash.wrapping_mul(33).wrapping_add(b as u64);
+        }
+        format!("HW-{hash:016X}")
+    }
+    #[cfg(not(windows))]
+    {
+        format!("HW-{:016X}", 0)
+    }
 }
 
+/// Offline grace: a manual code still activates (format-checked), for
+/// machines without internet.
 pub fn verify_license(db: &DbState, code: &str) -> Result<bool, String> {
     if code.starts_with("LUM-") || code.starts_with("ACT-") || code.len() >= 12 {
         set_setting(db, "app_license_status", "activated")?;
@@ -61,6 +92,51 @@ pub fn verify_license(db: &DbState, code: &str) -> Result<bool, String> {
     } else {
         Err("Invalid activation code format".to_string())
     }
+}
+
+/// Online activation against a GitHub-hosted license registry: the seller
+/// pushes a JSON file named HWID.json to the licenses folder of a public
+/// repo; the app fetches it on activation.
+pub fn activate_online_github(
+    db: &DbState,
+    hwid: &str,
+    github_user: &str,
+    github_repo: &str,
+) -> Result<bool, String> {
+    let url = format!(
+        "https://raw.githubusercontent.com/{}/{}/main/licenses/{}.json",
+        github_user, github_repo, hwid
+    );
+    let response = reqwest::blocking::Client::builder()
+        .user_agent("TitaouPOS-Activator")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(&url)
+        .send()
+        .map_err(|e| format!("Activation server unreachable: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err("This machine has no license on the server. Contact the developer.".to_string());
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .map_err(|e| format!("Bad license data: {}", e))?;
+    let licensed = body.get("licensed").and_then(|v| v.as_bool()).unwrap_or(false);
+    if !licensed {
+        return Err("License record is not active".to_string());
+    }
+
+    let key = body
+        .get("license_key")
+        .and_then(|v| v.as_str())
+        .unwrap_or("GITHUB")
+        .to_string();
+
+    set_setting(db, "app_license_status", "activated")?;
+    set_setting(db, "app_license_key", &key)?;
+    Ok(true)
 }
 
 pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {

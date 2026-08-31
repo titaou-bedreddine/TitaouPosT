@@ -110,6 +110,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleKey} />
+
 <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
   <div class="flex items-center justify-between">
     <p class="text-xs text-pos-muted font-bold">
@@ -128,8 +130,6 @@
   {#if toastMsg}
     <div class="p-2 bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 text-[11px] font-bold rounded-lg">{toastMsg}</div>
   {/if}
-
-  <svelte:window on:keydown={handleKey} />
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
     {#each Object.keys(ACTION_LABELS) as action}

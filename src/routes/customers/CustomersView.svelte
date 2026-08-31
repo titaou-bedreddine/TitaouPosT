@@ -7,6 +7,7 @@
   import { currentUser } from '../../lib/stores/auth';
   import CustomerDebtModal from '../../lib/components/CustomerDebtModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
+  import QrImage from '../../lib/components/QrImage.svelte';
   import {
     Users, Plus, QrCode, DollarSign, Edit2, Trash2, Search,
     X, Check, Printer, FileText, Phone, MapPin, Building, History,
@@ -25,6 +26,15 @@
   let deletePassword = '';
   let deleteErrorMsg = '';
   let isDeletingCustomer = false;
+
+  async function toggleCustomerPin(c: Customer) {
+    try {
+      await invoke('toggle_customer_pin', { customerId: c.id, pinned: !(c as any).pinned });
+      await loadCustomers();
+    } catch (e) {
+      console.warn('Pin failed:', e);
+    }
+  }
 
   async function confirmDeleteCustomer() {
     if (!customerToDelete || !$currentUser) return;
@@ -123,11 +133,18 @@
     }
   }
 
-  $: filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.phone && c.phone.includes(searchQuery)) ||
-    (c.rc && c.rc.includes(searchQuery))
-  );
+    $: filteredCustomers = customers.filter((x) => {
+    // Omni search: name, phone, email, ids, exact balance, or QR payload.
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const hit = ['name', 'phone', 'email', 'rc', 'nif', 'code', 'qr_code', ].some(
+      (f) => String((x as any)[f] || '').toLowerCase().includes(q)
+    );
+    if (hit) return true;
+    if (String(Math.max(0, x.balance || 0)) === q) return true;
+    const qr = ('CUST:' + (x.qr_code || 'CUST-' + x.id)).toLowerCase();
+    return qr === q || qr.includes(q);
+  });
 
   function openAddModal() {
     editingId = null;
@@ -317,6 +334,18 @@
                   {/if}
                   <button
                     type="button"
+                    on:click={() => toggleCustomerPin(c)}
+                    class="p-1.5 rounded-lg cursor-pointer transition {(c as any).pinned ? 'bg-amber-500 text-white' : 'text-pos-muted hover:text-amber-500'}"
+                    title="Pin to top (تثبيت)"
+                  >
+                    {#if (c as any).pinned}
+                      <PinOff class="w-3.5 h-3.5" />
+                    {:else}
+                      <Pin class="w-3.5 h-3.5" />
+                    {/if}
+                  </button>
+                  <button
+                    type="button"
                     on:click={() => { previewCustomer = c; loadCustomerHistory(c); }}
                     class="p-1.5 text-pos-muted hover:text-sky-600 rounded-lg cursor-pointer"
                     title="View details"
@@ -502,7 +531,7 @@
           <!-- QR Card -->
           <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border text-center space-y-2 flex flex-col items-center justify-center">
             <div class="w-28 h-28 bg-white p-1.5 rounded-xl shadow-sm border border-pos-border flex items-center justify-center">
-              <img src={qrUrl} alt="QR Code" class="w-full h-full object-contain" />
+              <QrImage payload={entityQrPayload('CUST', previewCustomer.qr_code || 'CUST-' + previewCustomer.id)} size={104} alt="Customer QR" />
             </div>
             <p class="text-[10px] text-pos-muted font-bold">Scan at POS for Instant Account Lookup</p>
             <button

@@ -3,6 +3,7 @@
   import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
+  import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import JsBarcode from 'jsbarcode';
@@ -153,7 +154,26 @@
     receipt_footer_bold: 'false',
   };
 
-  let hwid = 'TIT-POS-DZ-9842-AF81';
+  let hwid = '...';
+  let isActivatingOnline = false;
+  let activationMsg = '';
+
+  // Online activation against the developer's GitHub license registry:
+  // licenses/<HWID>.json must exist with {"licensed": true}.
+  async function handleActivateOnline() {
+    try {
+      isActivatingOnline = true;
+      activationMsg = 'Contacting activation server...';
+      const ok = await invoke<boolean>('activate_online');
+      activationMsg = ok
+        ? 'Activated successfully / تم التنشيط بنجاح'
+        : 'Not licensed on the server';
+    } catch (e: any) {
+      activationMsg = typeof e === 'string' ? e : e?.message || 'Activation failed';
+    } finally {
+      isActivatingOnline = false;
+    }
+  }
   let activationCode = '';
   let activationSuccess = false;
   let saveSuccessMsg = '';
@@ -402,9 +422,14 @@
 
   onMount(async () => {
     await loadAutostart();
-    await loadPrinters();
-    await loadLabelPresets();
-    await loadShortcutBindings();
+    // Deferred: wmic printer enumeration spawns a slow subprocess that made
+    // opening Settings (and the About tab inside it) feel frozen for seconds.
+    // Load lazily on the tabs that need the data.
+    setTimeout(() => {
+      loadPrinters().catch(() => {});
+      loadLabelPresets().catch(() => {});
+      loadShortcutBindings().catch(() => {});
+    }, 0);
     try {
       const v = await invoke<string>('get_app_version');
       if (v) {
@@ -2606,6 +2631,28 @@
                 <span>Copy HWID</span>
               </button>
             </div>
+          </div>
+
+          <!-- Online Activation -->
+          <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
+            <h4 class="text-xs font-black text-pos-text">Activate Online (تنشيط عبر الإنترنت)</h4>
+            <p class="text-[11px] text-pos-muted">
+              Sends this machine's HWID to the developer's activation registry and activates automatically.
+            </p>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                on:click={handleActivateOnline}
+                disabled={isActivatingOnline}
+                class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+              >
+                {isActivatingOnline ? 'Checking...' : 'Activate This PC Online'}
+              </button>
+              <span class="text-[10px] font-mono text-pos-muted">HWID: {hwid}</span>
+            </div>
+            {#if activationMsg}
+              <p class="text-[11px] font-bold {activationMsg.includes('success') || activationMsg.includes('بنجاح') ? 'text-emerald-600' : 'text-rose-600'}">{activationMsg}</p>
+            {/if}
           </div>
 
           <!-- License File (.lic) Upload & Key Entry -->

@@ -2,7 +2,7 @@ use crate::auth::authenticate_user;
 use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
-    Payroll, EmployeeAdvance, EmployeeAdvanceInput, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, SupplierPaymentInput, SupplierPaymentRow, Unit, User, UserAccount, Role,
+    Payroll, EmployeeAdvance, EmployeeAdvanceInput, ProductPackaging, PackagingInput, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, SupplierPaymentInput, SupplierPaymentRow, Unit, User, UserAccount, Role,
     CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry,
 };
 use crate::services::{
@@ -318,6 +318,16 @@ pub fn get_units(db: State<'_, DbState>) -> Result<Vec<Unit>, String> {
 }
 
 #[tauri::command]
+pub fn list_packagings(db: State<'_, DbState>, product_id: i64) -> Result<Vec<ProductPackaging>, String> {
+    product_service::list_packagings(&db, product_id)
+}
+
+#[tauri::command]
+pub fn save_packagings(db: State<'_, DbState>, product_id: i64, inputs: Vec<PackagingInput>) -> Result<(), String> {
+    product_service::save_packagings(&db, product_id, inputs)
+}
+
+#[tauri::command]
 pub fn toggle_product_pin(db: State<'_, DbState>, product_id: i64, pinned: bool) -> Result<(), String> {
     product_service::toggle_product_pin(&db, product_id, pinned)
 }
@@ -413,6 +423,11 @@ pub fn delete_customer(db: State<'_, DbState>, customer_id: i64) -> Result<(), S
 }
 
 #[tauri::command]
+pub fn toggle_customer_pin(db: State<'_, DbState>, customer_id: i64, pinned: bool) -> Result<(), String> {
+    customer_service::toggle_customer_pin(&db, customer_id, pinned)
+}
+
+#[tauri::command]
 pub fn record_customer_debt_payment(db: State<'_, DbState>, input: CustomerPaymentInput) -> Result<i64, String> {
     customer_service::record_customer_debt_payment(&db, input)
 }
@@ -446,6 +461,11 @@ pub fn save_supplier(
 #[tauri::command]
 pub fn delete_supplier(db: State<'_, DbState>, supplier_id: i64) -> Result<(), String> {
     supplier_service::delete_supplier(&db, supplier_id)
+}
+
+#[tauri::command]
+pub fn toggle_supplier_pin(db: State<'_, DbState>, supplier_id: i64, pinned: bool) -> Result<(), String> {
+    supplier_service::toggle_supplier_pin(&db, supplier_id, pinned)
 }
 
 #[tauri::command]
@@ -673,6 +693,14 @@ pub fn get_hwid() -> String {
 #[tauri::command]
 pub fn verify_license(db: State<'_, DbState>, code: String) -> Result<bool, String> {
     settings_service::verify_license(&db, &code)
+}
+
+/// Online activation: checks the GitHub-hosted license registry for this
+/// machine's HWID (license files live in licenses/<HWID>.json on the repo).
+#[tauri::command]
+pub fn activate_online(db: State<'_, DbState>) -> Result<bool, String> {
+    let hwid = settings_service::get_hwid();
+    settings_service::activate_online_github(&db, &hwid, "titaou-bedreddine", "TitaouPosT-licenses")
 }
 
 #[tauri::command]

@@ -255,7 +255,10 @@
     <div class="flex items-center bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-pos-border shadow-xs">
       <button
         type="button"
-        on:click={() => (autoPrintEnabled = !autoPrintEnabled)}
+        on:click={() => {
+          autoPrintEnabled = !autoPrintEnabled;
+          invoke('set_setting', { key: 'pos_autoprint', value: autoPrintEnabled ? 'true' : 'false' }).catch(() => {});
+        }}
         class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 {autoPrintEnabled ? 'bg-sky-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-pos-muted'}"
         title="Toggle Auto Print Receipt on Checkout"
       >

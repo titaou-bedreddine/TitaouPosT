@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import WebcamCapture from './WebcamCapture.svelte';
   import { t, currentLocale } from '../i18n';
   import type { Category, Product, ProductInput, Unit } from '../types';
   import PrintLabelModal from './PrintLabelModal.svelte';
@@ -48,6 +49,61 @@
   let scaleSyncStatus = 'pending';
   let isSyncingScale = false;
   let scaleSyncMsg = '';
+
+  // Units-in-packaging: carton 24 / fardeau 6 / palette 672 / plateau 30.
+  // Each packaging multiplies the base-unit quantity at purchase/sale.
+  interface PackagingRow {
+    name: string;
+    unitsPerPackage: number;
+    salePrice: number;
+    isDefault: boolean;
+  }
+  let packagingRows: PackagingRow[] = [];
+
+  function addPackagingRow() {
+    packagingRows = [...packagingRows, { name: '', unitsPerPackage: 2, salePrice: 0, isDefault: false }];
+  }
+
+  function removePackagingRow(idx: number) {
+    packagingRows = packagingRows.filter((_, i) => i !== idx);
+  }
+
+  async function loadPackagings() {
+    if (!product) {
+      packagingRows = [];
+      return;
+    }
+    try {
+      const list = await invoke<any[]>('list_packagings', { productId: product.id });
+      packagingRows = list.map((p) => ({
+        name: p.name,
+        unitsPerPackage: p.units_per_package,
+        salePrice: p.sale_price,
+        isDefault: !!p.is_default,
+      }));
+    } catch {
+      packagingRows = [];
+    }
+  }
+
+  // Save packagings right after the product save succeeds (needs the id).
+  async function persistPackagings(savedProductId: number) {
+    try {
+      await invoke('save_packagings', {
+        productId: savedProductId,
+        inputs: packagingRows
+          .filter((r) => r.name.trim() && r.unitsPerPackage > 1)
+          .map((r) => ({
+            name: r.name.trim(),
+            units_per_package: r.unitsPerPackage,
+            sale_price: r.salePrice || 0,
+            is_default: r.isDefault,
+          })),
+      });
+    } catch (e) {
+      console.warn('Packagings save failed:', e);
+    }
+  }
 
   // Barcode tokenizer
   let barcodeTokens: string[] = [];
@@ -432,6 +488,9 @@
       newStockQty = 0;
       activeTab = 'details';
     }
+    // Packaging editor: load existing definitions for this product.
+    loadPackagings();
+
     // Common reset for suggestions on every open.
     nameSuggestions = [];
     showNameSuggestions = false;
@@ -635,6 +694,9 @@
         productId: product ? product.id : null,
       });
 
+      // Units-in-packaging follow the product.
+      await persistPackagings(savedId);
+
       // Auto-sync if enabled
       if (isScalable) {
         try {
@@ -744,6 +806,13 @@
                   <input type="file" accept="image/*" on:change={handleImageUpload} class="hidden" />
                 </label>
               </div>
+              <button
+                type="button"
+                on:click={() => (isWebcamOpen = true)}
+                class="mt-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-sky-950/50 text-pos-muted hover:text-sky-600 text-[10px] font-black rounded-lg cursor-pointer transition"
+              >
+                Camera (كاميرا)
+              </button>
             </div>
 
             <!-- Names (with live DB autosuggest: Tab or click accepts) -->
@@ -1009,6 +1078,81 @@
             </p>
           </div>
 
+          <!-- UNITS-IN-PACKAGING (carton 24 / fardeau 6 / palette 672) -->
+          <div class="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-pos-border rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Package class="w-4 h-4 text-emerald-600" />
+                <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">Packaging / التغليف (carton, fardeau...)</span>
+              </div>
+              <button
+                type="button"
+                on:click={addPackagingRow}
+                class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg cursor-pointer"
+              >
+                + Add Packaging
+              </button>
+            </div>
+            <p class="text-[9px] text-pos-muted font-bold">
+              Each packaging multiplies the base-unit quantity: 1 carton = 24 pcs, 1 palette = 672 pcs...
+              Price per packaging is optional (defaults to unit price × units).
+            </p>
+            {#if packagingRows.length === 0}
+              <p class="text-[10px] text-pos-muted text-center py-1.5">No packaging — sold by single units only.</p>
+            {:else}
+              <div class="space-y-2">
+                {#each packagingRows as row, idx}
+                  <div class="grid grid-cols-12 gap-1.5 items-center">
+                    <input
+                      type="text"
+                      bind:value={row.name}
+                      placeholder="Name (carton / fardeau...)"
+                      class="col-span-4 px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                    />
+                    <div class="col-span-3 flex items-center gap-1">
+                      <span class="text-[10px] font-bold text-pos-muted whitespace-nowrap">=</span>
+                      <input
+                        type="number"
+                        min="2"
+                        inputmode="numeric"
+                        bind:value={row.unitsPerPackage}
+                        title="Units per packaging"
+                        class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-[11px] font-mono font-black text-pos-text outline-none"
+                      />
+                      <span class="text-[10px] font-bold text-pos-muted">u</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      inputmode="numeric"
+                      bind:value={row.salePrice}
+                      placeholder="Price/pack"
+                      title="Sale price for the whole packaging (optional)"
+                      class="col-span-3 px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-[11px] font-mono font-bold text-sky-600 outline-none"
+                    />
+                    <div class="col-span-2 flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        on:click={() => (packagingRows[idx].isDefault = !packagingRows[idx].isDefault)}
+                        class="px-1.5 py-1 rounded-lg text-[9px] font-black cursor-pointer {row.isDefault ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-pos-muted'}"
+                        title="Default packaging in POS"
+                      >
+                        DEF
+                      </button>
+                      <button
+                        type="button"
+                        on:click={() => removePackagingRow(idx)}
+                        class="p-1 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+
           <!-- Expiry Date & Min Stock -->
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -1261,4 +1405,12 @@
       </div>
     </div>
   </div>
+{/if}
+
+<!-- Webcam Capture -->
+{#if isWebcamOpen}
+  <WebcamCapture
+    onCapture={(dataUrl) => (imagePath = dataUrl)}
+    onClose={() => (isWebcamOpen = false)}
+  />
 {/if}

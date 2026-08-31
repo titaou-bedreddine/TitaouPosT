@@ -181,10 +181,15 @@ export function buildReceiptHtml(options: {
   headerAlign?: 'left' | 'center' | 'right';
   footerAlign?: 'left' | 'center' | 'right';
   receiptHeaderGreeting?: string;
+  // Locally-generated QR image (data URL) so receipts print offline.
+  qrDataUrl?: string;
   receiptFooterNote?: string;
 }) {
-  const qrData = encodeURIComponent(`SALE:${options.saleNumber}`);
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${qrData}`;
+  // Offline-first: the QR is a pre-rendered local data URL passed by the
+  // caller (entityQrDataUrl); fall back to the online generator only when
+  // the caller could not produce one.
+  const qrUrl = options.qrDataUrl
+    || `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`SALE:${options.saleNumber}`)}`;
 
   const headerSize = options.headerFontSize || 14;
   const headerBold = options.headerBold !== false;
@@ -298,4 +303,37 @@ export function entityQrPayload(type: 'SALE' | 'PUR' | 'EXP' | 'CUST' | 'SUP' | 
 /** QR image URL for the payload (same generator as receipts). */
 export function entityQrUrl(payload: string, size = 120): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}`;
+}
+
+// ---------------------------------------------------------------------------
+// LOCAL QR GENERATION (offline — no api.qrserver.com round-trips).
+// ---------------------------------------------------------------------------
+import QRCode from 'qrcode';
+
+let qrLibReady: typeof QRCode | null = null;
+
+async function ensureQrLib(): Promise<typeof QRCode> {
+  if (!qrLibReady) {
+    qrLibReady = (await import('qrcode')).default as unknown as typeof QRCode;
+  }
+  return qrLibReady;
+}
+
+/**
+ * Render a QR synchronously from cached SVG? qrcode is async — callers in
+ * Svelte templates need a reactive wrapper instead. Use the dedicated
+ * entityQrDataUrl store-friendly helper below.
+ */
+export async function entityQrDataUrl(payload: string, size = 120): Promise<string> {
+  try {
+    const lib = await ensureQrLib();
+    return await lib.toDataURL(payload, {
+      width: size,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    });
+  } catch {
+    // Absolute fallback (online) — never render a broken image.
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}`;
+  }
 }

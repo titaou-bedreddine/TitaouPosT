@@ -1,4 +1,5 @@
 <script lang="ts">
+  import QrImage from '../../lib/components/QrImage.svelte';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SupplierDebtModal from '../../lib/components/SupplierDebtModal.svelte';
@@ -108,11 +109,18 @@
     }
   }
 
-  $: filteredSuppliers = suppliers.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.contact_person && s.contact_person.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (s.phone && s.phone.includes(searchQuery))
-  );
+  // Omni search: name, contact, phone, email, ids, exact balance, QR.
+  $: filteredSuppliers = suppliers.filter((x) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const hit = ['name', 'contact_person', 'phone', 'email', 'rc', 'nif', 'code', 'qr_code'].some(
+      (f) => String((x as any)[f] || '').toLowerCase().includes(q)
+    );
+    if (hit) return true;
+    if (String(Math.max(0, x.balance || 0)) === q) return true;
+    const qr = ('SUP:' + (x.qr_code || 'SUP-' + x.id)).toLowerCase();
+    return qr === q || qr.includes(q);
+  });
 
   function openAddModal() {
     editingId = null;
@@ -243,6 +251,18 @@
               <td class="p-3 text-pos-muted">{s.address || '—'}</td>
               <td class="p-3 text-end">
                 <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    on:click={() => toggleSupplierPin(s)}
+                    class="p-1.5 rounded-lg cursor-pointer transition {(s as any).pinned ? 'bg-amber-500 text-white' : 'text-pos-muted hover:text-amber-500'}"
+                    title="Pin to top (تثبيت)"
+                  >
+                    {#if (s as any).pinned}
+                      <PinOff class="w-3.5 h-3.5" />
+                    {:else}
+                      <Pin class="w-3.5 h-3.5" />
+                    {/if}
+                  </button>
                   <button
                     type="button"
                     on:click={() => { previewSupplier = s; loadSupplierHistory(s); }}
@@ -391,7 +411,7 @@
           </div>
         <div class="flex items-center justify-between gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
           <div class="flex items-center gap-3">
-            <img src={entityQrUrl(entityQrPayload('SUP', previewSupplier.qr_code || 'SUP-' + previewSupplier.id), 90)} alt="Supplier QR" class="w-[90px] h-[90px]" />
+            <QrImage payload={entityQrPayload('SUP', previewSupplier.qr_code || 'SUP-' + previewSupplier.id)} size={90} />
             <div class="text-xs text-pos-muted font-bold">
               <p>Supplier QR / رمز المورد</p>
               <p class="font-mono text-pos-text">{previewSupplier.qr_code || 'SUP-' + previewSupplier.id}</p>

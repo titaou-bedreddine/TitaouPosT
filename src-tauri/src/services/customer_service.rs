@@ -13,7 +13,7 @@ pub fn list_customers(db: &DbState) -> Result<Vec<Customer>, String> {
              LEFT JOIN sales s ON c.id = s.customer_id AND s.status = 'completed'
              WHERE c.is_active = 1
              GROUP BY c.id
-             ORDER BY c.id DESC",
+             ORDER BY COALESCE(c.pinned, 0) DESC, COALESCE(c.pin_order, 0) ASC, c.id DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -133,4 +133,29 @@ pub fn record_customer_debt_payment(db: &DbState, input: CustomerPaymentInput) -
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(payment_id)
+}
+/// Pin/unpin a customer: pinned customers float to the top of the list.
+pub fn toggle_customer_pin(db: &DbState, customer_id: i64, pinned: bool) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    if pinned {
+        let max_order: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(pin_order), 0) FROM customers WHERE pinned = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        conn.execute(
+            "UPDATE customers SET pinned = 1, pin_order = ?1 WHERE id = ?2",
+            rusqlite::params![max_order + 1, customer_id],
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE customers SET pinned = 0, pin_order = 0 WHERE id = ?1",
+            [customer_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

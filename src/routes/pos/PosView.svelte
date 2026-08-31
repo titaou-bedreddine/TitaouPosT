@@ -6,11 +6,14 @@
   import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, restoreActiveCart, holdCurrentSale } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
-  import { printHtmlSilently, buildReceiptHtml } from '../../lib/utils/printer';
+  import { printHtmlSilently, buildReceiptHtml, entityQrDataUrl } from '../../lib/utils/printer';
   import { normalizeBarcode } from '../../lib/utils/barcode';
 
   // Route navigation for F7 (products) / F8 (register) / F9 (sales).
   export let onNavigate: (route: string) => void = () => {};
+  // From notifications: open this product's editor as soon as the POS loads.
+  export let initialOpenProductId: number | null = null;
+  export let onProductOpened: () => void = () => {};
 
   import TopActionBar from '../../lib/components/TopActionBar.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
@@ -120,6 +123,12 @@
       if (s['cart_item_order'] === 'top' || s['cart_item_order'] === 'bottom') {
         $cartItemOrder = s['cart_item_order'];
       }
+      // Auto-print persistence: stays as last left (on/off), across restarts.
+      if (s['pos_autoprint'] === 'false') {
+        autoPrintEnabled = false;
+      } else {
+        autoPrintEnabled = true;
+      }
       // Auto-focus search: enabled flag + idle timer in seconds.
       if (s['pos_autofocus_search'] === 'true') {
         autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
@@ -153,6 +162,15 @@
 
     // Recover an interrupted sale (shutdown/crash) before it was checked out.
     await restoreActiveCart();
+
+    // Notification deep-link: open the product's editor.
+    if (initialOpenProductId) {
+      const target = products.find((p) => p.id === initialOpenProductId);
+      if (target) {
+        handleOpenEdit(target);
+        onProductOpened();
+      }
+    }
 
     window.addEventListener('keydown', handleGlobalKeyDown);
   });
@@ -275,10 +293,11 @@
     addToCart(product, 1, $isRefundMode);
   }
 
-  function handlePurchasePriceConfirm(price: number, _salePrice: number) {
+  function handlePurchasePriceConfirm(price: number, _salePrice: number, qty = 1) {
     if (!purchasePriceTarget) return;
     // Buy at the entered cost: the cart's unit_price mirrors sale_price.
-    addToCart({ ...purchasePriceTarget, sale_price: price }, 1, $isRefundMode);
+    // The packaging picker can multiply the quantity (1 carton = 24 u).
+    addToCart({ ...purchasePriceTarget, sale_price: price }, qty, $isRefundMode);
     purchasePriceTarget = null;
   }
 
@@ -557,6 +576,12 @@
 
       await invoke('create_sale', { input: saleInput });
 
+      // Offline receipt QR (local data URL; no network needed).
+      const receiptQrDataUrl = await entityQrDataUrl(
+        `SALE:${saleNumber}`,
+        100
+      ).catch(() => undefined);
+
       // Silent Auto-Print (F12 quick checkout skips it for this sale).
       const printThisSale = autoPrintEnabled && !suppressNextPrint;
       suppressNextPrint = false;
@@ -586,6 +611,7 @@
         if (mode === 'credit') {
           // Print 2 Copies: Store Copy + Client Copy
           const creditReceiptOpts = {
+            qrDataUrl: receiptQrDataUrl,
             shopName,
             shopAddress,
             shopPhone,
@@ -620,6 +646,7 @@
             saleDate,
             cashierName: cashier,
             customerName: customerName || 'Client Versement',
+            qrDataUrl: receiptQrDataUrl,
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,
@@ -641,6 +668,7 @@
             saleDate,
             cashierName: cashier,
             customerName: customerName || undefined,
+            qrDataUrl: receiptQrDataUrl,
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,

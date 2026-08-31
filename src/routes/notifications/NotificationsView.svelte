@@ -174,7 +174,7 @@
       {#each filteredNotifications as log}
         <div
           class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md cursor-pointer {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}"
-          on:click={() => onRequestRoute(log.type === 'sale' ? 'sales' : 'inventory')}
+          on:click={() => handleCardClick(log)}
           title={t('notif_open_relevant')}
         >
           <div class="flex items-start gap-3 min-w-0">

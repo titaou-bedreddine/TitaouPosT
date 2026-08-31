@@ -110,6 +110,27 @@ impl DbState {
             (7, 'سلف للموظفين', 'Avances Salaires', 'Salary Advances', 'Avances sur salaire', 1);
         ");
 
+        // Pinning for suppliers/customers (same behavior as products).
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN pinned INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN pin_order INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN pinned INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE customers ADD COLUMN pin_order INTEGER DEFAULT 0;", []);
+
+        // Units-in-packaging: carton 24 / fardeau 6 / palette 672 /
+        // plateau 30 eggs... Each packaging multiplies the base unit qty.
+        let _ = conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS product_packagings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                units_per_package INTEGER NOT NULL,
+                sale_price INTEGER NOT NULL DEFAULT 0,
+                is_default INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_packagings_product ON product_packagings(product_id);
+        ");
+
         // Salary advances (avance sur salaire): persisted, deductible from
         // the next payroll, and booked as an expense when paid in cash.
         let _ = conn.execute_batch("

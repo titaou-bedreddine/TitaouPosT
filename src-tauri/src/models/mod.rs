@@ -564,3 +564,23 @@ pub struct EmployeeAdvanceInput {
     #[serde(default)]
     pub user_id: i64,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProductPackaging {
+    pub id: i64,
+    pub product_id: i64,
+    pub name: String,
+    pub units_per_package: i64,
+    pub sale_price: i64,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PackagingInput {
+    pub name: String,
+    pub units_per_package: i64,
+    #[serde(default)]
+    pub sale_price: i64,
+    #[serde(default)]
+    pub is_default: bool,
+}

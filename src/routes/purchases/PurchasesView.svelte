@@ -1,4 +1,5 @@
 <script lang="ts">
+  import QrImage from '../../lib/components/QrImage.svelte';
   import { onMount, tick } from 'svelte';
   import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
@@ -843,7 +844,7 @@
 
       <div class="p-6 overflow-y-auto flex-1 space-y-4">
         <div class="flex items-center justify-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
-          <img src={entityQrUrl(entityQrPayload('PUR', previewPurchase.invoice_number), 110)} alt="Invoice QR" class="w-[110px] h-[110px]" />
+          <QrImage payload={entityQrPayload('PUR', previewPurchase.invoice_number)} size={110} />
           <div class="text-xs text-pos-muted font-bold">
             <p>Invoice QR / رمز الفاتورة</p>
             <p class="font-mono text-pos-text">{entityQrPayload('PUR', previewPurchase.invoice_number)}</p>
