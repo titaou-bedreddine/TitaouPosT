@@ -139,9 +139,9 @@
     receipt_font_family: 'monospace',
     receipt_header: 'مرحباً بكم في سوبرماركت تيتاو',
     receipt_footer: 'Les articles retournés doivent être présentés sous 48h',
-    // Receipt template preset: 'standard' (monospace ticket) or 'professional'
-    // ("80 mm – Professional Sales Receipt" graphic preset).
-    receipt_preset: 'standard',
+    // Receipt template preset: 'professional' ("80 mm – Professional Sales
+    // Receipt" graphic preset — default) or 'standard' (monospace ticket).
+    receipt_preset: 'professional',
     receipt_thank_you: 'MERCI POUR VOTRE CONFIANCE !',
     receipt_show_barcode: 'true',
     shop_website: '',
@@ -1526,8 +1526,8 @@
                     on:change={autoSaveSettings}
                     class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
                   >
+                    <option value="professional">80 mm — Professional (graphic, QR + barcode) — Default</option>
                     <option value="standard">Standard — Monospace Ticket</option>
-                    <option value="professional">80 mm — Professional (graphic, QR + barcode)</option>
                   </select>
                   <p class="text-[9px] text-pos-muted mt-1">Applied to auto-printed sale receipts. Arabic/French/English labels adapt to the UI language.</p>
                 </div>

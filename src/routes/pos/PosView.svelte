@@ -612,7 +612,7 @@
 
         // "80 mm – Professional" preset (Settings → Printing & Drawer): graphic
         // ticket with header, PU column, QR + totals and invoice barcode.
-        const useProfessionalReceipt = (appSettings['receipt_preset'] || 'standard') === 'professional';
+        const useProfessionalReceipt = (appSettings['receipt_preset'] || 'professional') === 'professional';
         if (useProfessionalReceipt) {
           const d = new Date();
           const proOpts = {
