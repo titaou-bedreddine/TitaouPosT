@@ -7,7 +7,9 @@
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlSilently, buildReceiptHtml, entityQrDataUrl } from '../../lib/utils/printer';
+  import { buildProfessionalReceiptHtml } from '../../lib/printing/professionalReceipt';
   import { normalizeBarcode } from '../../lib/utils/barcode';
+  import { getLanguage } from '../../lib/i18n';
 
   // Route navigation for F7 (products) / F8 (register) / F9 (sales).
   export let onNavigate: (route: string) => void = () => {};
@@ -608,7 +610,77 @@
           isRefund: i.is_refund || false,
         }));
 
-        if (mode === 'credit') {
+        // "80 mm – Professional" preset (Settings → Printing & Drawer): graphic
+        // ticket with header, PU column, QR + totals and invoice barcode.
+        const useProfessionalReceipt = (appSettings['receipt_preset'] || 'standard') === 'professional';
+        if (useProfessionalReceipt) {
+          const d = new Date();
+          const proOpts = {
+            shopName,
+            shopAddress,
+            shopPhone,
+            shopWebsite: appSettings['shop_website'] || '',
+            shopLogoDataUrl: appSettings['shop_logo_base64'] || undefined,
+            shopTagline: appSettings['receipt_header'] || '',
+            invoiceNumber: saleNumber,
+            invoiceBarcode: `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')} ${saleNumber.replace(/\D/g, '') || saleNumber}`,
+            dateStr: d.toLocaleDateString('fr-FR'),
+            timeStr: d.toLocaleTimeString('fr-FR'),
+            cashierName: cashier,
+            items: receiptItems,
+            subtotal: $cartSubtotal,
+            discount: $globalDiscountAmount,
+            grandTotal: $cartGrandTotal,
+            amountPaid: paid,
+            change,
+            currency: appSettings['default_currency'] || 'DA',
+            qrDataUrl: receiptQrDataUrl,
+            showQr: appSettings['receipt_show_qr'] !== 'false',
+            showBarcode: appSettings['receipt_show_barcode'] !== 'false',
+            thankYou: appSettings['receipt_thank_you'] || 'MERCI POUR VOTRE CONFIANCE !',
+            returnPolicy: appSettings['receipt_footer'] || '',
+            lang: getLanguage(),
+            paperWidthMm: appSettings['receipt_paper_width'] === '58mm' ? 58 : 80,
+          };
+          if (mode === 'credit') {
+            const creditOpts = {
+              ...proOpts,
+              customerName: customerName || 'Client Crédit',
+              paymentMethod: 'CREDIT (دين)',
+              isCredit: true,
+            };
+            printHtmlSilently(
+              buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' }) +
+                '<div style="page-break-after:always;"></div>' +
+                buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
+              'Credit Receipts',
+              { widthMm: proOpts.paperWidthMm }
+            );
+          } else if (mode === 'versement') {
+            printHtmlSilently(
+              buildProfessionalReceiptHtml({
+                ...proOpts,
+                customerName: customerName || 'Client Versement',
+                paymentMethod: 'VERSEMENT (تسبقة)',
+                versementPaid: paid,
+                versementRemaining: reste,
+                copyLabel: 'VERSEMENT / تسبقة',
+              }),
+              'Versement Receipt #' + saleNumber,
+              { widthMm: proOpts.paperWidthMm }
+            );
+          } else {
+            printHtmlSilently(
+              buildProfessionalReceiptHtml({
+                ...proOpts,
+                customerName: customerName || undefined,
+                paymentMethod: effectiveMethod.toUpperCase(),
+              }),
+              'Sale Receipt #' + saleNumber,
+              { widthMm: proOpts.paperWidthMm }
+            );
+          }
+        } else if (mode === 'credit') {
           // Print 2 Copies: Store Copy + Client Copy
           const creditReceiptOpts = {
             qrDataUrl: receiptQrDataUrl,

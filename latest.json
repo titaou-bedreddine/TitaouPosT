@@ -1,0 +1,11 @@
+{
+  "version": "0.5.3",
+  "notes": "Fixes the blank-screen startup crash introduced in v0.5.2 (an undeclared ipcDead reference in the login screen threw a ReferenceError before anything could render) and implements the IPC watchdog that release described: 2-second pings to the backend; if the webview-to-Rust bridge is stuck, a red banner with a one-click Reload button appears. Also fixes 14 more same-class crashes: dashboard versement view/load-in-POS/print actions, quick-purchase error state, product webcam toggle, customer/supplier pinning, notification deep-links.",
+  "pub_date": "2026-08-31T10:32:57.169Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTm1XWkNqVGYvdk9wbVFKZWhlc01DbUlRV3g1OG9GaUJINDkrNkgyemtYTXJvNGJqNE9haTNzYWNhTExadjgvUFVDQmlYZ3RKZ2ZrTzZqdmFFS29MekFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTcyMjg4CWZpbGU6VGl0YW91UE9TXzAuNS4zX3g2NC1zZXR1cC5leGUKSFF1ZzVKSGthcDkvNnE1N3hvN0QyS1RqYmJObHN0KzJ6MEp0V0loY2NqSHg0NUtpYWJOdjdta2M3bUw1a0U5NExqZGpGYmEzcFVNam5pRWkwRGhjQWc9PQo=",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.3/TitaouPOS_0.5.3_x64-setup.exe"
+    }
+  }
+}

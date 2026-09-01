@@ -3,7 +3,14 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Product } from '../types';
   import { printHtmlDirectly } from '../utils/printer';
-  import { Printer, QrCode, Tag, X, RefreshCw } from 'lucide-svelte';
+  import {
+    LABEL_PRESETS,
+    LABEL_PRESET_IDS,
+    buildLabelPresetHtml,
+    toLabelCurrency,
+    type LabelPresetId,
+  } from '../printing/labelPresets';
+  import { Printer, QrCode, Tag, X, RefreshCw, ZoomIn, ZoomOut } from 'lucide-svelte';
   import JsBarcode from 'jsbarcode';
 
   export let isOpen = false;
@@ -14,6 +21,10 @@
 
   let labelType: 'barcode' | 'etiquette' = 'barcode';
   let copies = 1;
+  // 'custom' = settings-driven sticker/shelf below; otherwise a built-in
+  // mm-true thermal preset (40×20 Vertical Price / Shelf Price).
+  let presetId: 'custom' | LabelPresetId = 'custom';
+  let zoom = 3;
 
   // Settings loaded from DB
   let settings: Record<string, string> = {};
@@ -100,7 +111,20 @@
   $: if (isOpen) {
     labelType = initialType;
     copies = initialQty;
+    presetId = 'custom';
+    zoom = 3;
   }
+
+  // ---- Built-in thermal preset (mm-true) ----
+  $: presetDef = presetId !== 'custom' ? LABEL_PRESETS[presetId] : null;
+  $: presetData = {
+    shopName: settings.shop_name_fr || 'TITAOU POS',
+    productName: product?.name_fr || product?.name_ar || '',
+    barcode: product?.barcodes?.[0] || product?.sku || '',
+    price: product?.sale_price ?? 0,
+    currency: toLabelCurrency(settings.default_currency),
+  };
+  $: presetHtml = presetDef && product ? presetDef.build(presetData) : '';
 
   onMount(async () => {
     try {
@@ -187,6 +211,19 @@
   }
 
   function triggerPrint() {
+    // Built-in mm-true presets print on their exact physical page size.
+    if (presetDef) {
+      let combined = '';
+      for (let i = 0; i < copies; i++) {
+        combined += `<div style="page-break-after:always; display:inline-block;">${presetHtml}</div>`;
+      }
+      printHtmlDirectly(
+        combined,
+        `Label ${presetDef.name}`,
+        { widthMm: presetDef.widthMm, heightMm: presetDef.heightMm }
+      );
+      return;
+    }
     let singleHtml = labelType === 'barcode' ? buildStickerHtml() : buildShelfTagHtml();
     let combinedHtml = '';
     for (let i = 0; i < copies; i++) {
@@ -224,6 +261,18 @@
       </div>
 
       <div class="p-5 space-y-4">
+        <!-- Print Preset Picker (built-in mm-true thermal presets vs settings-driven custom) -->
+        <div>
+          <label class="block text-[11px] font-bold text-pos-muted mb-1">Print Preset (نوع الملصق)</label>
+          <select bind:value={presetId} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
+            <option value="custom">Custom — configured in Settings → Barcode Labels</option>
+            {#each LABEL_PRESET_IDS as pid}
+              <option value={pid}>{LABEL_PRESETS[pid].name}</option>
+            {/each}
+          </select>
+        </div>
+
+        {#if presetId === 'custom'}
         <!-- Label Type Tabs -->
         <div class="grid grid-cols-2 gap-2">
           <button
@@ -307,12 +356,53 @@
             {/if}
           </div>
         {/if}
+        {/if}
+
+        {#if presetDef}
+          <!-- Built-in thermal preset: real-size preview (zoomable, physical size untouched) -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-pos-muted">Real-size preview (1:1 mm)</span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  on:click={() => (zoom = Math.max(1, zoom - 1))}
+                  class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-text cursor-pointer"
+                  title="Zoom out"
+                >
+                  <ZoomOut class="w-3.5 h-3.5" />
+                </button>
+                <span class="text-[11px] font-black font-mono text-pos-text w-8 text-center">{zoom}×</span>
+                <button
+                  type="button"
+                  on:click={() => (zoom = Math.min(8, zoom + 1))}
+                  class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-text cursor-pointer"
+                  title="Zoom in"
+                >
+                  <ZoomIn class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-3 overflow-auto flex justify-center">
+              <div style="width: calc({presetDef.widthMm}mm * {zoom}); height: calc({presetDef.heightMm}mm * {zoom}); flex: 0 0 auto;">
+                <div style="width: {presetDef.widthMm}mm; height: {presetDef.heightMm}mm; transform: scale({zoom}); transform-origin: top left;">
+                  {@html presetHtml}
+                </div>
+              </div>
+            </div>
+            <p class="text-[10px] text-pos-muted text-center">
+              Physical Size: <span class="font-bold">{presetDef.widthMm} × {presetDef.heightMm} mm</span> •
+              Orientation: <span class="font-bold">Landscape</span> •
+              Thermal label (203/300/600 DPI safe)
+            </p>
+          </div>
+        {/if}
 
         <!-- Print Parameters: Copies + Dimensions (read-only from settings) -->
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="block text-[11px] font-bold text-pos-muted mb-1">
-              {labelType === 'barcode' ? 'Copies (Stickers)' : 'Copies (Tags)'}
+              {presetDef ? 'Copies (Labels)' : labelType === 'barcode' ? 'Copies (Stickers)' : 'Copies (Tags)'}
             </label>
             <input
               type="number"
@@ -324,13 +414,13 @@
           <div>
             <label class="block text-[11px] font-bold text-pos-muted mb-1">Width (mm)</label>
             <div class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold font-mono text-center opacity-70">
-              {widthMm}mm
+              {presetDef ? presetDef.widthMm : widthMm}mm
             </div>
           </div>
           <div>
             <label class="block text-[11px] font-bold text-pos-muted mb-1">Height (mm)</label>
             <div class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold font-mono text-center opacity-70">
-              {heightMm}mm
+              {presetDef ? presetDef.heightMm : heightMm}mm
             </div>
           </div>
         </div>
@@ -338,6 +428,10 @@
         {#if !settingsLoaded}
           <p class="text-[11px] text-pos-muted flex items-center gap-1">
             <RefreshCw class="w-3 h-3 animate-spin" /> Loading label settings...
+          </p>
+        {:else if presetDef}
+          <p class="text-[10px] text-pos-muted">
+            Built-in preset with fixed mm geometry — real barcode, auto-fit text, dynamic product data.
           </p>
         {:else}
           <p class="text-[10px] text-pos-muted">
@@ -355,10 +449,10 @@
         <button
           type="button"
           on:click={triggerPrint}
-          class="px-5 py-2 {labelType === 'barcode' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+          class="px-5 py-2 {presetDef || labelType === 'barcode' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
         >
           <Printer class="w-4 h-4" />
-          <span>Print {copies}× {labelType === 'barcode' ? 'Sticker(s)' : 'Tag(s)'}</span>
+          <span>Print {copies}× {presetDef ? 'Label(s)' : labelType === 'barcode' ? 'Sticker(s)' : 'Tag(s)'}</span>
         </button>
       </div>
     </div>

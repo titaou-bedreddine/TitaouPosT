@@ -5,7 +5,15 @@
   import AboutView from '../about/AboutView.svelte';
   import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
   import { currentUser } from '../../lib/stores/auth';
-  import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { printHtmlDirectly, entityQrDataUrl } from '../../lib/utils/printer';
+  import { buildProfessionalReceiptHtml } from '../../lib/printing/professionalReceipt';
+  import {
+    LABEL_PRESETS,
+    LABEL_PRESET_IDS,
+    buildLabelPresetHtml,
+    type LabelPresetId,
+  } from '../../lib/printing/labelPresets';
+  import { getLanguage } from '../../lib/i18n';
   import JsBarcode from 'jsbarcode';
   import {
     Sliders, User, Building, Printer, Smartphone, Download,
@@ -131,6 +139,12 @@
     receipt_font_family: 'monospace',
     receipt_header: 'مرحباً بكم في سوبرماركت تيتاو',
     receipt_footer: 'Les articles retournés doivent être présentés sous 48h',
+    // Receipt template preset: 'standard' (monospace ticket) or 'professional'
+    // ("80 mm – Professional Sales Receipt" graphic preset).
+    receipt_preset: 'standard',
+    receipt_thank_you: 'MERCI POUR VOTRE CONFIANCE !',
+    receipt_show_barcode: 'true',
+    shop_website: '',
     // Pricing defaults for new products
     default_margin_percent: '20',
     price_round_step: '5',
@@ -1111,6 +1125,67 @@
     printHtmlDirectly(html, 'Test Shelf Tag', { widthMm: w, heightMm: h });
   }
 
+  // ----- Built-in 40×20 mm thermal presets (Vertical Price / Shelf Price) -----
+  $: builtinLabelData = {
+    shopName: String(settings.shop_name_fr || 'TITAOU POS'),
+    productName: previewProductName,
+    barcode: previewBarcodeNumber,
+    price: previewPrice,
+    currency: 'DA',
+  };
+  $: builtinLabelPreviews = Object.fromEntries(
+    LABEL_PRESET_IDS.map((id) => [id, buildLabelPresetHtml(id, builtinLabelData)])
+  ) as Record<LabelPresetId, string>;
+
+  function testPrintBuiltinLabel(id: LabelPresetId) {
+    const def = LABEL_PRESETS[id];
+    printHtmlDirectly(
+      def.build(builtinLabelData),
+      `Test ${def.name}`,
+      { widthMm: def.widthMm, heightMm: def.heightMm }
+    );
+  }
+
+  async function testPrintProfessionalReceipt() {
+    const d = new Date();
+    const paperW = String(settings.receipt_paper_width) === '58mm' ? 58 : 80;
+    const qr = await entityQrDataUrl('SALE:TEST-0001', 240).catch(() => undefined);
+    const html = buildProfessionalReceiptHtml({
+      shopName: String(settings.shop_name_fr || 'TITAOU POS'),
+      shopTagline: String(settings.receipt_header || ''),
+      shopAddress: String(settings.shop_address || ''),
+      shopPhone: String(settings.shop_phone || ''),
+      shopWebsite: String(settings.shop_website || ''),
+      shopLogoDataUrl: settings.shop_logo_base64 || undefined,
+      invoiceNumber: 'TEST-0001',
+      invoiceBarcode: `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')} 0001256`,
+      dateStr: d.toLocaleDateString('fr-FR'),
+      timeStr: d.toLocaleTimeString('fr-FR'),
+      cashierName: $currentUser?.display_name || 'Admin',
+      customerName: 'Client Comptoir',
+      paymentMethod: 'ESPÈCES',
+      items: [
+        { name: 'Eau Minérale 1.5L', quantity: 2, unitPrice: 120, totalPrice: 240 },
+        { name: 'Lait UHT Entier 1L', quantity: 1, unitPrice: 150, totalPrice: 150 },
+        { name: 'Café Moulu 250g', quantity: 1, unitPrice: 200, totalPrice: 200 },
+      ],
+      subtotal: 590,
+      discount: 0,
+      grandTotal: 590,
+      amountPaid: 600,
+      change: 10,
+      currency: String(settings.default_currency || 'DA'),
+      qrDataUrl: qr,
+      showQr: toBool(settings.receipt_show_qr),
+      showBarcode: toBool(settings.receipt_show_barcode),
+      thankYou: String(settings.receipt_thank_you || 'MERCI POUR VOTRE CONFIANCE !'),
+      returnPolicy: String(settings.receipt_footer || ''),
+      lang: getLanguage(),
+      paperWidthMm: paperW,
+    });
+    printHtmlDirectly(html, 'Test Professional Receipt', { widthMm: paperW });
+  }
+
 </script>
 
 <div class="h-full flex flex-col bg-pos-bg p-4 overflow-hidden select-none relative">
@@ -1437,6 +1512,42 @@
               </div>
             </div>
 
+            <!-- Receipt Template Preset: Standard vs 80mm Professional -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+              <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
+                <FileText class="w-4 h-4 text-sky-500" />
+                <span>Receipt Template Preset (قالب الوصل)</span>
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Sale Receipt Template</label>
+                  <select
+                    bind:value={settings.receipt_preset}
+                    on:change={autoSaveSettings}
+                    class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
+                  >
+                    <option value="standard">Standard — Monospace Ticket</option>
+                    <option value="professional">80 mm — Professional (graphic, QR + barcode)</option>
+                  </select>
+                  <p class="text-[9px] text-pos-muted mt-1">Applied to auto-printed sale receipts. Arabic/French/English labels adapt to the UI language.</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Thank-you Message (footer)</label>
+                  <input type="text" bind:value={settings.receipt_thank_you} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">Shop Website (receipt header)</label>
+                  <input type="text" bind:value={settings.shop_website} on:change={autoSaveSettings} placeholder="www.titaoupos.dz" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
+                </div>
+                <div class="flex items-end">
+                  <button on:click={testPrintProfessionalReceipt} class="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition">
+                    <Printer class="w-3.5 h-3.5 text-sky-500" />
+                    <span>Test Print Professional Receipt</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Section Content Visibility Toggles -->
             <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
               <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
@@ -1487,6 +1598,11 @@
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_qr} class="rounded text-sky-600" />
                   <span>QR Code Verification</span>
+                </label>
+
+                <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <input type="checkbox" bind:checked={settings.receipt_show_barcode} class="rounded text-sky-600" />
+                  <span>Invoice Barcode (professional preset)</span>
                 </label>
               </div>
             </div>
@@ -2301,6 +2417,47 @@
               <Printer class="w-3.5 h-3.5" />
               <span>Test Print Shelf Tag ({settings.shelf_tag_width || 60}x{settings.shelf_tag_height || 40}mm)</span>
             </button>
+          </div>
+        </div>
+
+        <!-- SECTION 3: Built-in 40×20 mm Thermal Presets -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+          <div>
+            <h3 class="text-sm font-black text-pos-text flex items-center gap-2">
+              <Tag class="w-4 h-4 text-amber-500" />
+              <span>3. Built-in Thermal Presets — 40×20 mm (قوالب جاهزة)</span>
+            </h3>
+            <p class="text-xs text-pos-muted mt-1">
+              mm-exact presets with real scannable barcode, auto-fitting text and rotated price — select them from any product's
+              <span class="font-bold">Print Label</span> modal. Printed size stays exactly 40×20 mm at 203/300/600 DPI.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {#each LABEL_PRESET_IDS as pid}
+              <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-black text-pos-text">{LABEL_PRESETS[pid].name}</span>
+                  <span class="text-[9px] font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold shrink-0">
+                    {LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm} mm
+                  </span>
+                </div>
+                <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-2 flex justify-center overflow-hidden">
+                  <div style="width: calc(40mm * 2.2); height: calc(20mm * 2.2); flex: 0 0 auto;">
+                    <div style="width: 40mm; height: 20mm; transform: scale(2.2); transform-origin: top left;">
+                      {@html builtinLabelPreviews[pid]}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  on:click={() => testPrintBuiltinLabel(pid)}
+                  class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <Printer class="w-3.5 h-3.5" />
+                  <span>Test Print ({LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm}mm)</span>
+                </button>
+              </div>
+            {/each}
           </div>
         </div>
 

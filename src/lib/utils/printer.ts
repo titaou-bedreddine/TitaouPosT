@@ -1,16 +1,27 @@
 // Try silent OS printing first (headless Edge → PDF → default printer).
 // If the backend command isn't available (older binary / dev mode), fall
 // back to the classic hidden-iframe print.
+// `paper` pins the physical page: widthMm + optional heightMm (omit for
+// dynamic-height receipts). Without it the legacy 80mm receipt page is used.
+export interface PrintPaper {
+  widthMm: number;
+  heightMm?: number;
+}
+
 let silentPrintAvailable: boolean | null = null;
 
-export async function printHtmlSilently(htmlContent: string, title = 'Thermal Receipt'): Promise<void> {
+export async function printHtmlSilently(
+  htmlContent: string,
+  title = 'Thermal Receipt',
+  paper?: PrintPaper
+): Promise<void> {
   if (silentPrintAvailable !== false) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       // The backend needs the full document (styles included); the caller
       // passes raw content, so reuse the same wrapper as the iframe path.
       await invoke('print_html_direct', {
-        html: wrapFullDocument(htmlContent),
+        html: wrapFullDocument(htmlContent, paper),
         title,
       });
       silentPrintAvailable = true;
@@ -20,14 +31,18 @@ export async function printHtmlSilently(htmlContent: string, title = 'Thermal Re
       console.warn('Silent print unavailable, falling back to iframe print:', e);
     }
   }
-  printHtmlDirectly(htmlContent, title);
+  printHtmlDirectly(htmlContent, title, paper);
 }
 
-function wrapFullDocument(htmlContent: string): string {
+function wrapFullDocument(htmlContent: string, paper?: PrintPaper): string {
+  const pageRule = paper
+    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm ? paper.heightMm + 'mm' : 'auto'}; margin: 0mm; }
+       body { width: ${paper.widthMm}mm; margin: 0; padding: 0; background: #fff; }`
+    : `@page { size: 80mm auto; margin: 0mm; }
+       body { width: 76mm; margin: 2mm auto; font-size: 11px; line-height: 1.3; background: #fff; padding: 2mm; }`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /><style>
-    @page { size: 80mm auto; margin: 0mm; }
+    ${pageRule}
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; color: #000; }
-    body { width: 76mm; margin: 2mm auto; font-size: 11px; line-height: 1.3; background: #fff; padding: 2mm; }
     .text-center { text-align: center; } .text-end { text-align: right; } .text-start { text-align: left; }
     .font-bold { font-weight: bold; } .font-black { font-weight: 900; }
     table { width: 100%; border-collapse: collapse; margin: 4px 0; }
@@ -41,7 +56,7 @@ function wrapFullDocument(htmlContent: string): string {
 export function printHtmlDirectly(
   htmlContent: string,
   title = 'Thermal Receipt',
-  paper?: { widthMm: number; heightMm: number }
+  paper?: PrintPaper
 ) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -61,9 +76,9 @@ export function printHtmlDirectly(
   }
 
   // Labels pass an exact page size so px font sizes print 1:1 instead of
-  // being rescaled by an 80mm receipt page.
+  // being rescaled by an 80mm receipt page. heightMm omitted = dynamic height.
   const pageRule = paper
-    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm}mm; margin: 0mm; }`
+    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm ? paper.heightMm + 'mm' : 'auto'}; margin: 0mm; }`
     : `@page { size: 80mm auto; margin: 0mm; }`;
   const bodyRule = paper
     ? `body { width: ${paper.widthMm}mm; margin: 0 auto; background: #fff; position: relative; }`

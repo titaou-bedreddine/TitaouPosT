@@ -1,16 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { cartItems, cartGrandTotal, globalDiscountMode, globalDiscountValue } from '../stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue } from '../stores/cart';
   import { currentUser } from '../stores/auth';
-  import { printHtmlDirectly } from '../utils/printer';
-  import { Printer, X } from 'lucide-svelte';
+  import { printHtmlDirectly, entityQrDataUrl } from '../utils/printer';
+  import { buildProfessionalReceiptHtml } from '../printing/professionalReceipt';
+  import { getLanguage } from '../i18n';
+  import { Printer, X, FileText } from 'lucide-svelte';
 
   export let isOpen = false;
   export let onClose: () => void;
+  // Optional live-sale context (defaults keep the standalone preview working).
+  export let saleNumber = '';
+  export let paymentMethod = 'Espèces';
+  export let customerName = '';
 
   let receiptContainer: HTMLDivElement;
   let settings: Record<string, string> = {};
+  // 'standard' = classic monospace ticket; 'professional' = 80mm graphic preset.
+  let receiptPreset: 'standard' | 'professional' = 'standard';
+  let proQrDataUrl = '';
 
   $: fontFamily = settings.receipt_font_family || 'monospace';
   $: is58mm = settings.receipt_paper_width === '58mm';
@@ -45,11 +54,67 @@
   $: if (isOpen) {
     invoke<Record<string, string>>('get_all_settings').then(fetched => {
       settings = { ...settings, ...fetched };
+      receiptPreset = fetched['receipt_preset'] === 'professional' ? 'professional' : 'standard';
     }).catch(() => {});
+    // Offline QR for the professional preset (local data URL, no network).
+    const num = effectiveInvoiceNumber;
+    if (num) {
+      entityQrDataUrl(`SALE:${num}`, 240).then((url) => (proQrDataUrl = url)).catch(() => {});
+    }
   }
+
+  $: now = new Date();
+  $: effectiveInvoiceNumber = saleNumber || `TCK-${Math.floor(Date.now() / 1000).toString().slice(-6)}`;
+
+  // ---- Professional 80mm receipt (same builder powers preview AND print) ----
+  $: proHtml = receiptPreset === 'professional'
+    ? buildProfessionalReceiptHtml({
+        shopName: settings.shop_name_fr || 'TITAOU POS',
+        shopTagline: settings.receipt_header || '',
+        shopAddress: settings.shop_address || '',
+        shopPhone: settings.shop_phone || '',
+        shopWebsite: settings.shop_website || '',
+        shopLogoDataUrl: settings.shop_logo_base64 || undefined,
+        invoiceNumber: effectiveInvoiceNumber.replace(/^TCK-/, ''),
+        dateStr: now.toLocaleDateString('fr-FR'),
+        timeStr: now.toLocaleTimeString('fr-FR'),
+        cashierName: $currentUser?.display_name || 'Admin',
+        customerName: customerName || settings.default_customer_name || '',
+        paymentMethod,
+        items: $cartItems.map((i) => ({
+          name: i.name_fr || i.name_ar,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+          totalPrice: i.total_price,
+          discountPerUnit: i.discount_amount || 0,
+          isRefund: i.is_refund || false,
+        })),
+        subtotal: $cartSubtotal,
+        discount: $globalDiscountAmount,
+        grandTotal: $cartGrandTotal,
+        amountPaid: $cartGrandTotal,
+        change: 0,
+        currency: settings.default_currency || 'DA',
+        qrDataUrl: proQrDataUrl || undefined,
+        showQr: (settings.receipt_show_qr ?? 'true') !== 'false',
+        showBarcode: (settings.receipt_show_barcode ?? 'true') !== 'false',
+        thankYou: settings.receipt_thank_you || 'MERCI POUR VOTRE CONFIANCE !',
+        returnPolicy: settings.receipt_footer || '',
+        lang: getLanguage(),
+        paperWidthMm: is58mm ? 58 : 80,
+      })
+    : '';
 
   function triggerPrint() {
     if (!receiptContainer) return;
+    if (receiptPreset === 'professional') {
+      printHtmlDirectly(
+        proHtml,
+        'Ticket Professionnel - TitaouPosT',
+        { widthMm: is58mm ? 58 : 80 }
+      );
+      return;
+    }
     printHtmlDirectly(receiptContainer.innerHTML, 'Ticket de Caisse - TitaouPosT');
   }
 </script>
@@ -68,8 +133,38 @@
         </button>
       </div>
 
+      <!-- Receipt Preset Toggle -->
+      <div class="px-5 pt-4">
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            on:click={() => (receiptPreset = 'standard')}
+            class="p-2 rounded-xl border font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 {receiptPreset === 'standard' ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-600' : 'border-pos-border text-pos-muted'}"
+          >
+            <FileText class="w-3.5 h-3.5" />
+            Standard Ticket
+          </button>
+          <button
+            type="button"
+            on:click={() => (receiptPreset = 'professional')}
+            class="p-2 rounded-xl border font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 {receiptPreset === 'professional' ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-600' : 'border-pos-border text-pos-muted'}"
+          >
+            <Printer class="w-3.5 h-3.5" />
+            80 mm Professional
+          </button>
+        </div>
+      </div>
+
       <!-- Printable Thermal Receipt Area -->
       <div class="p-6 bg-slate-100 dark:bg-slate-900/60 max-h-[65vh] overflow-y-auto flex justify-center">
+        {#if receiptPreset === 'professional'}
+          <div
+            bind:this={receiptContainer}
+            class="bg-white shadow-md select-text"
+          >
+            {@html proHtml}
+          </div>
+        {:else}
         <div
           bind:this={receiptContainer}
           style="font-family: {fontFamily}; font-size: {bodyFontSize}px; font-weight: {bodyBold ? 'bold' : 'normal'}; width: {is58mm ? '230px' : '300px'};"
@@ -189,6 +284,7 @@
             </div>
           {/if}
         </div>
+        {/if}
       </div>
 
       <!-- Action Footer -->
