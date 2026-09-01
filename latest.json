@@ -1,11 +1,11 @@
 {
-  "version": "0.5.5",
-  "notes": "The built-in print presets from v0.5.4 are now the defaults: the Print Label modal opens directly on the 40x20 mm Vertical Price barcode label (or Shelf Price when opened from a shelf-tag action), sale receipts default to the 80 mm Professional template, and the label preview starts at real size (zoom 1x). Most importantly, the sticker barcode is now actually scanner-readable: bar modules print at a fixed physical width (0.216 mm on the 40x20 label, ~1.75x wider than before, comfortably above the 0.19 mm scanner floor) using the full label width, and the receipt invoice barcode prints at 0.3 mm per module — no more silent shrink-to-fit that made bars too thin for barcode readers.",
-  "pub_date": "2026-09-01T19:29:19.709Z",
+  "version": "0.5.6",
+  "notes": "Fixes multi-copy 40x20 mm label printing: each sticker was coming out on its own large default page with huge blank gaps, because the browser @page hints never reach the Windows printer driver, which kept paginating at A4/its default stock. Labels now go through an exact-media silent pipeline: the label is rasterized at the printer DPI and printed as N pages on a DEVMODE locked to a custom 40x20 mm form — copy 2 feeds immediately after copy 1, no A4 pages, no gaps, no print dialog. The label modal preview shows all copies stacked consecutively (N x 20 mm) with a diagnostics banner (printer, media, pages, raster size), and Settings gains a label printer + DPI picker plus a 5-copy acceptance test button.",
+  "pub_date": "2026-09-01T21:32:29.386Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnVFTXlzNkROUm1XbVhiVGQ3MUNyeTdLSjJzTWwyOC93dFRGV05HVVhVSk13VG04T2ZUZ1g0bWhHb09IOTdGdTRFclBDdGFFYlp6MmVIVkw2eGs4eUFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjkwOTEyCWZpbGU6VGl0YW91UE9TXzAuNS41X3g2NC1zZXR1cC5leGUKZmJlUWg2c2J3SHdSeTVWSWpPWTJGcXNBZWsvLyt0ZlJiQmQrZFllcGZEVVRmMmNUeVRuOG1GRmNTUEE0SmpjTzVEWGg2ZEt1SGMrMVJYSnArMmNUQ1E9PQo=",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.5/TitaouPOS_0.5.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnQwOFU5N3Z5KzlCMVo4Z3UrT2Y5ZStFd3pBQUJFUzBnNHdock9ubmMrL1k4bk54T3ZvL1VudTk2UUwxNU1KU1lHVXRQblpLQ0ZUaEsrODBmbFYySWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mjk4MzMzCWZpbGU6VGl0YW91UE9TXzAuNS42X3g2NC1zZXR1cC5leGUKUWwyKzJYRElxdWpTNGwxeFV1NnkyMndKZktoRDFOcXV6V1ZrQXgrU0ptYjBaRlR1WnN5Rlh3TFBBdWhNaVkvVG1SZVBhbHNZV1k4TFo2a052bmtMQWc9PQo=",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.6/TitaouPOS_0.5.6_x64-setup.exe"
     }
   }
 }
