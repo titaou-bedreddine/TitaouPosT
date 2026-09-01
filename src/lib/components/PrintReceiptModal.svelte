@@ -54,7 +54,7 @@
   $: if (isOpen) {
     invoke<Record<string, string>>('get_all_settings').then(fetched => {
       settings = { ...settings, ...fetched };
-      receiptPreset = fetched['receipt_preset'] === 'professional' ? 'professional' : 'standard';
+      receiptPreset = fetched['receipt_preset'] === 'standard' ? 'standard' : 'professional';
     }).catch(() => {});
     // Offline QR for the professional preset (local data URL, no network).
     const num = effectiveInvoiceNumber;

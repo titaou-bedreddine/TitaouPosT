@@ -120,13 +120,26 @@ function textSpan(size: number, weight: number, content: string, family = FONT_H
   return `<span style="font-family:${family};font-weight:${weight};font-size:${mm(size)};line-height:1;white-space:nowrap;${extra}">${content}</span>`;
 }
 
+// Physical width of one barcode module (X-dimension) in mm. Retail scanners
+// need >= 0.19mm; 0.26mm gives comfortable margin at 203 DPI (2 printer dots).
+const BARCODE_MODULE_MM = 0.26;
+
 /**
- * REAL machine-readable barcode rendered by JsBarcode into an SVG that is
- * scaled uniformly (preserveAspectRatio) into an exact mm box — never
- * stretched, always scannable. EAN-13/UPC/EAN-8 by length, CODE128 fallback
- * for arbitrary values.
+ * REAL machine-readable barcode rendered by JsBarcode. The SVG carries a
+ * viewBox in JsBarcode "px" units and is stretched (via width/height
+ * attributes in mm) to the exact physical box, so every module prints at a
+ * constant physical width — no uniform "meet" scaling that would silently
+ * narrow bars on small labels. EAN-13/UPC/EAN-8 by length, CODE128 fallback.
+ * The mm box must be >= barcodeRequiredWidthMm(value, moduleMm) or the bars
+ * compress; receipts with long alphanumeric values can pass a smaller
+ * moduleMm (>= 0.19mm stays scanner-safe).
  */
-export function barcodeSvgHtml(value: string, boxWMm: number, boxHMm: number): string {
+export function barcodeSvgHtml(
+  value: string,
+  boxWMm: number,
+  boxHMm: number,
+  moduleMm: number = BARCODE_MODULE_MM
+): string {
   const val = String(value || '').trim();
   if (!val) return '';
   const formats =
@@ -139,27 +152,46 @@ export function barcodeSvgHtml(value: string, boxWMm: number, boxHMm: number): s
       const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       JsBarcode(el, val, {
         format,
-        width: 2,
-        height: 60,
+        width: 1,               // 1 unit per module → viewBox maps 1:1 to modules
+        height: 100,            // aspect only; height is set by the mm box
         displayValue: false,
-        margin: 4,
+        margin: 0,
         background: '#ffffff',
         lineColor: '#000000',
       });
-      const w = parseFloat(el.getAttribute('width') || '');
-      const h = parseFloat(el.getAttribute('height') || '');
-      if (!w || !h) continue;
-      if (!el.getAttribute('viewBox')) el.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      el.removeAttribute('width');
-      el.removeAttribute('height');
-      el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-      el.setAttribute('style', 'width:100%;height:100%;display:block');
-      return `<div style="width:${mm(boxWMm)};height:${mm(boxHMm)};background:#fff;">${el.outerHTML}</div>`;
+      const vbW = parseFloat(el.getAttribute('width') || '');
+      const vbH = parseFloat(el.getAttribute('height') || '');
+      if (!vbW || !vbH) continue;
+      // Effective module size: the requested physical width, compressed only
+      // if the barcode's natural width would exceed the box (never enlarged
+      // past it, so a short barcode keeps its scanner-safe module size).
+      const effModule = Math.min(moduleMm, boxWMm / vbW);
+      const physW = vbW * effModule;
+      const physH = boxHMm;
+      el.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+      el.setAttribute('preserveAspectRatio', 'none');
+      el.setAttribute('style', `width:${physW.toFixed(2)}mm;height:${physH}mm;display:block`);
+      // Quiet zone: centered white padding inside the box around the bars.
+      const pad = Math.max(0, (boxWMm - physW) / 2);
+      return `<div style="width:${boxWMm}mm;height:${physH}mm;background:#fff;padding:0 ${pad.toFixed(2)}mm;box-sizing:border-box;overflow:hidden;">${el.outerHTML}</div>`;
     } catch {
       // invalid checksum etc → try the next format (CODE128 accepts anything)
     }
   }
   return '';
+}
+
+/** Physical width (mm) the barcode needs at the given module size. EAN-13 =
+ * 113 modules incl. quiet zones, EAN-8 = 81, UPC = 111; CODE128 varies via
+ * 11 modules/char + 35 overhead. */
+export function barcodeRequiredWidthMm(value: string, moduleMm: number = BARCODE_MODULE_MM): number {
+  const val = String(value || '').trim();
+  const modules =
+    val.length === 13 ? 113 :
+    val.length === 8  ? 81 :
+    val.length === 12 ? 111 :
+    35 + val.length * 11;
+  return modules * moduleMm;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +235,11 @@ export function buildVerticalPriceLabelHtml(data: LabelData): string {
   }
   const curSize = curSizeOf(priceSize);
 
-  const svg = barcodeSvgHtml(data.barcode, 24.4, 6.2);
+  // Barcode uses the full main-area width so modules print at the fixed
+  // physical size (no shrink); quiet zones are the box's white padding.
+  const bcBoxW = 26.6;
+  const bcBoxH = 6.4;
+  const svg = barcodeSvgHtml(data.barcode, bcBoxW, bcBoxH);
   const digits = String(data.barcode || '').trim();
 
   const style = `<style>.tpLblV,.tpLblV *{box-sizing:border-box;margin:0;padding:0;}</style>`;
@@ -221,7 +257,7 @@ export function buildVerticalPriceLabelHtml(data: LabelData): string {
   parts.push(textBox(1.5, 5.95, 26, 3.0, textSpan(name.size, 800, esc(name.text))));
   if (svg) {
     parts.push(
-      `<div style="position:absolute;left:${mm(2.8)};top:${mm(9.3)};">${svg}</div>`
+      `<div style="position:absolute;left:${mm(1.6)};top:${mm(9.1)};">${svg}</div>`
     );
   }
   if (digits) {

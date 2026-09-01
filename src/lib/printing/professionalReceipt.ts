@@ -257,10 +257,15 @@ export function buildProfessionalReceiptHtml(o: ProReceiptOptions): string {
   // ---- Invoice barcode ---------------------------------------------------------
   const showBarcode = o.showBarcode !== false;
   const bcValue = (o.invoiceBarcode || o.invoiceNumber || '').trim();
-  const bcSvg = bcValue ? barcodeSvgHtml(bcValue, compact ? 44 : 52, 8) : '';
+  // Pick the module size that fills the printable width without exceeding it
+  // (0.19mm is the scanner-safe floor).
+  const bcMaxW = paperW - 6;
+  const bcUnits = 35 + bcValue.length * 11; // CODE128 modules (worst case)
+  const bcModule = Math.max(0.19, Math.min(0.3, bcMaxW / bcUnits));
+  const bcSvg = bcValue ? barcodeSvgHtml(bcValue, bcMaxW, 8, bcModule) : '';
   const barcode = showBarcode && bcValue
     ? `<div class="ctr" style="margin-top:2mm;">
-        ${bcSvg ? `<div style="width:${compact ? 44 : 52}mm;margin:0 auto;">${bcSvg}</div>` : ''}
+        ${bcSvg ? `<div style="display:inline-block;">${bcSvg}</div>` : ''}
         <div class="num" style="font-size:2.4mm;letter-spacing:0.4mm;margin-top:0.6mm;"><span dir="ltr">${esc(bcValue)}</span></div>
       </div>`
     : '';

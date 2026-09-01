@@ -21,10 +21,10 @@
 
   let labelType: 'barcode' | 'etiquette' = 'barcode';
   let copies = 1;
-  // 'custom' = settings-driven sticker/shelf below; otherwise a built-in
-  // mm-true thermal preset (40×20 Vertical Price / Shelf Price).
-  let presetId: 'custom' | LabelPresetId = 'custom';
-  let zoom = 3;
+  // Built-in mm-true thermal presets are the default; 'custom' selects the
+  // legacy settings-driven sticker/shelf modes below.
+  let presetId: 'custom' | LabelPresetId = 'vprice40x20';
+  let zoom = 1;
 
   // Settings loaded from DB
   let settings: Record<string, string> = {};
@@ -111,8 +111,10 @@
   $: if (isOpen) {
     labelType = initialType;
     copies = initialQty;
-    presetId = 'custom';
-    zoom = 3;
+    // Default to the built-in preset matching how the modal was opened:
+    // barcode sticker → Vertical Price, shelf etiquette → Shelf Price.
+    presetId = initialType === 'etiquette' ? 'shelf40x20' : 'vprice40x20';
+    zoom = 1;
   }
 
   // ---- Built-in thermal preset (mm-true) ----
