@@ -1,11 +1,11 @@
 {
-  "version": "0.5.6",
-  "notes": "Fixes multi-copy 40x20 mm label printing: each sticker was coming out on its own large default page with huge blank gaps, because the browser @page hints never reach the Windows printer driver, which kept paginating at A4/its default stock. Labels now go through an exact-media silent pipeline: the label is rasterized at the printer DPI and printed as N pages on a DEVMODE locked to a custom 40x20 mm form — copy 2 feeds immediately after copy 1, no A4 pages, no gaps, no print dialog. The label modal preview shows all copies stacked consecutively (N x 20 mm) with a diagnostics banner (printer, media, pages, raster size), and Settings gains a label printer + DPI picker plus a 5-copy acceptance test button.",
-  "pub_date": "2026-09-01T21:32:29.386Z",
+  "version": "0.5.7",
+  "notes": "Fixes the phantom blank page printed between every label in batch jobs (24 total pages for 12 labels, alternating content/blank). Cause: each label was wrapped in an inline-block div with its own page-break-after rule, so Chromium print engine emitted an empty page per label plus a trailing blank. Batches now contain exactly N page nodes with the break only on the first N-1, zeroed box model so nothing can overflow the 40x20mm box, and a runtime assertion that the page-node count equals the copy count. Verified through Chromium print-to-PDF: 5 copies produce exactly 5 pages at 40x20mm, each with content, zero blanks. Credit receipts (store + customer copies) had the same empty-separator bug and are fixed too.",
+  "pub_date": "2026-09-01T22:07:45.553Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnQwOFU5N3Z5KzlCMVo4Z3UrT2Y5ZStFd3pBQUJFUzBnNHdock9ubmMrL1k4bk54T3ZvL1VudTk2UUwxNU1KU1lHVXRQblpLQ0ZUaEsrODBmbFYySWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mjk4MzMzCWZpbGU6VGl0YW91UE9TXzAuNS42X3g2NC1zZXR1cC5leGUKUWwyKzJYRElxdWpTNGwxeFV1NnkyMndKZktoRDFOcXV6V1ZrQXgrU0ptYjBaRlR1WnN5Rlh3TFBBdWhNaVkvVG1SZVBhbHNZV1k4TFo2a052bmtMQWc9PQo=",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.6/TitaouPOS_0.5.6_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnF5MHg2ZHlOclJFVWV1d3M4cXpkN3pXT3VDdmtrVzloaUdEU005OXNiNXNQR2h6VXdPR3YrMnZmd3RYWFJXaVZEbzA0SHFsMm1laWYxSkw0bTcyZWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MzAwMzg4CWZpbGU6VGl0YW91UE9TXzAuNS43X3g2NC1zZXR1cC5leGUKV3pSS041aVFaTnE4UGRyQzhyS2V2M1ljTVlkZUF4OTRZaitDc0JlNHR1OWg3ekdXd0V1Z0ZXWHZBdU92bmkwdy8zb0xTbWJWbnlDQzYwMFJtcXpXQkE9PQo=",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.7/TitaouPOS_0.5.7_x64-setup.exe"
     }
   }
 }
