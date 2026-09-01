@@ -649,13 +649,14 @@
               paymentMethod: 'CREDIT (دين)',
               isCredit: true,
             };
-            printHtmlSilently(
-              buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' }) +
-                '<div style="page-break-after:always;"></div>' +
-                buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
-              'Credit Receipts',
-              { widthMm: proOpts.paperWidthMm }
-            );
+          printHtmlSilently(
+            // Break via a rule on the FIRST receipt's own node — an empty
+            // separator div here created a phantom blank page between copies.
+            `<div style="page-break-after:always;break-after:page;">${buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' })}</div>` +
+              buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
+            'Credit Receipts',
+            { widthMm: proOpts.paperWidthMm }
+          );
           } else if (mode === 'versement') {
             printHtmlSilently(
               buildProfessionalReceiptHtml({
@@ -701,8 +702,9 @@
             isCredit: true,
           };
           printHtmlSilently(
-            buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' }) +
-              '<div style="page-break-after:always;"></div>' +
+            // Break on the first receipt's own node — an empty separator div
+            // here printed a phantom blank page between the two copies.
+            `<div style="page-break-after:always;break-after:page;">${buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' })}</div>` +
               buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
             'Credit Receipts'
           );

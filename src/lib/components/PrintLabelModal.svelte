@@ -215,6 +215,42 @@
     `;
   }
 
+  /**
+   * Batch page assembly for browser-printed labels.
+   *
+   * Chromium's print engine produces a PHANTOM BLANK PAGE per label when the
+   * wrapper uses `display:inline-block` + `page-break-after:always` (the
+   * inline-level box after the forced break becomes its own empty page), and
+   * the trailing break-after on the LAST label appends one more blank. The
+   * rule: exactly N page nodes, break-after only on the first N-1, block
+   * display, zero box model so content can never overflow the media box.
+   */
+  function buildLabelBatchHtml(singleHtml: string, wMm: number, hMm: number, count: number): string {
+    const pages: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const brk = i < count - 1 ? 'page-break-after:always;break-after:page;' : '';
+      pages.push(
+        `<div class="label-page" style="display:block;${brk}` +
+        `width:${wMm}mm;height:${hMm}mm;margin:0;padding:0;overflow:hidden;` +
+        `box-sizing:border-box;background:#fff;">${singleHtml}</div>`
+      );
+    }
+    return pages.join('');
+  }
+
+  /**
+   * Runtime assertion: the batch must contain exactly `count` page nodes —
+   * duplicates or missing pages mean the phantom-page class of bug is back.
+   * Returns an error message to surface loudly, or null when healthy.
+   */
+  function assertBatchPages(batchHtml: string, count: number): string | null {
+    const found = (batchHtml.match(/class="label-page"/g) || []).length;
+    if (found !== count) {
+      return `Batch page assertion failed: expected ${count} label-page node(s), found ${found} — aborting print.`;
+    }
+    return null;
+  }
+
   async function triggerPrint() {
     // Built-in mm-true presets use the exact-media silent pipeline: the
     // driver gets a custom 40×20mm DEVMODE and one page per copy — no A4
@@ -234,10 +270,14 @@
           dpi: parseInt(settings.label_printer_dpi || '203', 10) || 203,
         });
       } catch (e: any) {
-        // Backend missing (old binary / dev) → legacy iframe print.
-        let combined = '';
-        for (let i = 0; i < copies; i++) {
-          combined += `<div style="page-break-after:always; display:inline-block;">${presetHtml}</div>`;
+        // Backend missing (old binary / dev) → legacy iframe print, using
+        // the same exact-N-pages assembly as the fixed batch path.
+        const combined = buildLabelBatchHtml(presetHtml, presetDef.widthMm, presetDef.heightMm, copies);
+        const bad = assertBatchPages(combined, copies);
+        if (bad) {
+          printOutcome = { ok: false, message: bad, diagnostics: null } as any;
+          isPrinting = false;
+          return;
         }
         printHtmlDirectly(
           combined,
@@ -251,10 +291,6 @@
       return;
     }
     let singleHtml = labelType === 'barcode' ? buildStickerHtml() : buildShelfTagHtml();
-    let combinedHtml = '';
-    for (let i = 0; i < copies; i++) {
-      combinedHtml += `<div style="page-break-after:always; display:inline-block;">${singleHtml}</div>`;
-    }
     // Print on the exact configured label size so px font settings map 1:1
     // to paper instead of being rescaled by the default 80mm receipt page.
     const finalW = labelType === 'barcode'
@@ -263,6 +299,12 @@
     const finalH = labelType === 'barcode'
       ? (stickerOrientation === 'portrait' ? widthMm : heightMm)
       : (shelfOrientation === 'portrait' ? widthMm : heightMm);
+    const combinedHtml = buildLabelBatchHtml(singleHtml, finalW, finalH, copies);
+    const badCustom = assertBatchPages(combinedHtml, copies);
+    if (badCustom) {
+      alert(badCustom);
+      return;
+    }
     printHtmlDirectly(
       combinedHtml,
       labelType === 'barcode' ? 'Product Sticker' : 'Shelf Etiquette',
