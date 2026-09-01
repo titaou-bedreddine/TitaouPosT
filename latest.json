@@ -1,11 +1,11 @@
 {
-  "version": "0.5.4",
-  "notes": "Three new built-in print presets, all mm-exact for thermal printers: 40x20 mm Vertical Price barcode label (rounded border, bold shop name, real scannable EAN-13/CODE128 barcode, auto-fitting product name, and the price rotated 90 degrees in the right column), 40x20 mm Shelf Price tag (huge dominant price with smaller DA), and an 80 mm Professional Sales Receipt with dynamic height (vector header icons, contact lines, two-column invoice info, full product table with PU, QR + totals block with a big TOTAL, credit/versement strips, thank-you note, return policy and a real invoice barcode — Arabic/French/English). Presets are selectable in the Print Label modal with a zoomable real-size preview, in Settings (with test-print buttons), and as the sale receipt template; the printed size stays exactly 40x20 mm or 80 mm at 203/300/600 DPI with no fit-to-page scaling.",
-  "pub_date": "2026-09-01T18:16:55.052Z",
+  "version": "0.5.5",
+  "notes": "The built-in print presets from v0.5.4 are now the defaults: the Print Label modal opens directly on the 40x20 mm Vertical Price barcode label (or Shelf Price when opened from a shelf-tag action), sale receipts default to the 80 mm Professional template, and the label preview starts at real size (zoom 1x). Most importantly, the sticker barcode is now actually scanner-readable: bar modules print at a fixed physical width (0.216 mm on the 40x20 label, ~1.75x wider than before, comfortably above the 0.19 mm scanner floor) using the full label width, and the receipt invoice barcode prints at 0.3 mm per module — no more silent shrink-to-fit that made bars too thin for barcode readers.",
+  "pub_date": "2026-09-01T19:29:19.709Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnRBOWdFK0QvMmUxaUlTcXZ2OFQ3dlc3VElBVXNGc2RQL2loS1pCTVk5RVJKTEtGdGNhdUVTbU15eTRWV1kyTWgzN1RkODUwYVNZSkE0cG5RYm1PelFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mjg2NDM1CWZpbGU6VGl0YW91UE9TXzAuNS40X3g2NC1zZXR1cC5leGUKSVBqZ3htRzZrS2I1aDdrbGFuVHEyMldHRGFwNHBYWHlaUTk1bjNBaStVN2E1OWFmeVI5NXRKWHBBYUxZZUpTbUJadWRvVzg5SDdpaFVBS3FCWU9jQnc9PQo=",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.4/TitaouPOS_0.5.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnVFTXlzNkROUm1XbVhiVGQ3MUNyeTdLSjJzTWwyOC93dFRGV05HVVhVSk13VG04T2ZUZ1g0bWhHb09IOTdGdTRFclBDdGFFYlp6MmVIVkw2eGs4eUFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjkwOTEyCWZpbGU6VGl0YW91UE9TXzAuNS41X3g2NC1zZXR1cC5leGUKZmJlUWg2c2J3SHdSeTVWSWpPWTJGcXNBZWsvLyt0ZlJiQmQrZFllcGZEVVRmMmNUeVRuOG1GRmNTUEE0SmpjTzVEWGg2ZEt1SGMrMVJYSnArMmNUQ1E9PQo=",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.5/TitaouPOS_0.5.5_x64-setup.exe"
     }
   }
 }
