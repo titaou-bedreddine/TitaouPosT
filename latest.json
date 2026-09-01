@@ -1,11 +1,11 @@
 {
-  "version": "0.5.3",
-  "notes": "Fixes the blank-screen startup crash introduced in v0.5.2 (an undeclared ipcDead reference in the login screen threw a ReferenceError before anything could render) and implements the IPC watchdog that release described: 2-second pings to the backend; if the webview-to-Rust bridge is stuck, a red banner with a one-click Reload button appears. Also fixes 14 more same-class crashes: dashboard versement view/load-in-POS/print actions, quick-purchase error state, product webcam toggle, customer/supplier pinning, notification deep-links.",
-  "pub_date": "2026-08-31T10:32:57.169Z",
+  "version": "0.5.4",
+  "notes": "Three new built-in print presets, all mm-exact for thermal printers: 40x20 mm Vertical Price barcode label (rounded border, bold shop name, real scannable EAN-13/CODE128 barcode, auto-fitting product name, and the price rotated 90 degrees in the right column), 40x20 mm Shelf Price tag (huge dominant price with smaller DA), and an 80 mm Professional Sales Receipt with dynamic height (vector header icons, contact lines, two-column invoice info, full product table with PU, QR + totals block with a big TOTAL, credit/versement strips, thank-you note, return policy and a real invoice barcode — Arabic/French/English). Presets are selectable in the Print Label modal with a zoomable real-size preview, in Settings (with test-print buttons), and as the sale receipt template; the printed size stays exactly 40x20 mm or 80 mm at 203/300/600 DPI with no fit-to-page scaling.",
+  "pub_date": "2026-09-01T18:16:55.052Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTm1XWkNqVGYvdk9wbVFKZWhlc01DbUlRV3g1OG9GaUJINDkrNkgyemtYTXJvNGJqNE9haTNzYWNhTExadjgvUFVDQmlYZ3RKZ2ZrTzZqdmFFS29MekFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTcyMjg4CWZpbGU6VGl0YW91UE9TXzAuNS4zX3g2NC1zZXR1cC5leGUKSFF1ZzVKSGthcDkvNnE1N3hvN0QyS1RqYmJObHN0KzJ6MEp0V0loY2NqSHg0NUtpYWJOdjdta2M3bUw1a0U5NExqZGpGYmEzcFVNam5pRWkwRGhjQWc9PQo=",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.3/TitaouPOS_0.5.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnRBOWdFK0QvMmUxaUlTcXZ2OFQ3dlc3VElBVXNGc2RQL2loS1pCTVk5RVJKTEtGdGNhdUVTbU15eTRWV1kyTWgzN1RkODUwYVNZSkE0cG5RYm1PelFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mjg2NDM1CWZpbGU6VGl0YW91UE9TXzAuNS40X3g2NC1zZXR1cC5leGUKSVBqZ3htRzZrS2I1aDdrbGFuVHEyMldHRGFwNHBYWHlaUTk1bjNBaStVN2E1OWFmeVI5NXRKWHBBYUxZZUpTbUJadWRvVzg5SDdpaFVBS3FCWU9jQnc9PQo=",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.4/TitaouPOS_0.5.4_x64-setup.exe"
     }
   }
 }
