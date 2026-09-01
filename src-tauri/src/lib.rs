@@ -2,6 +2,7 @@ pub mod auth;
 pub mod commands;
 pub mod database;
 pub mod models;
+pub mod printing;
 pub mod server;
 pub mod services;
 
@@ -89,6 +90,7 @@ pub fn run() {
             commands::send_telegram_message,
             commands::send_telegram_recap,
             commands::print_html_direct,
+            commands::print_label_job,
             commands::get_setting,
             commands::get_price_history,
             commands::clear_transaction_history,

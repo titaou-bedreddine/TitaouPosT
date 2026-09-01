@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Product } from '../types';
-  import { printHtmlDirectly } from '../utils/printer';
+  import { printHtmlDirectly, printLabelSilently, type LabelPrintOutcome } from '../utils/printer';
   import {
     LABEL_PRESETS,
     LABEL_PRESET_IDS,
@@ -10,7 +10,7 @@
     toLabelCurrency,
     type LabelPresetId,
   } from '../printing/labelPresets';
-  import { Printer, QrCode, Tag, X, RefreshCw, ZoomIn, ZoomOut } from 'lucide-svelte';
+  import { Printer, QrCode, Tag, X, RefreshCw, ZoomIn, ZoomOut, Loader2, CheckCircle2, AlertTriangle } from 'lucide-svelte';
   import JsBarcode from 'jsbarcode';
 
   export let isOpen = false;
@@ -25,6 +25,9 @@
   // legacy settings-driven sticker/shelf modes below.
   let presetId: 'custom' | LabelPresetId = 'vprice40x20';
   let zoom = 1;
+  // Print job state (exact-media silent pipeline).
+  let isPrinting = false;
+  let printOutcome: LabelPrintOutcome | null = null;
 
   // Settings loaded from DB
   let settings: Record<string, string> = {};
@@ -212,18 +215,39 @@
     `;
   }
 
-  function triggerPrint() {
-    // Built-in mm-true presets print on their exact physical page size.
+  async function triggerPrint() {
+    // Built-in mm-true presets use the exact-media silent pipeline: the
+    // driver gets a custom 40×20mm DEVMODE and one page per copy — no A4
+    // stock, no blank gaps, no print dialog. Falls back to the browser
+    // print only if the backend command is unavailable (dev mode).
     if (presetDef) {
-      let combined = '';
-      for (let i = 0; i < copies; i++) {
-        combined += `<div style="page-break-after:always; display:inline-block;">${presetHtml}</div>`;
+      isPrinting = true;
+      printOutcome = null;
+      try {
+        printOutcome = await printLabelSilently({
+          html: presetHtml,
+          label: presetDef.name,
+          widthMm: presetDef.widthMm,
+          heightMm: presetDef.heightMm,
+          copies,
+          printer: settings.label_printer || undefined,
+          dpi: parseInt(settings.label_printer_dpi || '203', 10) || 203,
+        });
+      } catch (e: any) {
+        // Backend missing (old binary / dev) → legacy iframe print.
+        let combined = '';
+        for (let i = 0; i < copies; i++) {
+          combined += `<div style="page-break-after:always; display:inline-block;">${presetHtml}</div>`;
+        }
+        printHtmlDirectly(
+          combined,
+          `Label ${presetDef.name}`,
+          { widthMm: presetDef.widthMm, heightMm: presetDef.heightMm }
+        );
+        printOutcome = null;
+      } finally {
+        isPrinting = false;
       }
-      printHtmlDirectly(
-        combined,
-        `Label ${presetDef.name}`,
-        { widthMm: presetDef.widthMm, heightMm: presetDef.heightMm }
-      );
       return;
     }
     let singleHtml = labelType === 'barcode' ? buildStickerHtml() : buildShelfTagHtml();
@@ -361,10 +385,13 @@
         {/if}
 
         {#if presetDef}
-          <!-- Built-in thermal preset: real-size preview (zoomable, physical size untouched) -->
+          <!-- Exact-media preview: every copy stacked consecutively, exactly
+               as the print job emits them (N × 20mm, zero gaps). -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold text-pos-muted">Real-size preview (1:1 mm)</span>
+              <span class="text-[11px] font-bold text-pos-muted">
+                Print preview — {copies} × {presetDef.widthMm}×{presetDef.heightMm}mm ({copies * presetDef.heightMm}mm total)
+              </span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -385,19 +412,50 @@
                 </button>
               </div>
             </div>
-            <div class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-3 overflow-auto flex justify-center">
-              <div style="width: calc({presetDef.widthMm}mm * {zoom}); height: calc({presetDef.heightMm}mm * {zoom}); flex: 0 0 auto;">
-                <div style="width: {presetDef.widthMm}mm; height: {presetDef.heightMm}mm; transform: scale({zoom}); transform-origin: top left;">
-                  {@html presetHtml}
+            <div class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-3 overflow-auto flex flex-col items-center gap-[2px] max-h-64">
+              {#each Array(Math.min(copies, 12)) as _, i}
+                <div
+                  class="label-strip-item"
+                  style="width: calc({presetDef.widthMm}mm * {zoom}); height: calc({presetDef.heightMm}mm * {zoom}); flex: 0 0 auto;"
+                >
+                  <div class="label-strip-inner" style="width: {presetDef.widthMm}mm; height: {presetDef.heightMm}mm; transform: scale({zoom}); transform-origin: top left;">
+                    {@html presetHtml}
+                  </div>
                 </div>
-              </div>
+              {/each}
+              {#if copies > 12}
+                <span class="text-[10px] text-pos-muted font-bold py-1">+ {copies - 12} more…</span>
+              {/if}
             </div>
             <p class="text-[10px] text-pos-muted text-center">
               Physical Size: <span class="font-bold">{presetDef.widthMm} × {presetDef.heightMm} mm</span> •
               Orientation: <span class="font-bold">Landscape</span> •
-              Thermal label (203/300/600 DPI safe)
+              Media locked per label — no gaps, {copies} page(s)
             </p>
+            <style>
+              .label-strip-item { position: relative; overflow: hidden; }
+              .label-strip-inner { position: absolute; top: 0; left: 0; }
+            </style>
           </div>
+
+          <!-- Print job diagnostics (exact-media pipeline) -->
+          {#if printOutcome}
+            <div class="rounded-xl border p-2.5 text-[10px] font-mono {printOutcome.ok ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300' : 'border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300'}">
+              <div class="flex items-start gap-1.5">
+                {#if printOutcome.ok}
+                  <CheckCircle2 class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                {:else}
+                  <AlertTriangle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                {/if}
+                <div class="space-y-0.5 leading-relaxed">
+                  <div class="font-bold">{printOutcome.message}</div>
+                  <div>Printer: {printOutcome.diagnostics.printer} • DPI: {printOutcome.diagnostics.dpi}</div>
+                  <div>Media: {printOutcome.diagnostics.media_width_mm}×{printOutcome.diagnostics.media_height_mm}mm • Pages: {printOutcome.diagnostics.page_count} • Raster: {printOutcome.diagnostics.raster_width_px}×{printOutcome.diagnostics.raster_height_px}px</div>
+                  <div>Generated print: {printOutcome.diagnostics.print_width_mm}mm × {printOutcome.diagnostics.print_height_mm}mm total</div>
+                </div>
+              </div>
+            </div>
+          {/if}
         {/if}
 
         <!-- Print Parameters: Copies + Dimensions (read-only from settings) -->
@@ -451,10 +509,16 @@
         <button
           type="button"
           on:click={triggerPrint}
-          class="px-5 py-2 {presetDef || labelType === 'barcode' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95"
+          disabled={isPrinting}
+          class="px-5 py-2 {presetDef || labelType === 'barcode' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition active:scale-95 disabled:opacity-50 disabled:cursor-wait"
         >
-          <Printer class="w-4 h-4" />
-          <span>Print {copies}× {presetDef ? 'Label(s)' : labelType === 'barcode' ? 'Sticker(s)' : 'Tag(s)'}</span>
+          {#if isPrinting}
+            <Loader2 class="w-4 h-4 animate-spin" />
+            <span>Printing…</span>
+          {:else}
+            <Printer class="w-4 h-4" />
+            <span>Print {copies}× {presetDef ? 'Label(s)' : labelType === 'barcode' ? 'Sticker(s)' : 'Tag(s)'}</span>
+          {/if}
         </button>
       </div>
     </div>

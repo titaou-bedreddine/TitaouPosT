@@ -10,6 +10,61 @@ export interface PrintPaper {
 
 let silentPrintAvailable: boolean | null = null;
 
+// ---------------------------------------------------------------------------
+// Exact-media label printing (thermal label printers, e.g. Xprinter
+// XP-DT427B). The backend rasterizes the label at the printer's DPI and GDI-
+// prints N pages on a DEVMODE locked to width×height mm — the driver's
+// default A4/continuous stock is never used, so copies come out consecutive
+// with zero blank gaps and no print dialog.
+// ---------------------------------------------------------------------------
+
+export interface LabelPrintDiagnostics {
+  printer: string;
+  media_width_mm: number;
+  media_height_mm: number;
+  copies: number;
+  print_width_mm: number;
+  print_height_mm: number;
+  page_count: number;
+  dpi: number;
+  raster_width_px: number;
+  raster_height_px: number;
+  mode: string;
+}
+
+export interface LabelPrintOutcome {
+  ok: boolean;
+  message: string;
+  diagnostics: LabelPrintDiagnostics;
+}
+
+export async function printLabelSilently(options: {
+  /** ONE label's inner HTML (it is repeated for every copy). */
+  html: string;
+  label: string;
+  widthMm: number;
+  heightMm: number;
+  copies: number;
+  printer?: string;
+  dpi?: number;
+}): Promise<LabelPrintOutcome> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<LabelPrintOutcome>('print_label_job', {
+    request: {
+      html: wrapFullDocument(options.html, {
+        widthMm: options.widthMm,
+        heightMm: options.heightMm,
+      }),
+      label: options.label,
+      printer: options.printer || null,
+      widthMm: options.widthMm,
+      heightMm: options.heightMm,
+      copies: options.copies,
+      dpi: options.dpi ?? 203,
+    },
+  });
+}
+
 export async function printHtmlSilently(
   htmlContent: string,
   title = 'Thermal Receipt',

@@ -190,6 +190,36 @@ fn print_pdf_windows(_path: &std::path::Path) -> bool {
     false
 }
 
+/// Silent exact-media label printing: rasterizes one label at the printer's
+/// DPI and prints `copies` pages on a DEVMODE locked to width×height mm —
+/// no A4/default stock, no gaps, no print dialog. Returns diagnostics
+/// (printer, media, copies, page count, raster size) for verification.
+#[tauri::command]
+pub fn print_label_job(
+    db: State<'_, DbState>,
+    request: crate::printing::label_gdi::LabelPrintRequest,
+) -> Result<crate::printing::label_gdi::LabelPrintResult, String> {
+    let _ = db;
+    let result = crate::printing::label_gdi::print_label_job(&request);
+    // Surface the diagnostics in dev consoles; the UI receives them too.
+    if result.ok {
+        println!(
+            "[label-print] ok: printer={} media={}×{}mm copies={} pages={} dpi={} raster={}×{}px",
+            result.diagnostics.printer,
+            result.diagnostics.media_width_mm,
+            result.diagnostics.media_height_mm,
+            result.diagnostics.copies,
+            result.diagnostics.page_count,
+            result.diagnostics.dpi,
+            result.diagnostics.raster_width_px,
+            result.diagnostics.raster_height_px,
+        );
+    } else {
+        eprintln!("[label-print] FAILED ({}): {}", result.diagnostics.mode, result.message);
+    }
+    Ok(result)
+}
+
 
 #[tauri::command]
 pub fn login(db: State<'_, DbState>, username: String, password: String) -> Result<Option<User>, String> {

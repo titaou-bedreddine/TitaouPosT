@@ -5,7 +5,7 @@
   import AboutView from '../about/AboutView.svelte';
   import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
   import { currentUser } from '../../lib/stores/auth';
-  import { printHtmlDirectly, entityQrDataUrl } from '../../lib/utils/printer';
+  import { printHtmlDirectly, printLabelSilently, entityQrDataUrl } from '../../lib/utils/printer';
   import { buildProfessionalReceiptHtml } from '../../lib/printing/professionalReceipt';
   import {
     LABEL_PRESETS,
@@ -145,6 +145,9 @@
     receipt_thank_you: 'MERCI POUR VOTRE CONFIANCE !',
     receipt_show_barcode: 'true',
     shop_website: '',
+    // Exact-media label pipeline (print_label_job): DPI of the label printer
+    // above. Empty label_printer = Windows default printer.
+    label_printer_dpi: '203',
     // Pricing defaults for new products
     default_margin_percent: '20',
     price_round_step: '5',
@@ -1137,13 +1140,32 @@
     LABEL_PRESET_IDS.map((id) => [id, buildLabelPresetHtml(id, builtinLabelData)])
   ) as Record<LabelPresetId, string>;
 
-  function testPrintBuiltinLabel(id: LabelPresetId) {
+  let builtinTestMsg = '';
+
+  async function testPrintBuiltinLabel(id: LabelPresetId) {
     const def = LABEL_PRESETS[id];
-    printHtmlDirectly(
-      def.build(builtinLabelData),
-      `Test ${def.name}`,
-      { widthMm: def.widthMm, heightMm: def.heightMm }
-    );
+    builtinTestMsg = '';
+    try {
+      // Exact-media silent pipeline: 40×20mm DEVMODE, one page per copy.
+      const outcome = await printLabelSilently({
+        html: buildLabelPresetHtml(id, builtinLabelData),
+        label: `Test ${def.name}`,
+        widthMm: def.widthMm,
+        heightMm: def.heightMm,
+        copies: 5, // acceptance test: 5 × 20mm = 100mm, zero gaps
+        printer: settings.label_printer || undefined,
+        dpi: toInt(settings.label_printer_dpi, 203),
+      });
+      builtinTestMsg = (outcome.ok ? '✅ ' : '❌ ') + outcome.message;
+    } catch (e: any) {
+      // Backend command unavailable (dev/old binary) → browser print.
+      printHtmlDirectly(
+        def.build(builtinLabelData),
+        `Test ${def.name}`,
+        { widthMm: def.widthMm, heightMm: def.heightMm }
+      );
+      builtinTestMsg = '⚠ Browser print fallback (exact-media backend not available)';
+    }
   }
 
   async function testPrintProfessionalReceipt() {
@@ -2432,6 +2454,43 @@
               <span class="font-bold">Print Label</span> modal. Printed size stays exactly 40×20 mm at 203/300/600 DPI.
             </p>
           </div>
+
+          <!-- Label printer hardware (exact-media silent pipeline) -->
+          <div class="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">Label Printer (طابعة الملصقات)</label>
+              <select
+                bind:value={settings.label_printer}
+                on:change={autoSaveSettings}
+                class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-bold text-pos-text outline-none cursor-pointer"
+              >
+                <option value="">Default Windows Printer</option>
+                {#each printerList as pr}
+                  <option value={pr}>{pr}</option>
+                {/each}
+              </select>
+              <p class="text-[9px] text-pos-muted mt-1">Used by the exact-media pipeline: one 40×20mm page per copy, no gaps, silent.</p>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">Label Printer DPI</label>
+              <select
+                bind:value={settings.label_printer_dpi}
+                on:change={autoSaveSettings}
+                class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-bold text-pos-text outline-none cursor-pointer"
+              >
+                <option value="203">203 DPI (standard thermal)</option>
+                <option value="300">300 DPI (high-res)</option>
+                <option value="600">600 DPI (photo-grade)</option>
+              </select>
+              <p class="text-[9px] text-pos-muted mt-1">Match your Xprinter model's resolution for crisp bars.</p>
+            </div>
+            <div class="flex items-end">
+              <p class="text-[10px] text-pos-muted bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-2 w-full">
+                Multi-copy jobs print consecutively — Label 2 feeds right after Label 1. No A4 pages, no blank gaps.
+              </p>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {#each LABEL_PRESET_IDS as pid}
               <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border space-y-3">
@@ -2454,11 +2513,16 @@
                   class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
                 >
                   <Printer class="w-3.5 h-3.5" />
-                  <span>Test Print ({LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm}mm)</span>
+                  <span>Test Print 5× ({LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm}mm)</span>
                 </button>
               </div>
             {/each}
           </div>
+          {#if builtinTestMsg}
+            <p class="text-[11px] font-bold font-mono text-pos-text bg-slate-100 dark:bg-slate-800 rounded-lg p-2 border border-pos-border">
+              {builtinTestMsg}
+            </p>
+          {/if}
         </div>
 
         <div class="pt-4 border-t border-pos-border flex justify-end">

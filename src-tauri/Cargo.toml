@@ -1,6 +1,6 @@
 [package]
 name = "titaou-post"
-version = "0.5.5"
+version = "0.5.6"
 description = "Windows Offline-First Point of Sale Application"
 edition = "2021"
 
@@ -36,7 +36,12 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Printing",
+    "Win32_Storage_Xps",
+    "Win32_Storage_FileSystem",
 ] }
+png = "0.17"
 
 [profile.dev]
 debug = 1
