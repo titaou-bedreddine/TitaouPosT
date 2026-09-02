@@ -42,7 +42,8 @@
 
   import {
     ShoppingBag, ArrowRight, CheckCircle2, Settings2, Plus,
-    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent, UserRound, ChevronDown, Truck
+    Store, Sparkles, AlertCircle, ArrowUpDown, Tag, Percent, UserRound, ChevronDown, Truck,
+    Eye, EyeOff, TrendingUp
   } from 'lucide-svelte';
 
   let products: Product[] = [];
@@ -85,6 +86,20 @@
   let editingProductWithExtraBarcode = '';
 
   let lastSaleSuccessNumber = '';
+  // Eye toggle: show the cart's purchase cost under the total.
+  let showCartCost = false;
+  // Cart cost = Σ purchase_price × qty (falls back to unit_price in
+  // purchase mode, where unit_price IS the cost).
+  $: cartCost = $cartItems.reduce(
+    (sum, i) => sum + Math.round((i.purchase_price ?? (i as any).unit_cost ?? i.unit_price) * i.quantity),
+    0
+  );
+  // Purchase mode: estimated sale value of the cart at the entered sale
+  // prices (falls back to +20% guess when only a cost was given).
+  $: estSaleTotal = $cartItems.reduce((sum, i) => {
+    const estPerUnit = (i as any).sale_price_est ?? i.unit_price * 1.2;
+    return sum + Math.round(estPerUnit * i.quantity);
+  }, 0);
   let barcodeBuffer = '';
   let lastKeyTime = 0;
 
@@ -1248,14 +1263,42 @@
           </div>
         {/if}
 
-        <div class="flex items-center justify-between p-2.5 bg-sky-50/50 dark:bg-sky-950/30 rounded-xl border border-sky-200/60 dark:border-sky-800/60">
-          <div>
-            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">{t('total_payable')}</span>
-            <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} {t('pos_items')}</span>
+        <div class="p-2.5 bg-sky-50/50 dark:bg-sky-950/30 rounded-xl border border-sky-200/60 dark:border-sky-800/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">{t('total_payable')}</span>
+              <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} {t('pos_items')}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                on:click={() => (showCartCost = !showCartCost)}
+                class="p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300/70 dark:hover:bg-slate-700 text-pos-muted hover:text-pos-text transition cursor-pointer"
+                title={t('cart_show_cost')}
+              >
+                {#if showCartCost}<Eye class="w-3.5 h-3.5" />{:else}<EyeOff class="w-3.5 h-3.5" />{/if}
+              </button>
+              <span class="text-3xl lg:text-4xl font-black font-mono tracking-tight transition-all duration-200 hover:scale-105 {$cartGrandTotal < 0 ? 'text-amber-600' : 'text-sky-600 dark:text-sky-400'}">
+                {$cartGrandTotal.toLocaleString()} <span class="text-sm font-bold">DZD</span>
+              </span>
+            </div>
           </div>
-          <span class="text-3xl lg:text-4xl font-black font-mono tracking-tight transition-all duration-200 hover:scale-105 {$cartGrandTotal < 0 ? 'text-amber-600' : 'text-sky-600 dark:text-sky-400'}">
-            {$cartGrandTotal.toLocaleString()} <span class="text-sm font-bold">DZD</span>
-          </span>
+          {#if showCartCost && $posMode === 'sale'}
+            <!-- Small digits: what the cart costs the shop -->
+            <p class="text-[10px] font-bold text-pos-muted text-end">
+              {t('pem_purchase_cost')}: <span class="font-mono text-emerald-600 dark:text-emerald-400">{cartCost.toLocaleString()} DZD</span>
+              {#if cartCost > 0 && $cartGrandTotal > 0}
+                • +{($cartGrandTotal - cartCost).toLocaleString()} DZD
+              {/if}
+            </p>
+          {/if}
+          {#if $posMode === 'purchase' && estSaleTotal > 0}
+            <!-- Purchase mode: estimated sale value of this buy -->
+            <p class="text-[10px] font-bold text-pos-muted text-end flex items-center justify-end gap-1">
+              <TrendingUp class="w-3 h-3 text-emerald-500" />
+              {t('est_sale_price')}: <span class="font-mono text-emerald-600 dark:text-emerald-400">{estSaleTotal.toLocaleString()} DZD</span>
+            </p>
+          {/if}
         </div>
 
         <button

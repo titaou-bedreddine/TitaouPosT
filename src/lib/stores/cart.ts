@@ -67,6 +67,7 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
         total_price: product.sale_price * quantity,
         is_refund: asRefund,
         expiry_date: (product as any).expiry_date,
+        purchase_price: product.purchase_price,
       };
       
       const order = get(cartItemOrder);

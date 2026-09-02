@@ -357,6 +357,9 @@
 
   $: subtotal = items.reduce((sum, i) => sum + i.total, 0);
   $: total = subtotal;
+  // Estimated revenue if the whole invoice is sold at the entered sale
+  // prices (small digits under the invoice total).
+  $: estSaleValue = items.reduce((sum, i) => sum + (i.sale_price || 0) * i.quantity, 0);
 
   // Cashier overrides the paid default by typing or picking a preset.
   let paidManuallyEdited = false;
@@ -448,7 +451,7 @@
         deleteErrorMsg = 'Invalid password / كلمة المرور غير صحيحة';
         return;
       }
-      await invoke('delete_purchase', { purchaseId: previewPurchase.id });
+      await invoke('delete_purchase', { purchaseId: previewPurchase.id, userId: $currentUser?.id });
       isDeletePurchaseOpen = false;
       previewPurchase = null;
       await loadData();
@@ -796,6 +799,14 @@
           <div class="text-end">
             <p class="text-xs text-pos-muted font-bold">Total Invoice:</p>
             <p class="text-2xl font-black font-mono text-sky-600">{total.toLocaleString()} DZD</p>
+            {#if estSaleValue > 0}
+              <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                {t('est_sale_price')}: <span class="font-mono">{estSaleValue.toLocaleString()} DZD</span>
+                {#if estSaleValue > total}
+                  <span class="font-mono text-emerald-500">(+{(estSaleValue - total).toLocaleString()})</span>
+                {/if}
+              </p>
+            {/if}
           </div>
         </div>
       </div>

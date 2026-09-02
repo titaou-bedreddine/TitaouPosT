@@ -60,11 +60,19 @@ pub fn add_expense(
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_each_expense",
-        format!("\u{1f4b8} *Depense* {}\n\u{1f4b0} Montant: *{} DZD*", expense_number, amount),
-    );
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, Some(user_id));
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("💸 *Expense* {}\n💰 Amount: *{} DZD*\n👤 By: {}", expense_number, amount, actor),
+                format!("💸 *مصروف* {}\n💰 المبلغ: *{} دج*\n👤 بواسطة: {}", expense_number, amount, actor),
+                format!("💸 *Dépense* {}\n💰 Montant : *{} DZD*\n👤 Par : {}", expense_number, amount, actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_each_expense", text);
+    }
 
     Ok(expense_number)
 }

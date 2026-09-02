@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Product } from '../types';
   import { invoke } from '@tauri-apps/api/core';
+  import { currentUser } from '../stores/auth';
   import { X, Check, PackagePlus, Percent } from 'lucide-svelte';
 
   export let isOpen = false;
@@ -95,6 +96,7 @@
           barcodes: product.barcodes || [],
         },
         productId: product.id,
+        userId: $currentUser?.id,
       }).catch(() => {
         // Cost update is best-effort; the purchase line itself must proceed.
       });

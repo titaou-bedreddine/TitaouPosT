@@ -118,11 +118,19 @@ pub fn record_employee_advance(db: &DbState, input: EmployeeAdvanceInput) -> Res
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_each_expense",
-        format!("\u{1f4b8} *Avance Salarie* EXP-{}\n\u{1f4b0} Montant: *{} DZD*\n\u{1f464} Employe #{}", expense_number, input.amount, input.employee_id),
-    );
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, Some(input.user_id));
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("💵 *Salary Advance* EXP-{}\n💰 Amount: *{} DZD*\n👤 Employee #{}\n👤 By: {}", expense_number, input.amount, input.employee_id, actor),
+                format!("💵 *تسبقة على الراتب* EXP-{}\n💰 المبلغ: *{} دج*\n👤 الموظف #{}\n👤 بواسطة: {}", expense_number, input.amount, input.employee_id, actor),
+                format!("💵 *Avance Salarie* EXP-{}\n💰 Montant : *{} DZD*\n👤 Employé #{}\n👤 Par : {}", expense_number, input.amount, input.employee_id, actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_each_expense", text);
+    }
 
     Ok(advance_id)
 }

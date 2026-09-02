@@ -379,6 +379,36 @@
   // Factory Reset
   let resetType = 'transactions_only';
   let resetConfirm = '';
+  // Countdown giving the user time to cancel before the destructive reset.
+  let resetCountdown = 0;
+  let resetTimer: any = null;
+  function scheduleFactoryReset() {
+    if (resetConfirm !== 'RESET') return;
+    resetCountdown = 10;
+    clearInterval(resetTimer);
+    resetTimer = setInterval(() => {
+      resetCountdown -= 1;
+      if (resetCountdown <= 0) {
+        clearInterval(resetTimer);
+        doFactoryReset();
+      }
+    }, 1000);
+  }
+  function cancelFactoryReset() {
+    clearInterval(resetTimer);
+    resetCountdown = 0;
+  }
+  async function doFactoryReset() {
+    try {
+      await invoke('factory_reset', { resetType });
+      resetConfirm = '';
+      alert('Reset completed successfully.');
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert('Factory reset failed: ' + e);
+    }
+  }
 
   // Clear-history-only (keeps products/stock/prices/debts)
   let clearHistoryConfirmText = '';
@@ -439,14 +469,12 @@
 
   onMount(async () => {
     await loadAutostart();
-    // Deferred: wmic printer enumeration spawns a slow subprocess that made
-    // opening Settings (and the About tab inside it) feel frozen for seconds.
-    // Load lazily on the tabs that need the data.
-    setTimeout(() => {
-      loadPrinters().catch(() => {});
-      loadLabelPresets().catch(() => {});
-      loadShortcutBindings().catch(() => {});
-    }, 0);
+    // Printer enumeration (wmic subprocess) is the reason tabs felt slow to
+    // open: it blocked interaction for seconds. It now loads only when a
+    // tab that actually shows a printer picker is opened (see the reactive
+    // trigger below); presets & shortcuts are quick SQL and load now.
+    loadLabelPresets().catch(() => {});
+    loadShortcutBindings().catch(() => {});
     try {
       const v = await invoke<string>('get_app_version');
       if (v) {
@@ -518,6 +546,14 @@
 
   // Installed printers for the invoice/receipt printer selector.
   let printerList: string[] = [];
+
+  // Printer pickers exist on the invoices & barcodes tabs only — enumerate
+  // the first time one of them is opened, never on Settings mount.
+  let printersLoaded = false;
+  $: if (!printersLoaded && (currentTab === 'invoices' || currentTab === 'barcodes')) {
+    printersLoaded = true;
+    loadPrinters().catch(() => {});
+  }
 
   async function loadPrinters() {
     try {
@@ -852,16 +888,9 @@
   }
 
   async function handleFactoryReset() {
-    if (resetConfirm !== 'RESET') return;
-    try {
-      await invoke('factory_reset', { resetType });
-      resetConfirm = '';
-      alert('Reset completed successfully.');
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert('Factory reset failed: ' + e);
-    }
+    // Typing RESET alone no longer fires immediately: the countdown below
+    // gives the user 10 seconds to cancel.
+    scheduleFactoryReset();
   }
 
   async function loadUsersAndRoles() {
@@ -3264,12 +3293,26 @@
               />
               <button
                 on:click={handleFactoryReset}
-                disabled={resetConfirm !== 'RESET'}
+                disabled={resetConfirm !== 'RESET' || resetCountdown > 0}
                 class="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
               >
                 Execute Reset / تنفيذ المسح
               </button>
             </div>
+            {#if resetCountdown > 0}
+              <div class="flex items-center justify-between p-2.5 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl animate-in fade-in duration-150">
+                <span class="text-xs font-black text-rose-700 dark:text-rose-300">
+                  Resetting in {resetCountdown}s… / سيتم المسح خلال {resetCountdown} ثانية
+                </span>
+                <button
+                  type="button"
+                  on:click={cancelFactoryReset}
+                  class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-black rounded-lg cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                >
+                  Cancel / إلغاء
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       </div>

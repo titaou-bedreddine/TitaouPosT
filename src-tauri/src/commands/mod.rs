@@ -3,7 +3,7 @@ use crate::database::DbState;
 use crate::models::{
     CartItem, Category, Customer, CustomerPaymentInput, DashboardStats, Employee, Expense, HeldSale,
     Payroll, EmployeeAdvance, EmployeeAdvanceInput, ProductPackaging, PackagingInput, Product, ProductInput, Purchase, PurchaseItem, CreatePurchaseInput, Sale, Supplier, SupplierPaymentInput, SupplierPaymentRow, Unit, User, UserAccount, Role,
-    CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry,
+    CashMovement, CashSession, CreateSaleInput, PriceHistoryEntry, QuantityHistoryEntry,
 };
 use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
@@ -311,8 +311,9 @@ pub fn save_product(
     db: State<'_, DbState>,
     input: ProductInput,
     product_id: Option<i64>,
+    user_id: Option<i64>,
 ) -> Result<i64, String> {
-    product_service::save_product(&db, input, product_id)
+    product_service::save_product(&db, input, product_id, user_id)
 }
 
 #[tauri::command]
@@ -519,8 +520,8 @@ pub fn get_purchase_items(db: State<'_, DbState>, purchase_id: i64) -> Result<Ve
 }
 
 #[tauri::command]
-pub fn delete_purchase(db: State<'_, DbState>, purchase_id: i64) -> Result<(), String> {
-    purchase_service::delete_purchase(&db, purchase_id)
+pub fn delete_purchase(db: State<'_, DbState>, purchase_id: i64, user_id: Option<i64>) -> Result<(), String> {
+    purchase_service::delete_purchase(&db, purchase_id, user_id)
 }
 
 #[tauri::command]
@@ -594,11 +595,18 @@ pub fn save_employee(
     salary_start_date: Option<String>,
     hire_date: String,
     notes: Option<String>,
+    rfid_code: Option<String>,
     employee_id: Option<i64>,
 ) -> Result<i64, String> {
     employee_service::save_employee(
-        &db, &code, &name, phone, email, national_id, &job_title, base_salary, &salary_type, salary_start_date, &hire_date, notes, employee_id,
+        &db, &code, &name, phone, email, national_id, &job_title, base_salary, &salary_type, salary_start_date, &hire_date, notes, rfid_code, employee_id,
     )
+}
+
+/// Look up an employee by a scanned RFID tag (also matches their QR code).
+#[tauri::command]
+pub fn find_employee_by_rfid(db: State<'_, DbState>, rfid: String) -> Result<Option<Employee>, String> {
+    employee_service::find_employee_by_rfid(&db, &rfid)
 }
 
 #[tauri::command]
@@ -695,6 +703,12 @@ pub fn get_price_history(db: State<'_, DbState>, product_id: i64) -> Result<Vec<
         .map_err(|e| e.to_string())?;
 
     Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Quantity change log for a product: old → new, delta, type, user, time.
+#[tauri::command]
+pub fn get_quantity_history(db: State<'_, DbState>, product_id: i64) -> Result<Vec<QuantityHistoryEntry>, String> {
+    crate::services::product_service::get_quantity_history(&db, product_id)
 }
 
 #[tauri::command]
@@ -810,8 +824,8 @@ pub fn open_serial_cash_drawer(com_port: u32, baud_rate: u32) -> Result<String, 
 // Additional commands
 
 #[tauri::command]
-pub fn delete_sale(db: State<'_, DbState>, sale_id: i64) -> Result<(), String> {
-    sales_service::delete_sale(&db, sale_id)
+pub fn delete_sale(db: State<'_, DbState>, sale_id: i64, user_id: Option<i64>) -> Result<(), String> {
+    sales_service::delete_sale(&db, sale_id, user_id)
 }
 
 #[tauri::command]

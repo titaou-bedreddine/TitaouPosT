@@ -10,7 +10,7 @@ pub fn list_employees(db: &DbState) -> Result<Vec<Employee>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn
         .prepare(
-            "SELECT id, employee_code, full_name, phone, email, national_id, job_title, base_salary, salary_type, salary_start_date, hire_date, qr_code, is_active, notes
+            "SELECT id, employee_code, full_name, phone, email, national_id, job_title, base_salary, salary_type, salary_start_date, hire_date, qr_code, rfid_code, is_active, notes
              FROM employees
              WHERE is_active = 1
              ORDER BY id DESC",
@@ -32,8 +32,9 @@ pub fn list_employees(db: &DbState) -> Result<Vec<Employee>, String> {
                 salary_start_date: row.get(9)?,
                 hire_date: row.get(10)?,
                 qr_code: row.get(11)?,
-                is_active: row.get(12)?,
-                notes: row.get(13)?,
+                rfid_code: row.get(12)?,
+                is_active: row.get(13)?,
+                notes: row.get(14)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -55,6 +56,7 @@ pub fn save_employee(
     salary_start_date: Option<String>,
     hire_date: &str,
     notes: Option<String>,
+    rfid_code: Option<String>,
     employee_id: Option<i64>,
 ) -> Result<i64, String> {
     let conn = db.conn.lock().unwrap();
@@ -63,11 +65,11 @@ pub fn save_employee(
         conn.execute(
             "UPDATE employees
              SET employee_code = ?1, full_name = ?2, phone = ?3, email = ?4, national_id = ?5,
-                 job_title = ?6, base_salary = ?7, salary_type = ?8, salary_start_date = ?9, hire_date = ?10, notes = ?11
-             WHERE id = ?12",
+                 job_title = ?6, base_salary = ?7, salary_type = ?8, salary_start_date = ?9, hire_date = ?10, notes = ?11, rfid_code = ?12
+             WHERE id = ?13",
             rusqlite::params![
                 code, name, phone, email, national_id, job_title,
-                base_salary, salary_type, salary_start_date, hire_date, notes, eid
+                base_salary, salary_type, salary_start_date, hire_date, notes, rfid_code, eid
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -75,11 +77,11 @@ pub fn save_employee(
     } else {
         let qr_code = format!("EMP-QR-{}", code);
         conn.execute(
-            "INSERT INTO employees (employee_code, full_name, phone, email, national_id, job_title, base_salary, salary_type, salary_start_date, hire_date, qr_code, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT INTO employees (employee_code, full_name, phone, email, national_id, job_title, base_salary, salary_type, salary_start_date, hire_date, qr_code, notes, rfid_code)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             rusqlite::params![
                 code, name, phone, email, national_id, job_title,
-                base_salary, salary_type, salary_start_date, hire_date, qr_code, notes
+                base_salary, salary_type, salary_start_date, hire_date, qr_code, notes, rfid_code
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -142,4 +144,39 @@ pub fn get_user_by_qr(db: &DbState, qr_code: &str) -> Result<Option<User>, Strin
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => Err(e.to_string()),
     }
+}
+/// Find an active employee by a scanned RFID tag. Returns the Employee or
+/// None when the tag is unknown.
+pub fn find_employee_by_rfid(db: &DbState, rfid: &str) -> Result<Option<Employee>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, employee_code, full_name, phone, email, national_id, job_title, base_salary, salary_type, salary_start_date, hire_date, qr_code, rfid_code, is_active, notes
+             FROM employees
+             WHERE is_active = 1 AND (rfid_code = ?1 OR qr_code = ?1)
+             ORDER BY id DESC LIMIT 1",
+        )
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query_map([rfid], |row| {
+            Ok(Employee {
+                id: row.get(0)?,
+                employee_code: row.get(1)?,
+                full_name: row.get(2)?,
+                phone: row.get(3)?,
+                email: row.get(4)?,
+                national_id: row.get(5)?,
+                job_title: row.get(6)?,
+                base_salary: row.get(7)?,
+                salary_type: row.get(8)?,
+                salary_start_date: row.get(9)?,
+                hire_date: row.get(10)?,
+                qr_code: row.get(11)?,
+                rfid_code: row.get(12)?,
+                is_active: row.get(13)?,
+                notes: row.get(14)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.next().map(|r| r.ok()).flatten())
 }

@@ -162,3 +162,19 @@ pub fn ui_language(db: &DbState) -> String {
         .and_then(|s| s.get("ui_language").cloned())
         .unwrap_or_else(|| "en".to_string())
 }
+
+/// Resolve the acting user's display name for notification attribution.
+/// `user_id` comes from the frontend (the signed-in cashier / operator); when
+/// absent or unknown, fall back to a neutral "System" label.
+pub fn actor_label(db: &DbState, user_id: Option<i64>) -> String {
+    let Some(uid) = user_id else {
+        return "System".to_string();
+    };
+    let conn = db.conn.lock().unwrap();
+    conn.query_row(
+        "SELECT COALESCE(display_name, username) FROM users WHERE id = ?1",
+        [uid],
+        |r| r.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| format!("User #{}", uid))
+}

@@ -227,7 +227,7 @@
       }
 
       if (selectedSale) {
-        await invoke('delete_sale', { saleId: selectedSale.id });
+        await invoke('delete_sale', { saleId: selectedSale.id, userId: $currentUser?.id });
         isDeleteModalOpen = false;
         isDetailModalOpen = false;
         selectedSale = null;

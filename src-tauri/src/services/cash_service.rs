@@ -194,24 +194,48 @@ pub fn add_cash_movement(db: &DbState, session_id: i64, user_id: i64, movement_t
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    // Telegram alerts for drawer money movement (fire-and-forget).
-    match movement_type {
-        "cash_in" => crate::services::notifier_service::notify_if_enabled(
-            db,
-            "notify_cash_in",
-            format!("\u{1f4b0} *Entree Caisse*\nMontant: *{} DZD*\nMotif: {}", amount, reason_for_log.as_deref().unwrap_or("-")),
-        ),
-        "cash_out" => crate::services::notifier_service::notify_if_enabled(
-            db,
-            "notify_cash_out",
-            format!("\u{1f4b8} *Sortie Caisse*\nMontant: *{} DZD*\nMotif: {}", amount, reason_for_log.as_deref().unwrap_or("-")),
-        ),
-        "opening_balance" => crate::services::notifier_service::notify_if_enabled(
-            db,
-            "notify_opening_cash",
-            format!("\u{1f3e6} *Ouverture Caisse*\nFond de caisse: *{} DZD*", amount),
-        ),
-        _ => {}
+    // Telegram alerts for drawer money movement (fire-and-forget),
+    // localized to the UI language and attributed to the acting user.
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, Some(user_id));
+        let reason = reason_for_log.clone().unwrap_or_else(|| "-".to_string());
+        let text = match movement_type {
+            "cash_in" => crate::services::notifier_service::tr(
+                &lang,
+                (
+                    format!("💰 *Cash In*\nAmount: *{} DZD*\nReason: {}\n👤 By: {}", amount, reason, actor),
+                    format!("💰 *دخول نقدي*\nالمبلغ: *{} دج*\nالسبب: {}\n👤 بواسطة: {}", amount, reason, actor),
+                    format!("💰 *Entrée Caisse*\nMontant : *{} DZD*\nMotif : {}\n👤 Par : {}", amount, reason, actor),
+                ),
+            ),
+            "cash_out" => crate::services::notifier_service::tr(
+                &lang,
+                (
+                    format!("💸 *Cash Out*\nAmount: *{} DZD*\nReason: {}\n👤 By: {}", amount, reason, actor),
+                    format!("💸 *خروج نقدي*\nالمبلغ: *{} دج*\nالسبب: {}\n👤 بواسطة: {}", amount, reason, actor),
+                    format!("💸 *Sortie Caisse*\nMontant : *{} DZD*\nMotif : {}\n👤 Par : {}", amount, reason, actor),
+                ),
+            ),
+            "opening_balance" => crate::services::notifier_service::tr(
+                &lang,
+                (
+                    format!("🏦 *Register Opened*\nOpening float: *{} DZD*\n👤 By: {}", amount, actor),
+                    format!("🏦 *فتح الصندوق*\nرصيد البداية: *{} دج*\n👤 بواسطة: {}", amount, actor),
+                    format!("🏦 *Ouverture Caisse*\nFond de caisse : *{} DZD*\n👤 Par : {}", amount, actor),
+                ),
+            ),
+            _ => String::new(),
+        };
+        let switch = match movement_type {
+            "cash_in" => Some("notify_cash_in"),
+            "cash_out" => Some("notify_cash_out"),
+            "opening_balance" => Some("notify_opening_cash"),
+            _ => None,
+        };
+        if let (Some(sw), true) = (switch, !text.is_empty()) {
+            crate::services::notifier_service::notify_if_enabled(db, sw, text);
+        }
     }
 
     Ok(())

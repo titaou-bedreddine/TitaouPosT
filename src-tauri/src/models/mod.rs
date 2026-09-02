@@ -458,6 +458,7 @@ pub struct Employee {
     pub salary_start_date: Option<String>,
     pub hire_date: String,
     pub qr_code: Option<String>,
+    pub rfid_code: Option<String>,
     pub is_active: bool,
     pub notes: Option<String>,
 }
@@ -519,6 +520,20 @@ pub struct PriceHistoryEntry {
     pub new_sale_price: i64,
     pub user_id: Option<i64>,
     pub created_at: String,
+}
+
+/// One row of the product quantity history (sales, purchases, refunds,
+/// manual adjustments, broken/damaged): old → new with the signed delta.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuantityHistoryEntry {
+    pub id: i64,
+    pub movement_type: String,
+    pub old_quantity: f64,
+    pub new_quantity: f64,
+    pub difference: f64,
+    pub user_name: Option<String>,
+    pub created_at: String,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

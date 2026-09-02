@@ -88,6 +88,21 @@
           console.error(err);
         }
       }
+
+      // RFID tag scan: RFID- prefix or an unknown-format tag resolves to an
+      // employee via their rfid_code field.
+      if (query.trim().startsWith('RFID-')) {
+        try {
+          const emp = await invoke<any | null>('find_employee_by_rfid', { rfid: query.trim() });
+          if (emp) {
+            alert(`👤 ${emp.full_name} (${emp.employee_code})`);
+            query = '';
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
       onSearch();
     }
   }

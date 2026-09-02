@@ -150,12 +150,21 @@ pub fn record_supplier_debt_payment(db: &DbState, input: SupplierPaymentInput) -
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    // Telegram "supplier payment" alert (fire-and-forget, lock released).
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_supplier_payment",
-        format!("\u{1f4b8} *Paiement Fournisseur*\n\u{1f4b0} Montant: *{} DZD*\n\u{1f4c2} Fournisseur #{}", input.amount, input.supplier_id),
-    );
+    // Telegram "supplier payment" alert (fire-and-forget, lock released),
+    // localized to the UI language and attributed.
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, Some(input.user_id));
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("💸 *Supplier Payment*\n💰 Amount: *{} DZD*\n📂 Supplier #{}\n👤 By: {}", input.amount, input.supplier_id, actor),
+                format!("💸 *دفعة للمورد*\n💰 المبلغ: *{} دج*\n📂 المورد #{}\n👤 بواسطة: {}", input.amount, input.supplier_id, actor),
+                format!("💸 *Paiement Fournisseur*\n💰 Montant : *{} DZD*\n📂 Fournisseur #{}\n👤 Par : {}", input.amount, input.supplier_id, actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_supplier_payment", text);
+    }
 
     Ok(payment_id)
 }

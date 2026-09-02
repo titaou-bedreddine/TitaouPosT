@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import WebcamCapture from './WebcamCapture.svelte';
   import { t, currentLocale } from '../i18n';
+  import { currentUser } from '../stores/auth';
   import type { Category, Product, ProductInput, Unit } from '../types';
   import PrintLabelModal from './PrintLabelModal.svelte';
   import {
@@ -263,6 +264,21 @@
   }
   let priceHistory: PriceHistoryEntry[] = [];
 
+  // Quantity history (every stock movement: sale, purchase, refund, manual
+  // adjustment, broken — old → new with delta, user, timestamp).
+  interface QuantityHistoryEntry {
+    id: number;
+    movement_type: string;
+    old_quantity: number;
+    new_quantity: number;
+    difference: number;
+    user_name?: string | null;
+    created_at: string;
+    notes?: string | null;
+  }
+  let quantityHistory: QuantityHistoryEntry[] = [];
+  let historyView: 'price' | 'quantity' = 'price';
+
   async function loadPriceHistory() {
     if (!product || !product.id) {
       priceHistory = [];
@@ -276,9 +292,58 @@
     }
   }
 
+  async function loadQuantityHistory() {
+    if (!product || !product.id) {
+      quantityHistory = [];
+      return;
+    }
+    try {
+      quantityHistory = await invoke<QuantityHistoryEntry[]>('get_quantity_history', { productId: product.id });
+    } catch (e) {
+      console.warn('Could not load quantity history:', e);
+      quantityHistory = [];
+    }
+  }
+
+  function movementTypeLabel(type: string): { label: string; cls: string } {
+    switch (type) {
+      case 'sale': return { label: t('qh_sale'), cls: 'text-rose-600 dark:text-rose-400' };
+      case 'sale_refund': return { label: t('qh_sale_refund'), cls: 'text-amber-600 dark:text-amber-400' };
+      case 'purchase': return { label: t('qh_purchase'), cls: 'text-emerald-600 dark:text-emerald-400' };
+      case 'adjustment_inc': return { label: t('qh_adjustment_inc'), cls: 'text-sky-600 dark:text-sky-400' };
+      case 'adjustment_dec': return { label: t('qh_adjustment_dec'), cls: 'text-orange-600 dark:text-orange-400' };
+      case 'bundle_sale': return { label: t('qh_bundle_sale'), cls: 'text-rose-600 dark:text-rose-400' };
+      case 'bundle_refund': return { label: t('qh_bundle_refund'), cls: 'text-amber-600 dark:text-amber-400' };
+      default: return { label: type, cls: 'text-pos-muted' };
+    }
+  }
+
   // Load history whenever its tab is opened for an existing product.
   $: if (isOpen && activeTab === 'history' && product?.id) {
     loadPriceHistory();
+    loadQuantityHistory();
+  }
+
+  // Enter moves focus down the pricing/stock chain: cost -> margin ->
+  // sale price -> new qty -> current stock -> total (id listed on each
+  // input via data-enter-next / id).
+  function handlePricingEnter(e: KeyboardEvent) {
+    if (e.key !== 'Enter') return;
+    const el = e.currentTarget as HTMLElement;
+    const nextId = el.getAttribute('data-enter-next');
+    const target =
+      (nextId && document.getElementById(nextId)) ||
+      (el.id === 'pem-total' ? document.getElementById('pem-new-qty') : null);
+    if (target) {
+      e.preventDefault();
+      (target as HTMLInputElement).focus();
+      (target as HTMLInputElement).select();
+    }
+  }
+
+  // Number inputs must not change when the user scrolls the modal.
+  function noWheelScroll(e: WheelEvent) {
+    (e.currentTarget as HTMLElement).blur();
   }
 
   function generateRandomSku() {
@@ -693,6 +758,7 @@
       const savedId = await invoke<number>('save_product', {
         input,
         productId: product ? product.id : null,
+        userId: $currentUser?.id,
       });
 
       // Units-in-packaging follow the product.
@@ -955,18 +1021,21 @@
           <div class="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-pos-border rounded-2xl space-y-3">
             <div class="flex items-center gap-2">
               <Banknote class="w-4 h-4 text-emerald-600" />
-              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">Money / Pricing (الأموال)</span>
+              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">{t('pem_money_pricing')}</span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">
-                  Purchase Cost (DZD) <span class="text-rose-500">*</span>
+                  {t('pem_purchase_cost')} <span class="text-rose-500">*</span>
                 </label>
                 <input
                   type="number"
                   min="0"
+                  data-enter-next="pem-margin"
                   bind:value={purchasePrice}
                   on:input={handlePurchasePriceChange}
+                  on:keydown={handlePricingEnter}
+                  on:wheel={noWheelScroll}
                   placeholder="0"
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                 />
@@ -975,7 +1044,7 @@
               <!-- Margin Toggle: % vs DZD Amount -->
               <div>
                 <div class="flex items-center justify-between mb-1">
-                  <label class="block text-xs font-bold text-pos-muted">Margin ({marginMode === 'percent' ? '%' : 'DZD'})</label>
+                  <label class="block text-xs font-bold text-pos-muted">{t('pem_margin')} ({marginMode === 'percent' ? '%' : 'DZD'})</label>
                   <div class="flex items-center bg-slate-200 dark:bg-slate-700 rounded-md p-0.5 text-[9px] font-bold">
                     <button
                       type="button"
@@ -993,15 +1062,23 @@
                 {#if marginMode === 'percent'}
                   <input
                     type="number"
+                    id="pem-margin"
+                    data-enter-next="pem-sale"
                     bind:value={profitMarginPercent}
                     on:input={handleMarginPercentChange}
+                    on:keydown={handlePricingEnter}
+                    on:wheel={noWheelScroll}
                     class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
                   />
                 {:else}
                   <input
                     type="number"
+                    id="pem-margin"
+                    data-enter-next="pem-sale"
                     bind:value={profitMarginAmount}
                     on:input={handleMarginAmountChange}
+                    on:keydown={handlePricingEnter}
+                    on:wheel={noWheelScroll}
                     class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-emerald-600 outline-none"
                   />
                 {/if}
@@ -1010,13 +1087,17 @@
 
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">
-                  Sale Price (DZD) <span class="text-rose-500">*</span>
+                  {t('pem_sale_price')} <span class="text-rose-500">*</span>
                 </label>
                 <input
                   type="number"
                   min="0"
+                  id="pem-sale"
+                  data-enter-next="pem-new-qty"
                   bind:value={salePrice}
                   on:input={handleSalePriceChange}
+                  on:keydown={handlePricingEnter}
+                  on:wheel={noWheelScroll}
                   placeholder="0"
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
                 />
@@ -1035,41 +1116,52 @@
           <div class="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-pos-border rounded-2xl space-y-3">
             <div class="flex items-center gap-2">
               <Package class="w-4 h-4 text-sky-600" />
-              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">Stock (المخزون)</span>
+              <span class="text-[11px] font-black text-pos-muted uppercase tracking-wider">{t('pem_stock')}</span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">
-                  New Quantity (تضيف الآن) <span class="text-emerald-600 font-black">+</span>
+                  {t('pem_new_qty')} <span class="text-emerald-600 font-black">+</span>
                 </label>
                 <input
                   type="number"
                   min="0"
+                  id="pem-new-qty"
+                  data-enter-next="pem-baseline"
                   bind:value={newStockQty}
                   on:input={handleNewStockChange}
+                  on:keydown={handlePricingEnter}
+                  on:wheel={noWheelScroll}
                   placeholder="0"
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Current Stock (في المخزن)</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{t('pem_current_stock')}</label>
                 <input
                   type="number"
                   min="0"
+                  id="pem-baseline"
+                  data-enter-next="pem-total"
                   bind:value={baselineStock}
                   on:input={handleBaselineStockChange}
+                  on:keydown={handlePricingEnter}
+                  on:wheel={noWheelScroll}
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
               <div>
                 <label class="block text-xs font-bold text-pos-muted mb-1">
-                  Total Quantity (المجموع) <span class="text-sky-600 font-black">=</span>
+                  {t('pem_total_qty')} <span class="text-sky-600 font-black">=</span>
                 </label>
                 <input
                   type="number"
                   min="0"
                   bind:value={currentStock}
                   on:input={handleTotalStockChange}
+                  on:keydown={handlePricingEnter}
+                  on:wheel={noWheelScroll}
+                  id="pem-total"
                   class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-black text-sky-600 outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -1247,47 +1339,104 @@
         {:else if activeTab === 'history'}
           <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
             <div class="flex items-center justify-between">
-              <h4 class="font-black text-sm text-pos-text">Price History / سجل تغيير الأسعار</h4>
-              <button
-                type="button"
-                on:click={loadPriceHistory}
-                class="text-[10px] font-black text-sky-600 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw class="w-3 h-3" />
-                <span>Refresh</span>
-              </button>
-            </div>
-            {#if !product || product.id === 0}
-              <p class="text-xs text-pos-muted text-center py-4">Save the product first — its price changes will be logged here.</p>
-            {:else if priceHistory.length === 0}
-              <p class="text-xs text-pos-muted text-center py-4">No price changes recorded yet / لا توجد تغييرات بعد</p>
-            {:else}
-              <div class="overflow-x-auto">
-                <table class="w-full text-[10px]">
-                  <thead>
-                    <tr class="text-pos-muted border-b border-pos-border">
-                      <th class="text-start py-1.5 font-black uppercase">Date</th>
-                      <th class="text-start py-1.5 font-black uppercase">Purchase</th>
-                      <th class="text-start py-1.5 font-black uppercase">Sale</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each priceHistory as h (h.id)}
-                      <tr class="border-b border-pos-border/50">
-                        <td class="py-1.5 font-mono text-pos-muted">{h.created_at}</td>
-                        <td class="py-1.5 font-mono">
-                          {h.old_purchase_price.toLocaleString()} →
-                          <span class="font-black text-emerald-600">{h.new_purchase_price.toLocaleString()}</span>
-                        </td>
-                        <td class="py-1.5 font-mono">
-                          {h.old_sale_price.toLocaleString()} →
-                          <span class="font-black text-sky-600">{h.new_sale_price.toLocaleString()}</span>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
+              <h4 class="font-black text-sm text-pos-text">{t('history_tab_title')}</h4>
+              <div class="flex items-center gap-2">
+                <!-- Price / Quantity history sub-toggle -->
+                <div class="flex bg-slate-200 dark:bg-slate-800 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    on:click={() => (historyView = 'price')}
+                    class="px-2.5 py-1 rounded-md text-[10px] font-black transition {historyView === 'price' ? 'bg-white dark:bg-slate-900 text-sky-600 shadow-xs' : 'text-pos-muted'}"
+                  >
+                    {t('history_price')}
+                  </button>
+                  <button
+                    type="button"
+                    on:click={() => (historyView = 'quantity')}
+                    class="px-2.5 py-1 rounded-md text-[10px] font-black transition {historyView === 'quantity' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-xs' : 'text-pos-muted'}"
+                  >
+                    {t('history_quantity')}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  on:click={() => { historyView === 'price' ? loadPriceHistory() : loadQuantityHistory(); }}
+                  class="text-[10px] font-black text-sky-600 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw class="w-3 h-3" />
+                  <span>{t('refresh')}</span>
+                </button>
               </div>
+            </div>
+
+            {#if !product || product.id === 0}
+              <p class="text-xs text-pos-muted text-center py-4">{t('history_save_first')}</p>
+            {:else if historyView === 'price'}
+              {#if priceHistory.length === 0}
+                <p class="text-xs text-pos-muted text-center py-4">{t('history_empty')}</p>
+              {:else}
+                <div class="overflow-x-auto">
+                  <table class="w-full text-[10px]">
+                    <thead>
+                      <tr class="text-pos-muted border-b border-pos-border">
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_date')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('pem_purchase_cost')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('pem_sale_price')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each priceHistory as h (h.id)}
+                        <tr class="border-b border-pos-border/50">
+                          <td class="py-1.5 font-mono text-pos-muted">{h.created_at}</td>
+                          <td class="py-1.5 font-mono">
+                            {h.old_purchase_price.toLocaleString()} →
+                            <span class="font-black text-emerald-600">{h.new_purchase_price.toLocaleString()}</span>
+                          </td>
+                          <td class="py-1.5 font-mono">
+                            {h.old_sale_price.toLocaleString()} →
+                            <span class="font-black text-sky-600">{h.new_sale_price.toLocaleString()}</span>
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
+            {:else}
+              <!-- Quantity history: every stock movement with old/new, delta, type, user -->
+              {#if quantityHistory.length === 0}
+                <p class="text-xs text-pos-muted text-center py-4">{t('history_empty')}</p>
+              {:else}
+                <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table class="w-full text-[10px]">
+                    <thead class="sticky top-0 bg-slate-50 dark:bg-slate-800">
+                      <tr class="text-pos-muted border-b border-pos-border">
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_date')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_old')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_new')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_diff')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_type')}</th>
+                        <th class="text-start py-1.5 font-black uppercase">{t('qh_user')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each quantityHistory as q (q.id)}
+                        {@const mt = movementTypeLabel(q.movement_type)}
+                        <tr class="border-b border-pos-border/50">
+                          <td class="py-1.5 font-mono text-pos-muted whitespace-nowrap">{q.created_at}</td>
+                          <td class="py-1.5 font-mono">{q.old_quantity.toLocaleString()}</td>
+                          <td class="py-1.5 font-mono font-black">{q.new_quantity.toLocaleString()}</td>
+                          <td class="py-1.5 font-mono font-black {q.difference > 0 ? 'text-emerald-600 dark:text-emerald-400' : q.difference < 0 ? 'text-rose-600 dark:text-rose-400' : ''}">
+                            {q.difference > 0 ? '+' : ''}{q.difference.toLocaleString()}
+                          </td>
+                          <td class="py-1.5 font-black {mt.cls}">{mt.label}</td>
+                          <td class="py-1.5 text-pos-muted">{q.user_name || '—'}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
             {/if}
           </div>
         {/if}

@@ -23,6 +23,7 @@
   let jobTitle = '';
   let baseSalary = 0;
   let phone = '';
+  let rfidCode = '';
 
   // Advance modal state
   let selectedEmpForAdvance: Employee | null = null;
@@ -105,6 +106,7 @@
     jobTitle = '';
     baseSalary = 0;
     phone = '';
+    rfidCode = '';
     isAddOpen = true;
   }
 
@@ -115,6 +117,7 @@
     jobTitle = emp.job_title || '';
     baseSalary = emp.base_salary || 0;
     phone = (emp as any).phone || '';
+    rfidCode = ((emp as any).rfid_code as string) || '';
     isAddOpen = true;
   }
 
@@ -146,12 +149,14 @@
         salaryType: 'monthly',
         hireDate: new Date().toISOString().split('T')[0],
         notes: null,
+        rfidCode: rfidCode || null,
         employeeId: editingEmployeeId,
       });
       isAddOpen = false;
       editingEmployeeId = null;
       code = '';
       name = '';
+      rfidCode = '';
       jobTitle = '';
       baseSalary = 0;
       phone = '';
@@ -259,7 +264,7 @@
         <h3 class="font-black text-sm text-pos-text">{t('pay_modal_new')}</h3>
         <button on:click={() => (isAddOpen = false)} class="text-pos-muted hover:text-pos-text"><X class="w-4 h-4" /></button>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 text-xs">
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_code')} *</label>
           <div class="flex items-center gap-1.5">
@@ -285,6 +290,16 @@
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_salary')} *</label>
           <input type="number" bind:value={baseSalary} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl font-mono font-black text-pos-text outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-pos-muted mb-1">{t('emp_rfid')}</label>
+          <input
+            type="text"
+            bind:value={rfidCode}
+            placeholder="RFID-XXXX"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-mono text-[11px] font-bold outline-none"
+            title="Scan the employee RFID tag here — searchable from the POS search bar"
+          />
         </div>
       </div>
       <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">

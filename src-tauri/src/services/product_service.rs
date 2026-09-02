@@ -1,5 +1,5 @@
 use crate::database::DbState;
-use crate::models::{Category, Product, ProductInput, Unit, ProductPackaging, PackagingInput};
+use crate::models::{Category, Product, ProductInput, QuantityHistoryEntry, Unit, ProductPackaging, PackagingInput};
 use rusqlite::Result;
 
 pub fn search_products(
@@ -123,7 +123,7 @@ pub fn search_products(
     Ok(products)
 }
 
-pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) -> Result<i64, String> {
+pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>, user_id: Option<i64>) -> Result<i64, String> {
     if input.purchase_price <= 0 {
         return Err("Purchase price must be greater than 0 / سعر الشراء إجباري وأكبر من الصفر".to_string());
     }
@@ -196,8 +196,11 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
 
     let is_scalable_int = if input.is_scalable { 1 } else { 0 };
 
-    // For the Telegram price/quantity change alerts.
+    // For the Telegram change alerts: everything the user can alter that we
+    // want to diff on edit (prices, stock, names, barcodes).
     let mut old_state: Option<(i64, i64, f64)> = None; // (purchase, sale, stock)
+    let mut old_names: Option<(String, String)> = None; // (name_fr, name_ar)
+    let mut old_barcodes: Vec<String> = Vec::new();
 
     let id = if let Some(pid) = product_id {
         // Fetch old prices for price history
@@ -211,6 +214,22 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
             [pid],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ).ok();
+        old_names = tx.query_row(
+            "SELECT COALESCE(name_fr, ''), COALESCE(name_ar, '') FROM products WHERE id = ?1",
+            [pid],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        ).ok();
+        {
+            let mut stmt = tx
+                .prepare("SELECT barcode FROM product_barcodes WHERE product_id = ?1")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map([pid], |r| r.get::<_, String>(0))
+                .map_err(|e| e.to_string())?;
+            for row in rows {
+                old_barcodes.push(row.map_err(|e| e.to_string())?);
+            }
+        }
 
         if let Some((old_pur, old_sale)) = old_prices {
             if old_pur != input.purchase_price || old_sale != input.sale_price {
@@ -320,31 +339,93 @@ pub fn save_product(db: &DbState, input: ProductInput, product_id: Option<i64>) 
         );
     }
 
+    // Quantity history: a manual stock edit on an existing product is an
+    // adjustment movement so the history tab shows who changed what, when.
+    if let (Some(pid), Some((_, _, old_stock))) = (product_id, old_state) {
+        let delta = input.current_stock as f64 - old_stock;
+        if delta.abs() >= f64::EPSILON {
+            let mtype = if delta > 0.0 { "adjustment_inc" } else { "adjustment_dec" };
+            let _ = tx.execute(
+                "INSERT INTO inventory_movements (product_id, quantity, type, reference_type, reference_id, user_id, notes)
+                 VALUES (?1, ?2, ?3, 'manual_edit', ?4, ?5, ?6)",
+                rusqlite::params![
+                    pid, delta, mtype, pid,
+                    user_id,
+                    format!("Manual stock edit: {} → {}", old_stock, input.current_stock)
+                ],
+            );
+        }
+    }
+
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    // Telegram alerts for price / stock-quantity changes (fire-and-forget).
-    if let (Some(_pid), Some((old_pur, old_sale, old_stock))) = (product_id, old_state) {
+    // Telegram alerts for product changes (fire-and-forget), localized to the
+    // UI language (en/ar/fr) and attributed to the acting user.
+    if product_id.is_some() {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, user_id);
         let name = if input.name_fr.is_empty() { input.name_ar.clone() } else { input.name_fr.clone() };
-        if old_pur != input.purchase_price || old_sale != input.sale_price {
-            crate::services::notifier_service::notify_if_enabled(
-                db,
-                "notify_price_change",
-                format!(
-                    "[PRICE] Changement de Prix | Produit: {} | Achat: {} -> {} DZD | Vente: {} -> {} DZD",
-                    name, old_pur, input.purchase_price, old_sale, input.sale_price
-                ),
-            );
+
+        if let Some((old_pur, old_sale, old_stock)) = old_state {
+            if old_pur != input.purchase_price || old_sale != input.sale_price {
+                let text = crate::services::notifier_service::tr(
+                    &lang,
+                    (
+                        format!("🏷 *Price Change* — {}\nPurchase: {} → {} DZD\nSale: {} → {} DZD\n👤 By: {}", name, old_pur, input.purchase_price, old_sale, input.sale_price, actor),
+                        format!("🏷 *تغيير السعر* — {}\nالشراء: {} → {} دج\nالبيع: {} → {} دج\n👤 بواسطة: {}", name, old_pur, input.purchase_price, old_sale, input.sale_price, actor),
+                        format!("🏷 *Changement de Prix* — {}\nAchat : {} → {} DZD\nVente : {} → {} DZD\n👤 Par : {}", name, old_pur, input.purchase_price, old_sale, input.sale_price, actor),
+                    ),
+                );
+                crate::services::notifier_service::notify_if_enabled(db, "notify_price_change", text);
+            }
+            if (old_stock - input.current_stock).abs() >= f64::EPSILON {
+                let text = crate::services::notifier_service::tr(
+                    &lang,
+                    (
+                        format!("📦 *Quantity Change* — {}\nStock: {} → {}\n👤 By: {}", name, old_stock, input.current_stock, actor),
+                        format!("📦 *تغيير الكمية* — {}\nالمخزون: {} → {}\n👤 بواسطة: {}", name, old_stock, input.current_stock, actor),
+                        format!("📦 *Changement de Quantité* — {}\nStock : {} → {}\n👤 Par : {}", name, old_stock, input.current_stock, actor),
+                    ),
+                );
+                crate::services::notifier_service::notify_if_enabled(db, "notify_qty_change", text);
+            }
         }
-        if (old_stock - input.current_stock).abs() >= f64::EPSILON {
-            crate::services::notifier_service::notify_if_enabled(
-                db,
-                "notify_qty_change",
-                format!(
-                    "[QTY] Changement de Quantite | Produit: {} | Stock: {} -> {}",
-                    name, old_stock, input.current_stock
-                ),
-            );
+
+        // Name change alert (any of the localized names).
+        if let Some((old_fr, old_ar)) = &old_names {
+            if old_fr != &input.name_fr || old_ar != &input.name_ar {
+                let text = crate::services::notifier_service::tr(
+                    &lang,
+                    (
+                        format!("📝 *Product Renamed*\nOld: {} / {}\nNew: {} / {}\n👤 By: {}", old_fr, old_ar, input.name_fr, input.name_ar, actor),
+                        format!("📝 *تغيير اسم المنتج*\nالقديم: {} / {}\nالجديد: {} / {}\n👤 بواسطة: {}", old_fr, old_ar, input.name_fr, input.name_ar, actor),
+                        format!("📝 *Produit Renommé*\nAncien : {} / {}\nNouveau : {} / {}\n👤 Par : {}", old_fr, old_ar, input.name_fr, input.name_ar, actor),
+                    ),
+                );
+                crate::services::notifier_service::notify_if_enabled(db, "notify_product_change", text);
+            }
+        }
+
+        // Barcode set change alert.
+        {
+            let mut new_sorted = clean_barcodes.clone();
+            new_sorted.sort();
+            let mut old_sorted = old_barcodes.clone();
+            old_sorted.sort();
+            if new_sorted != old_sorted {
+                let removed: Vec<String> = old_sorted.iter().filter(|b| !new_sorted.contains(b)).cloned().collect();
+                let added: Vec<String> = new_sorted.iter().filter(|b| !old_sorted.contains(b)).cloned().collect();
+                let text = crate::services::notifier_service::tr(
+                    &lang,
+                    (
+                        format!("📶 *Barcode Change* — {}\n➕ Added: {}\n➖ Removed: {}\n👤 By: {}", name, added.join(", "), removed.join(", "), actor),
+                        format!("📶 *تغيير الباركود* — {}\n➕ أُضيف: {}\n➖ حُذف: {}\n👤 بواسطة: {}", name, added.join(", "), removed.join(", "), actor),
+                        format!("📶 *Changement de Code-barres* — {}\n➕ Ajouté : {}\n➖ Retiré : {}\n👤 Par : {}", name, added.join(", "), removed.join(", "), actor),
+                    ),
+                );
+                crate::services::notifier_service::notify_if_enabled(db, "notify_product_change", text);
+            }
         }
     }
 
@@ -539,4 +620,77 @@ pub fn save_packagings(db: &DbState, product_id: i64, inputs: Vec<PackagingInput
     }
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Quantity history for a product: every movement (sales, purchases,
+/// refunds, manual edits, broken) as old → new with the signed delta and the
+/// acting user. Derived from inventory_movements by replaying the deltas in
+/// chronological order (oldest first) starting from the current stock.
+pub fn get_quantity_history(db: &DbState, product_id: i64) -> Result<Vec<QuantityHistoryEntry>, String> {
+    let conn = db.conn.lock().unwrap();
+
+    // Current stock is the sum of all movements, so walking backwards from
+    // it reconstructs the running level at each event.
+    let current: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(quantity), current_stock) FROM inventory_movements WHERE product_id = ?1",
+            [product_id],
+            |r| r.get(0),
+        )
+        .or_else(|_| {
+            conn.query_row(
+                "SELECT current_stock FROM products WHERE id = ?1",
+                [product_id],
+                |r| r.get(0),
+            )
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.id, m.quantity, m.type, m.created_at, m.notes,
+                    COALESCE(u.display_name, u.username)
+             FROM inventory_movements m
+             LEFT JOIN users u ON u.id = m.user_id
+             WHERE m.product_id = ?1
+             ORDER BY m.created_at ASC, m.id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([product_id], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, f64>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, Option<String>>(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut raw: Vec<(i64, f64, String, String, Option<String>, Option<String>)> = Vec::new();
+    for row in rows {
+        raw.push(row.map_err(|e| e.to_string())?);
+    }
+
+    // Replay backwards: the level AFTER the last event is `current`.
+    let mut after = current;
+    let mut entries: Vec<QuantityHistoryEntry> = Vec::with_capacity(raw.len());
+    for (id, delta, mtype, created_at, notes, user_name) in raw.iter().rev() {
+        let before = after - delta;
+        entries.push(QuantityHistoryEntry {
+            id: *id,
+            movement_type: mtype.clone(),
+            old_quantity: before,
+            new_quantity: after,
+            difference: *delta,
+            user_name: user_name.clone(),
+            created_at: created_at.clone(),
+            notes: notes.clone(),
+        });
+        after = before;
+    }
+    entries.reverse();
+    Ok(entries)
 }

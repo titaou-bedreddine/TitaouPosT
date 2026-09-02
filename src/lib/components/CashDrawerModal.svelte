@@ -17,6 +17,7 @@
   let staleWarn = false;
 
   $: if (isOpen) {
+    reason = '';
     if (!$activeSession) {
       mode = 'startup';
       amount = 0;

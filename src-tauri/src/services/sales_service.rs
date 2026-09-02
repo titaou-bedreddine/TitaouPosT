@@ -147,15 +147,16 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     drop(conn);
 
     // Telegram "each sale" alert (fire-and-forget on a background thread),
-    // localized to the UI language (en/ar/fr).
+    // localized to the UI language (en/ar/fr), attributed to the cashier.
     {
         let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, Some(input.user_id));
         let text = crate::services::notifier_service::tr(
             &lang,
             (
-                format!("🧾 *New Sale* {}\n💰 Total: *{} DZD*\n👤 Cashier: {}", sale_number, input.total_amount, input.user_id),
-                format!("🧾 *بيع جديد* {}\n💰 المجموع: *{} دج*\n👤 الكاشير: {}", sale_number, input.total_amount, input.user_id),
-                format!("🧾 *Nouvelle Vente* {}\n💰 Total: *{} DZD*\n👤 Caisse: {}", sale_number, input.total_amount, input.user_id),
+                format!("🧾 *New Sale* {}\n💰 Total: *{} DZD*\n👤 Cashier: {}", sale_number, input.total_amount, actor),
+                format!("🧾 *بيع جديد* {}\n💰 المجموع: *{} دج*\n👤 الكاشير: {}", sale_number, input.total_amount, actor),
+                format!("🧾 *Nouvelle Vente* {}\n💰 Total : *{} DZD*\n👤 Caissier : {}", sale_number, input.total_amount, actor),
             ),
         );
         crate::services::notifier_service::notify_if_enabled(db, "notify_each_sale", text);
@@ -314,7 +315,7 @@ pub fn delete_held_sale(db: &DbState, held_id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn delete_sale(db: &DbState, sale_id: i64) -> Result<(), String> {
+pub fn delete_sale(db: &DbState, sale_id: i64, user_id: Option<i64>) -> Result<(), String> {
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -348,11 +349,22 @@ pub fn delete_sale(db: &DbState, sale_id: i64) -> Result<(), String> {
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_history_change",
-        format!("[HIST] Vente supprimee | Sale #{} annulee et supprimee de l historique", sale_id),
-    );
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, user_id);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🗑 *Sale Deleted* — Sale #{} removed from history
+👤 By: {}", sale_id, actor),
+                format!("🗑 *حذف عملية بيع* — العملية #{} حُذفت من السجل
+👤 بواسطة: {}", sale_id, actor),
+                format!("🗑 *Vente Supprimée* — Vente #{} annulée et supprimée de l'historique
+👤 Par : {}", sale_id, actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_history_change", text);
+    }
 
     Ok(())
 }

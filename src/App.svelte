@@ -33,6 +33,31 @@
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
+
+  // Route-level access control. Administrators see everything; a Cashier is
+  // limited to POS, sales history, expenses and customers (so they can
+  // register walk-ins and take payments); everyone else (Manager, custom
+  // roles) keeps full navigation.
+  const CASHIER_ALLOWED = new Set(['pos', 'sales', 'expenses', 'customers']);
+  function isAdmin(user: any): boolean {
+    return user?.role_id === 1 || user?.role_name === 'Administrator';
+  }
+  function isCashier(user: any): boolean {
+    return user?.role_id === 2 || user?.role_name === 'Cashier';
+  }
+  function routeAllowed(route: string, user: any): boolean {
+    if (!user) return false;
+    if (isAdmin(user)) return true;
+    if (isCashier(user)) return CASHIER_ALLOWED.has(route);
+    return true; // Manager & custom roles
+  }
+  function settingsAllowed(user: any): boolean {
+    return isAdmin(user);
+  }
+  // Bounce the cashier out of a route they can't see (e.g. after login).
+  $: if (!routeAllowed(currentRoute, $currentUser)) {
+    currentRoute = 'pos';
+  }
   let isDarkMode = false;
   let newUpdateAvailable = false;
   let updateTag = '';
@@ -251,6 +276,7 @@
           <span>{t('nav_sales', $currentLocale)}</span>
         </button>
 
+        {#if routeAllowed('cash', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'cash'}
@@ -259,7 +285,9 @@
           <DollarSign class="w-4 h-4 text-emerald-500" />
           <span>{t('nav_cash', $currentLocale)}</span>
         </button>
+        {/if}
 
+        {#if routeAllowed('purchases', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'purchases'}
@@ -268,6 +296,7 @@
           <FileSpreadsheet class="w-4 h-4" />
           <span>{t('nav_purchases', $currentLocale)}</span>
         </button>
+        {/if}
 
         <button
           type="button"
@@ -278,6 +307,7 @@
           <span>{t('nav_customers', $currentLocale)}</span>
         </button>
 
+        {#if routeAllowed('suppliers', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'suppliers'}
@@ -286,7 +316,9 @@
           <Truck class="w-4 h-4" />
           <span>{t('nav_suppliers', $currentLocale)}</span>
         </button>
+        {/if}
 
+        {#if routeAllowed('inventory', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'inventory'}
@@ -295,6 +327,7 @@
           <Package class="w-4 h-4" />
           <span>{t('nav_inventory', $currentLocale)}</span>
         </button>
+        {/if}
 
         <button
           type="button"
@@ -305,6 +338,7 @@
           <span>{t('nav_expenses', $currentLocale)}</span>
         </button>
 
+        {#if routeAllowed('payroll', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'payroll'}
@@ -313,7 +347,9 @@
           <UserCheck class="w-4 h-4" />
           <span>{t('nav_payroll', $currentLocale)}</span>
         </button>
+        {/if}
 
+        {#if routeAllowed('dashboard', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'dashboard'}
@@ -322,7 +358,9 @@
           <LayoutDashboard class="w-4 h-4" />
           <span>{t('nav_dashboard', $currentLocale)}</span>
         </button>
+        {/if}
 
+        {#if routeAllowed('notifications', $currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'notifications'}
@@ -331,7 +369,9 @@
           <Bell class="w-4 h-4" />
           <span>{t('nav_notifications')}</span>
         </button>
+        {/if}
 
+        {#if settingsAllowed($currentUser)}
         <button
           type="button"
           on:click={() => currentRoute = 'settings'}
@@ -340,6 +380,7 @@
           <Settings class="w-4 h-4" />
           <span>{t('nav_settings', $currentLocale)}</span>
         </button>
+        {/if}
       </nav>
 
       <!-- Bottom User Profile & Network Status -->

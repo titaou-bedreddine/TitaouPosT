@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { currentUser } from '../stores/auth';
   import { t } from '../i18n';
   import type { Product, Supplier } from '../types';
   import { X, Check, AlertTriangle, Package, Calendar } from 'lucide-svelte';
@@ -63,6 +64,7 @@
           barcodes: foundProduct.barcodes,
         },
         productId: foundProduct.id,
+        userId: $currentUser?.id,
       });
 
       onReturnCompleted();

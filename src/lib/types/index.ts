@@ -99,6 +99,8 @@ export interface CartItem {
   // Carried from the product so the cart line can show an EXPIRED badge
   // the moment an expired item is added.
   expiry_date?: string;
+  // Product's purchase cost (cart profit/estimated-sale-price indicators).
+  purchase_price?: number;
 }
 
 export interface CashSession {

@@ -56,6 +56,7 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN nis TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
+        let _ = conn.execute("ALTER TABLE employees ADD COLUMN rfid_code TEXT;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN is_scalable INTEGER DEFAULT 0;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_code TEXT;", []);
@@ -220,6 +221,16 @@ impl DbState {
         
         let _ = conn.execute(
             "INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (1, 'Administrator', 'Full system access', 1);",
+            [],
+        );
+        // Cashier: POS + sales history + expenses only (enforced by the app
+        // navigation). Manager: store operations and reports.
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (2, 'Cashier', 'POS, sales history and expenses', 1);",
+            [],
+        );
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO roles (id, name, description, is_system) VALUES (3, 'Manager', 'Store operations and reports', 1);",
             [],
         );
 

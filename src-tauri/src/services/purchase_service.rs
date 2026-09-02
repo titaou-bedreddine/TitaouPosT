@@ -134,7 +134,7 @@ pub fn get_purchase_items(db: &DbState, purchase_id: i64) -> Result<Vec<Purchase
 
 /// Delete a purchase invoice: returns the stock it added, reverses the
 /// supplier balance for the unpaid part, and removes its movements.
-pub fn delete_purchase(db: &DbState, purchase_id: i64) -> Result<(), String> {
+pub fn delete_purchase(db: &DbState, purchase_id: i64, user_id: Option<i64>) -> Result<(), String> {
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -186,11 +186,22 @@ pub fn delete_purchase(db: &DbState, purchase_id: i64) -> Result<(), String> {
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
-    crate::services::notifier_service::notify_if_enabled(
-        db,
-        "notify_history_change",
-        format!("[HIST] Achat supprime | Purchase #{} annule, stock et balance fournisseur corriges", purchase_id),
-    );
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let actor = crate::services::notifier_service::actor_label(db, user_id);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🗑 *Purchase Deleted* — Purchase #{} cancelled, stock & supplier balance reverted
+👤 By: {}", purchase_id, actor),
+                format!("🗑 *حذف عملية شراء* — الفاتورة #{} أُلغيت، تم تصحيح المخزون ورصيد المورد
+👤 بواسطة: {}", purchase_id, actor),
+                format!("🗑 *Achat Supprimé* — Achat #{} annulé, stock et balance fournisseur corrigés
+👤 Par : {}", purchase_id, actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_history_change", text);
+    }
 
     Ok(())
 }
