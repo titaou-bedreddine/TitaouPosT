@@ -1,11 +1,11 @@
 {
-  "version": "0.5.11",
-  "notes": "Fixes the empty POS screen and dead barcode scanning from v0.5.10 (a lost initialization block), plus your feedback items: the eye button on cart lines reveals the purchase cost inline; purchase/broken checkouts empty the cart; quick-add customer/supplier from the cart works (wrong args caused the save error) and its form resets on reopen; the customer/supplier dropdowns close when clicking elsewhere and show the default supplier; employee history popup now lists absences alongside advances; Settings tabs (Account, Network, Import/Export, Activation) are translated; logout returns the POS to sale mode. Editing a sale from history now updates it in place (MODIFIED tag, same number and date, stock and drawer corrections) instead of duplicating it. New: Telegram master toggle beside dark/light mode protected by the admin password, with quiet-hours windows (e.g. 08:00-13:00) in Notification settings.",
-  "pub_date": "2026-09-03T05:57:55.775Z",
+  "version": "0.5.12",
+  "notes": "Employee advances and absences finally load on the employee cards and the history popup. The records were saving correctly all along — the list query read a non-existent column (e.name instead of full_name), failed silently, and returned empty lists. One-word fix, verified against existing data: your recorded advances and absences reappear on the cards, in the history popup, and in the salary calculations.",
+  "pub_date": "2026-09-03T17:44:23.616Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnE5RlFIam5hVGhIeDByOFBOVWZMN2pRZkR6Q1Rqb08vOXBmbHRZaDB0eXgxWEF4NXRxWEJWck85MGtzVlVwSDdTRkZkSlhrQ1Z6RVp4M0xwd1lvWkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDE0ODE3CWZpbGU6VGl0YW91UE9TXzAuNS4xMV94NjQtc2V0dXAuZXhlClptQ3JXelhTb0kvaFVpc1FidnE1aEdXa3RydXRwRnRwN1JIRHBjWktTZFROSkRnSGNlMzBXU2Z2Q1EvQ2dQaUliS003SVJFOFN5SjJabFo2VHp3YkRRPT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.11/TitaouPOS_0.5.11_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnVVUTBYMEUrT2U5WWYvUytqT2s1V2VFVGFNUFRSRHpnNVhOQk51MkVIakxBMWtBOHpES2MxWnFSaFFDSVR1eGZuZFRweTR5QiszR3QvQ0VIY3lCa2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDU3Mzc5CWZpbGU6VGl0YW91UE9TXzAuNS4xMl94NjQtc2V0dXAuZXhlCkc1YUVYbUtNSW1LODlzTHN2cnBwNUREcUtDcHRYUWN1M0dlVDZ5bDloN2g3QUQ3RzBYTmordXd6TURsdElUcnJKbUtBVmZEV2c4RmdKUCtjWDhxd0J3PT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.12/TitaouPOS_0.5.12_x64-setup.exe"
     }
   }
 }
