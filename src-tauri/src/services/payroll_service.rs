@@ -140,7 +140,7 @@ pub fn list_employee_advances(db: &DbState, employee_id: Option<i64>, month: Opt
     let conn = db.conn.lock().unwrap();
 
     let mut sql = String::from(
-        "SELECT ea.id, ea.employee_id, e.name, ea.amount, ea.reason, ea.date, ea.created_at
+        "SELECT ea.id, ea.employee_id, e.full_name, ea.amount, ea.reason, ea.date, ea.created_at
          FROM employee_advances ea
          LEFT JOIN employees e ON ea.employee_id = e.id
          WHERE 1=1",
