@@ -1,11 +1,11 @@
 {
-  "version": "0.5.10",
-  "notes": "Regression fixes for v0.5.9: the cart eye/pen buttons now work (handlers were missing), changing a password really requires the current one (with TITAOU as the recovery master key), the user pin button functions, and ALL timestamps — including existing records — now display in local time via a one-time migration of legacy UTC-stored rows. Employee absences and advances persist correctly (their records were dated in UTC, landing on the wrong day and being skipped by the month filter). Clearing sales/purchase history gets a 10-second cancel countdown. The cart customer/supplier dropdowns have search boxes. The purchase-mode estimated sale price is computed from the entered sale prices with the expected profit (cost 30, sale 60, qty 10 = 600 DZD estimated sale + 300 DZD profit), and POS purchase checkouts now move the drawer cash (supplier payment booked as a cash movement).",
-  "pub_date": "2026-09-03T02:25:18.376Z",
+  "version": "0.5.11",
+  "notes": "Fixes the empty POS screen and dead barcode scanning from v0.5.10 (a lost initialization block), plus your feedback items: the eye button on cart lines reveals the purchase cost inline; purchase/broken checkouts empty the cart; quick-add customer/supplier from the cart works (wrong args caused the save error) and its form resets on reopen; the customer/supplier dropdowns close when clicking elsewhere and show the default supplier; employee history popup now lists absences alongside advances; Settings tabs (Account, Network, Import/Export, Activation) are translated; logout returns the POS to sale mode. Editing a sale from history now updates it in place (MODIFIED tag, same number and date, stock and drawer corrections) instead of duplicating it. New: Telegram master toggle beside dark/light mode protected by the admin password, with quiet-hours windows (e.g. 08:00-13:00) in Notification settings.",
+  "pub_date": "2026-09-03T05:57:55.775Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTmxTL0xKY290VlRKb2lIR3BidkFBRTRKY0UzRDRYdFFzVVNjM2xmdnVZQkNYdzF3VFUyam1XQTZzTEE5THhCdkRBd21QZkxOZWFYYzMrc0lmZWN1REFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDAyMjUzCWZpbGU6VGl0YW91UE9TXzAuNS4xMF94NjQtc2V0dXAuZXhlCklOOHBMMW41a25Lbm9CUW81TXdaQVRZYXVrdEtCQklhQUJjc3JzT3JNVmZEZ0VNMVppMEVId2tYaXhabnZjMXBNTTViNWJibFpucjVUMFRRU3R3N0NBPT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.10/TitaouPOS_0.5.10_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnE5RlFIam5hVGhIeDByOFBOVWZMN2pRZkR6Q1Rqb08vOXBmbHRZaDB0eXgxWEF4NXRxWEJWck85MGtzVlVwSDdTRkZkSlhrQ1Z6RVp4M0xwd1lvWkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDE0ODE3CWZpbGU6VGl0YW91UE9TXzAuNS4xMV94NjQtc2V0dXAuZXhlClptQ3JXelhTb0kvaFVpc1FidnE1aEdXa3RydXRwRnRwN1JIRHBjWktTZFROSkRnSGNlMzBXU2Z2Q1EvQ2dQaUliS003SVJFOFN5SjJabFo2VHp3YkRRPT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.11/TitaouPOS_0.5.11_x64-setup.exe"
     }
   }
 }
