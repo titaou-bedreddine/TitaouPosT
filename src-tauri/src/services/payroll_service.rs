@@ -175,3 +175,50 @@ pub fn list_employee_advances(db: &DbState, employee_id: Option<i64>, month: Opt
 
     Ok(rows.filter_map(|r| r.ok()).collect())
 }
+
+/// Record an absence (in days) for an employee — persisted, unlike the old
+/// UI-only in-memory map that lost absences on reload.
+pub fn record_employee_absence(
+    db: &DbState,
+    employee_id: i64,
+    days: i64,
+    reason: Option<String>,
+    date: String,
+) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "INSERT INTO employee_absences (employee_id, days, reason, date)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![employee_id, days, reason, date],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Total absent days for an employee (optionally within a YYYY-MM month).
+pub fn list_employee_absences(
+    db: &DbState,
+    employee_id: Option<i64>,
+    month: Option<String>,
+) -> Result<Vec<(i64, i64, i64, Option<String>, String)>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut sql = String::from(
+        "SELECT id, employee_id, days, reason, date FROM employee_absences WHERE 1=1",
+    );
+    if employee_id.is_some() {
+        sql.push_str(" AND employee_id = ?1");
+    }
+    if let Some(m) = &month {
+        if !m.is_empty() {
+            sql.push_str(&format!(" AND substr(date, 1, 7) = '{}'", m));
+        }
+    }
+    sql.push_str(" ORDER BY id DESC LIMIT 500");
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([employee_id.unwrap_or(0)], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}

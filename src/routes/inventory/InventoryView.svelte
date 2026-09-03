@@ -2,16 +2,43 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Category, Product, Unit } from '../../lib/types';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import ProductEditModal from '../../lib/components/ProductEditModal.svelte';
   import PrintLabelModal from '../../lib/components/PrintLabelModal.svelte';
+  import BatchLabelPrintModal from '../../lib/components/BatchLabelPrintModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
   import {
+  Printer,
     Package, Plus, Edit2, Trash2, QrCode,
     ArrowUpDown, AlertTriangle, Tag, LayoutGrid,
     List, DollarSign, TrendingUp, Boxes, Check, X
   } from 'lucide-svelte';
 
   let products: Product[] = [];
+  let isBatchLabelOpen = false;
+  let batchLabelSettings: Record<string, string> = {};
+
+  async function openBatchLabels() {
+    try {
+      batchLabelSettings = await invoke<Record<string, string>>('get_all_settings');
+    } catch {
+      batchLabelSettings = {};
+    }
+    isBatchLabelOpen = true;
+  }
+  // Three-state column sort: asc -> desc -> default (loadProducts order).
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedProducts = sortRows(products, sortKey, sortDir, products);
   let categories: Category[] = [];
   let units: Unit[] = [];
 
@@ -218,6 +245,14 @@
 
       <button
         type="button"
+        on:click={openBatchLabels}
+        class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition active:scale-95"
+      >
+        <Printer class="w-4 h-4" />
+        <span>Batch Labels (طباعة ملصقات متعددة)</span>
+      </button>
+<button
+        type="button"
         on:click={openAddNew}
         class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
       >
@@ -320,14 +355,14 @@
       <table class="w-full text-start text-xs border-collapse">
         <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
           <tr>
-            <th class="p-3 text-start">SKU</th>
-            <th class="p-3 text-start">Product Name</th>
-            <th class="p-3 text-start">Family</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('sku')}>SKU {sortIndicator('sku')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('name_fr')}>Product Name {sortIndicator('name_fr')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('category_name')}>Family {sortIndicator('category_name')}</th>
             <th class="p-3 text-start">Barcodes</th>
-            <th class="p-3 text-end">Cost</th>
-            <th class="p-3 text-end">Sale Price</th>
-            <th class="p-3 text-center">Stock</th>
-            <th class="p-3 text-center">Expiry</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('purchase_price')}>Cost {sortIndicator('purchase_price')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('sale_price')}>Sale Price {sortIndicator('sale_price')}</th>
+            <th class="p-3 text-center cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('current_stock')}>Stock {sortIndicator('current_stock')}</th>
+            <th class="p-3 text-center cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('expiry_date')}>Expiry {sortIndicator('expiry_date')}</th>
             <th class="p-3 text-end">Actions</th>
           </tr>
         </thead>
@@ -337,7 +372,7 @@
               <td colspan="9" class="p-8 text-center text-pos-muted">No products found matching filters.</td>
             </tr>
           {:else}
-            {#each products as p}
+            {#each sortedProducts as p}
               {@const expired = isProductExpired(p.expiry_date)}
               {@const nearExp = isProductNearExpiry(p.expiry_date)}
               <tr
@@ -438,7 +473,7 @@
         </div>
       {:else}
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 items-stretch pb-6">
-          {#each products as p}
+          {#each sortedProducts as p}
             {@const expired = isProductExpired(p.expiry_date)}
             {@const nearExp = isProductNearExpiry(p.expiry_date)}
             <div
@@ -562,6 +597,14 @@
   initialType={printLabelInitialType}
   initialQty={printLabelInitialQty}
   onClose={() => (isPrintLabelOpen = false)}
+/>
+
+<!-- Batch Label Printing (scan many products, print once) -->
+<BatchLabelPrintModal
+  isOpen={isBatchLabelOpen}
+  products={products}
+  settings={batchLabelSettings}
+  onClose={() => (isBatchLabelOpen = false)}
 />
 
 <!-- Delete Confirmation Modal (Requires typing DELETE) -->

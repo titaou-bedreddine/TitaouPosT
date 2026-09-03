@@ -47,18 +47,31 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
             // A session left open from a previous calendar day is stale: the
             // POS day ends at midnight, so it auto-closes here (cash counted
             // as expected) and the caller opens today's fresh session.
-            // Closing the app must NEVER close a session. opened_at is
-            // stored as "YYYY-MM-DD HH:MM:SS", not RFC3339 — parse both.
-            let opened_date = chrono::NaiveDateTime::parse_from_str(
+            // Closing the app must NEVER close a session.
+            //
+            // opened_at comes from SQLite CURRENT_TIMESTAMP — that is UTC.
+            // Naively comparing it to the LOCAL date made sessions opened
+            // between 00:00 and 00:59 local (still "yesterday" in UTC, e.g.
+            // UTC+1 Algeria) look stale and instantly auto-close. Convert
+            // the stored UTC time to local FIRST, then compare dates.
+            let opened_local = chrono::NaiveDateTime::parse_from_str(
                 &s.opened_at,
                 "%Y-%m-%d %H:%M:%S",
             )
-            .map(|d| d.date())
+            .map(|naive| {
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc)
+                    .with_timezone(&chrono::Local)
+            })
             .or_else(|_| {
                 chrono::DateTime::parse_from_rfc3339(&s.opened_at)
-                    .map(|d| d.with_timezone(&chrono::Local).date_naive())
-            })
-            .unwrap_or_else(|_| chrono::Local::now().date_naive());
+                    .map(|d| d.with_timezone(&chrono::Local))
+            });
+            let opened_date = match opened_local {
+                Ok(dt) => dt.date_naive(),
+                // Unparseable/absent timestamp: treat as TODAY so a fresh
+                // session is never falsely closed.
+                Err(_) => chrono::Local::now().date_naive(),
+            };
             let is_stale = opened_date < chrono::Local::now().date_naive();
 
             if is_stale {
@@ -67,7 +80,7 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
                 let conn = db.conn.lock().unwrap();
                 let _ = conn.execute(
                     "UPDATE cash_sessions
-                     SET closed_at = CURRENT_TIMESTAMP, actual_cash = expected_cash,
+                     SET closed_at = datetime('now','localtime'), actual_cash = expected_cash,
                          difference = 0, status = 'closed',
                          notes = COALESCE(notes, '') || ' | Auto-closed at midnight'
                      WHERE id = ?1 AND status = 'open'",
@@ -105,11 +118,14 @@ pub fn open_session(db: &DbState, user_id: i64, register_id: i64, opening_amount
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // Close any previous open sessions
-    let _ = tx.execute("UPDATE cash_sessions SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE status = 'open'", []);
+    let _ = tx.execute("UPDATE cash_sessions SET status = 'closed', closed_at = datetime('now','localtime') WHERE status = 'open'", []);
 
+    // opened_at is written explicitly in LOCAL time — the schema default
+    // (CURRENT_TIMESTAMP) stores UTC, which showed every timestamp one hour
+    // behind on UTC+ machines and fed the midnight stale-check bug.
     tx.execute(
-        "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, notes)
-         VALUES (?1, ?2, ?3, ?3, 'open', ?4)",
+        "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, notes, opened_at)
+         VALUES (?1, ?2, ?3, ?3, 'open', ?4, datetime('now','localtime'))",
         rusqlite::params![register_id, user_id, opening_amount, notes],
     )
     .map_err(|e| e.to_string())?;
@@ -256,7 +272,7 @@ pub fn close_session(db: &DbState, session_id: i64, actual_cash: i64, notes: Opt
 
     conn.execute(
         "UPDATE cash_sessions
-         SET closed_at = CURRENT_TIMESTAMP, actual_cash = ?1, difference = ?2, status = 'closed', notes = ?3
+         SET closed_at = datetime('now','localtime'), actual_cash = ?1, difference = ?2, status = 'closed', notes = ?3
          WHERE id = ?4",
         rusqlite::params![actual_cash, difference, notes, session_id],
     )

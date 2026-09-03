@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import type { Sale, User } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
@@ -92,6 +93,19 @@
   });
 
   // Top Real Stats
+  // Three-state column sort: asc -> desc -> default.
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedSales = sortRows(filteredSales, sortKey, sortDir, filteredSales);
   $: totalSalesCount = filteredSales.length;
   $: totalGrossRevenue = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
   $: totalNetPaid = filteredSales.reduce((sum, s) => sum + s.paid_amount, 0);
@@ -112,58 +126,56 @@
   }
 
   async function printReceipt(s: Sale) {
+    // Same professional 80mm template the POS prints (v0.5.9): vector
+    // icons, two-column info, full item table with PU, big TOTAL, QR,
+    // invoice barcode — not the old bare monospace fallback.
     try {
       const settings = await invoke<Record<string, string>>('get_all_settings');
       const items = await invoke<any[]>('get_sale_items', { saleId: s.id });
-      const shopName = settings['shop_name_fr'] || 'TitaouPOS';
-      const shopPhone = settings['shop_phone'] || '0553444057';
-      const shopAddress = settings['shop_address'] || 'Alger Centre';
+      const { buildProfessionalReceiptHtml } = await import('../../lib/printing/professionalReceipt');
+      const { entityQrDataUrl } = await import('../../lib/utils/printer');
+      const { getLanguage } = await import('../../lib/i18n');
 
-      const itemsHtml = items.map(item => `
-        <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 2px;">
-          <span>${item.quantity}x ${item.name_fr || item.name_ar}</span>
-          <span style="font-weight: bold;">${(item.total_price || 0).toLocaleString()} DZD</span>
-        </div>
-      `).join('');
+      const qr = await entityQrDataUrl(`SALE:${s.sale_number}`, 240).catch(() => undefined);
+      const d = new Date(s.created_at || Date.now());
 
-      const html = `
-        <div style="width: 72mm; font-family: monospace; font-size: 10px; text-align: center; margin: 0 auto; padding: 2mm;">
-          <p style="font-size: 14px; font-weight: 900; margin: 0; text-transform: uppercase;">${shopName}</p>
-          <p style="font-size: 8px; margin: 2px 0;">${shopAddress} • Tél: ${shopPhone}</p>
-          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold;">
-            <span>FACTURE #${s.sale_number}</span>
-            <span>${s.created_at}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 8px;">
-            <span>Client: ${s.customer_name || 'Client Comptoir'}</span>
-            <span>Caisse: ${s.user_name || 'Admin'}</span>
-          </div>
-          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="text-align: left;">
-            ${itemsHtml}
-          </div>
-          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 900;">
-            <span>TOTAL:</span>
-            <span>${s.total_amount.toLocaleString()} DZD</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 10px;">
-            <span>Payé (${(s.payment_method || 'cash').toUpperCase()}):</span>
-            <span>${s.paid_amount.toLocaleString()} DZD</span>
-          </div>
-          ${s.change_amount > 0 ? `
-            <div style="display: flex; justify-content: space-between; font-size: 9px;">
-              <span>Rendu:</span>
-              <span>${s.change_amount.toLocaleString()} DZD</span>
-            </div>
-          ` : ''}
-          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <p style="font-size: 8px; margin: 0;">Merci de votre visite / شكراً لزيارتكم</p>
-          <p style="font-size: 7px; color: #555; margin: 2px 0;">TitaouPOS • Dev: Titaou Bedreddine (0553444057)</p>
-        </div>
-      `;
-      printHtmlDirectly(html, 'Receipt #' + s.sale_number);
+      const html = buildProfessionalReceiptHtml({
+        shopName: settings['shop_name_fr'] || 'TitaouPOS',
+        shopTagline: settings['receipt_header'] || '',
+        shopAddress: settings['shop_address'] || '',
+        shopPhone: settings['shop_phone'] || '',
+        shopWebsite: settings['shop_website'] || '',
+        shopLogoDataUrl: settings['shop_logo_base64'] || undefined,
+        invoiceNumber: s.sale_number,
+        invoiceBarcode: s.sale_number,
+        dateStr: d.toLocaleDateString('fr-FR'),
+        timeStr: d.toLocaleTimeString('fr-FR'),
+        cashierName: s.user_name || 'Admin',
+        customerName: s.customer_name || undefined,
+        paymentMethod: (s.payment_method || 'cash').toUpperCase(),
+        items: items.map((it: any) => ({
+          name: it.name_fr || it.name_ar || it.name,
+          quantity: it.quantity,
+          unitPrice: it.unit_price,
+          totalPrice: it.total_price,
+          discountPerUnit: it.discount_amount || 0,
+          isRefund: !!it.is_refunded,
+        })),
+        subtotal: (s as any).subtotal ?? s.total_amount,
+        discount: (s as any).discount_amount ?? 0,
+        grandTotal: s.total_amount,
+        amountPaid: s.paid_amount,
+        change: s.change_amount,
+        currency: settings['default_currency'] || 'DA',
+        qrDataUrl: qr,
+        thankYou: settings['receipt_thank_you'] || 'MERCI POUR VOTRE CONFIANCE !',
+        returnPolicy: settings['receipt_footer'] || '',
+        lang: getLanguage(),
+        paperWidthMm: settings['receipt_paper_width'] === '58mm' ? 58 : 80,
+      });
+      printHtmlDirectly(html, 'Receipt #' + s.sale_number, {
+        widthMm: settings['receipt_paper_width'] === '58mm' ? 58 : 80,
+      });
     } catch (e: any) {
       alert('Error printing receipt: ' + (e.message || e));
     }
@@ -353,12 +365,12 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">{t('sales_sale_num')}</th>
-          <th class="p-3 text-start">{t('sales_date_time')}</th>
-          <th class="p-3 text-start">{t('sales_cashier')}</th>
-          <th class="p-3 text-start">{t('customer')}</th>
-          <th class="p-3 text-end">{t('sales_total_amount')}</th>
-          <th class="p-3 text-end">{t('sales_paid_amount')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('sale_number')}>{t('sales_sale_num')} {sortIndicator('sale_number')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('created_at')}>{t('sales_date_time')} {sortIndicator('created_at')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('user_name')}>{t('sales_cashier')} {sortIndicator('user_name')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('customer_name')}>{t('customer')} {sortIndicator('customer_name')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('total_amount')}>{t('sales_total_amount')} {sortIndicator('total_amount')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('paid_amount')}>{t('sales_paid_amount')} {sortIndicator('paid_amount')}</th>
           <th class="p-3 text-center">{t('sales_payment')}</th>
           <th class="p-3 text-center">{t('status')}</th>
           <th class="p-3 text-end">{t('actions')}</th>
@@ -370,7 +382,7 @@
             <td colspan="9" class="p-8 text-center text-pos-muted">{t('no_data')}</td>
           </tr>
         {:else}
-          {#each filteredSales as s}
+          {#each sortedSales as s}
             <tr
               on:click={() => openSaleDetails(s)}
               class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition cursor-pointer"
@@ -482,6 +494,9 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-pos-border/40">
+              {#if !isLoadingItems && saleItems.length > 0}
+                <tr><td colspan="4" class="pb-1 text-[10px] font-bold text-pos-muted text-end">{saleItems.length} {t('pos_lines')} · {saleItems.reduce((u, i) => u + (i.quantity || 0), 0)} {t('units_total')}</td></tr>
+              {/if}
               {#if isLoadingItems}
                 <tr>
                   <td colspan="4" class="p-6 text-center text-pos-muted">Loading item details...</td>

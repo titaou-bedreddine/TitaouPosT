@@ -6,8 +6,11 @@ pub fn get_stats(db: &DbState, start_date: Option<String>, end_date: Option<Stri
     let conn = db.conn.lock().unwrap();
 
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let s_date = start_date.unwrap_or(today.clone());
-    let e_date = end_date.unwrap_or(today);
+    // The "All" quick filter sends empty strings, not null — treat those as
+    // "no bound" instead of comparing dates against '' (which matched
+    // nothing and made the All filter show zeros).
+    let s_date = start_date.filter(|d| !d.trim().is_empty()).unwrap_or(today.clone());
+    let e_date = end_date.filter(|d| !d.trim().is_empty()).unwrap_or(today);
 
     let today_sales: i64 = conn
         .query_row(

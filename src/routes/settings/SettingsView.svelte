@@ -21,7 +21,7 @@
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
     Scale, Bell, Send, CreditCard, Keyboard, Type, Bold, Eye,
-    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info
+    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -77,6 +77,7 @@
     notify_each_expense: 'false',
     notify_opening_cash: 'false',
     notify_supplier_payment: 'false',
+    notify_product_change: 'true',
     notify_price_change: 'false',
     notify_qty_change: 'false',
     notify_history_change: 'false',
@@ -443,6 +444,7 @@
     is_active: boolean;
     last_login: string | null;
     created_at: string | null;
+    pinned?: boolean;
   }
 
   interface RoleItem {
@@ -1258,7 +1260,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'invoices' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Printer class="w-4 h-4 mb-1" />
-        <span class="truncate">Printing & Drawer</span>
+        <span class="truncate">{t('set_printing_drawer')}</span>
       </button>
 
       <button
@@ -1267,7 +1269,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'scale' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Scale class="w-4 h-4 mb-1" />
-        <span class="truncate">ACLAS Scale</span>
+        <span class="truncate">{t('set_scale')}</span>
       </button>
 
       <button
@@ -1285,7 +1287,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'barcodes' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Tag class="w-4 h-4 mb-1" />
-        <span class="truncate">Barcode Labels</span>
+        <span class="truncate">{t('set_barcode_labels')}</span>
       </button>
 
       <button
@@ -1294,7 +1296,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'pos' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Sliders class="w-4 h-4 mb-1" />
-        <span class="truncate">POS Rules</span>
+        <span class="truncate">{t('set_pos_rules')}</span>
       </button>
 
       <button
@@ -1357,7 +1359,7 @@
           class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'about' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
         >
           <Info class="w-4 h-4" />
-          <span class="mt-1">About</span>
+          <span class="mt-1">{t('set_about')}</span>
         </button>
         <button
         type="button"
@@ -1365,7 +1367,7 @@
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'danger' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40'}"
       >
         <AlertOctagon class="w-4 h-4 mb-1" />
-        <span class="truncate">Reset Zone</span>
+        <span class="truncate">{t('set_reset_zone')}</span>
       </button>
     </div>
   </div>
@@ -2104,6 +2106,23 @@
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Supplier debt payments (تسديد الموردين)</span>
               <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>{t('notify_price_change_label')}</span>
+              <input type="checkbox" bind:checked={settings.notify_price_change} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>{t('notify_qty_change_label')}</span>
+              <input type="checkbox" bind:checked={settings.notify_qty_change} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>{t('notify_product_change_label')}</span>
+              <input type="checkbox" bind:checked={settings.notify_product_change} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>{t('notify_history_change_label')}</span>
+              <input type="checkbox" bind:checked={settings.notify_history_change} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
           </div>
 
@@ -3144,6 +3163,13 @@
                       </td>
                       <td class="p-3 text-end">
                         <div class="inline-flex items-center gap-1">
+                          <button
+                            on:click={() => toggleUserPin(u)}
+                            class="p-1.5 rounded-lg cursor-pointer transition {u.pinned ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600' : 'hover:bg-amber-50 dark:hover:bg-amber-950/50 text-amber-500'}"
+                            title={u.pinned ? 'Pinned — first on the login screen' : 'Pin: show first on the login screen'}
+                          >
+                            <Pin class="w-4 h-4" />
+                          </button>
                           <button
                             on:click={() => openEditUserModal(u)}
                             class="p-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-600 rounded-lg cursor-pointer transition"

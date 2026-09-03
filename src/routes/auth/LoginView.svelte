@@ -18,7 +18,11 @@
   // IPC watchdog: ping a cheap command on an interval. The webview<->Rust
   // transport can silently wedge at boot; two consecutive missed pings
   // (4s each) means login can never succeed, so offer a one-click Reload.
+  let passwordInputEl: HTMLInputElement;
+
   onMount(() => {
+    // Cursor starts in the password box so the user can type straight away.
+    setTimeout(() => passwordInputEl?.focus(), 100);
     let missedPings = 0;
     const watchdog = setInterval(async () => {
       try {
@@ -163,6 +167,7 @@
         <input
           type={showPassword ? 'text' : 'password'}
           bind:value={password}
+          bind:this={passwordInputEl}
           placeholder="••••••••"
           autofocus
           on:keydown={handleKeyDown}

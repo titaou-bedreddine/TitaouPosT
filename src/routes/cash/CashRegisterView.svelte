@@ -17,7 +17,7 @@
   let isWithdrawOpen = false;
   let isCloseOpen = false;
   let isStartupOpen = false;
-  let startupAmount = 10000;
+  let startupAmount = 0;
   let startupReason = 'Startup Cash / رصيد افتتاحي';
 
   let amount = 0;
@@ -389,7 +389,7 @@
         <p class="text-xs font-bold text-pos-muted mb-5">{t('reg_open_hint')}</p>
         <button
           type="button"
-          on:click={() => { startupAmount = 10000; startupReason = 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
+          on:click={() => { startupAmount = 0; startupReason = 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
           class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2 mx-auto"
         >
           <Plus class="w-4 h-4" />

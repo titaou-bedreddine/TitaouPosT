@@ -67,7 +67,29 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
     let printed = print_pdf_windows(&pdf_path, &printer);
     let _ = std::fs::remove_file(&pdf_path);
     if !printed {
-        return Err("No default PDF printer handler available".to_string());
+        // Win10 fallback: with Edge as the default PDF app the "print" verb
+        // is not registered and no Sumatra/Adobe exists — the old code gave
+        // up here ("backend not available") or, worse, opened the Edge PDF
+        // window. Instead, rasterize the same HTML to a PNG with the SAME
+        // headless browser and GDI-print it directly to the default printer
+        // — no PDF, no viewer window, still fully silent.
+        let gdi_req = crate::printing::label_gdi::LabelPrintRequest {
+            html: html.clone(),
+            printer: None,
+            width_mm: 80.0,
+            height_mm: 297.0,
+            copies: 1,
+            dpi: Some(203),
+            label: title.clone(),
+        };
+        let outcome = crate::printing::label_gdi::print_label_job(&gdi_req);
+        if outcome.ok {
+            return Ok(());
+        }
+        return Err(format!(
+            "Silent print unavailable: {} / fallback: {}",
+            "no PDF print handler", outcome.message
+        ));
     }
     Ok(())
 }
@@ -232,8 +254,13 @@ pub fn get_active_users(db: State<'_, DbState>) -> Result<Vec<User>, String> {
 }
 
 #[tauri::command]
-pub fn change_user_password(db: State<'_, DbState>, user_id: i64, new_password: String) -> Result<(), String> {
-    employee_service::change_user_password(&db, user_id, &new_password)
+pub fn change_user_password(
+    db: State<'_, DbState>,
+    user_id: i64,
+    new_password: String,
+    old_password: Option<String>,
+) -> Result<(), String> {
+    employee_service::change_user_password(&db, user_id, &new_password, old_password)
 }
 
 #[tauri::command]
@@ -650,12 +677,20 @@ pub fn clear_transaction_history(db: State<'_, DbState>, confirm_text: String) -
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
+    // Order matters: expenses & the debt-payment tables carry session_id
+    // FKs into cash_sessions and employee_advances reference expenses —
+    // deleting cash_sessions first failed the whole transaction with
+    // "foreign key constraint failed".
     let tables = [
         "sale_payments",
         "sale_items",
         "sales",
         "purchase_items",
         "purchases",
+        "employee_advances",
+        "expenses",
+        "customer_debt_payments",
+        "supplier_debt_payments",
         "cash_movements",
         "cash_sessions",
         "inventory_movements",
@@ -903,6 +938,34 @@ pub fn update_user(
         is_active,
         new_password,
     )
+}
+
+/// Pin/unpin a login user (pinned users list first on the login screen).
+#[tauri::command]
+pub fn toggle_user_pin(db: State<'_, DbState>, user_id: i64, pinned: bool) -> Result<(), String> {
+    user_service::toggle_user_pin(&db, user_id, pinned)
+}
+
+/// Record an employee absence (persisted).
+#[tauri::command]
+pub fn record_employee_absence(
+    db: State<'_, DbState>,
+    employee_id: i64,
+    days: i64,
+    reason: Option<String>,
+    date: String,
+) -> Result<i64, String> {
+    payroll_service::record_employee_absence(&db, employee_id, days, reason, date)
+}
+
+/// Absence history rows (id, employee_id, days, reason, date).
+#[tauri::command]
+pub fn list_employee_absences(
+    db: State<'_, DbState>,
+    employee_id: Option<i64>,
+    month: Option<String>,
+) -> Result<Vec<(i64, i64, i64, Option<String>, String)>, String> {
+    payroll_service::list_employee_absences(&db, employee_id, month)
 }
 
 #[tauri::command]

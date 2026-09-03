@@ -75,6 +75,53 @@
   let isVersementOpen = false;
   let isCheckoutOpen = false;
   let isCustomerSelectorOpen = false;
+  let isQuickAddCustomerOpen = false;
+  let quickAddName = '';
+  let quickAddPhone = '';
+  let isQuickSaving = false;
+
+  // Quick-add a walk-in customer straight from the cart: saves, selects the
+  // new customer and refreshes the global store so the dropdown updates.
+  async function handleQuickAddCustomer() {
+    if (!quickAddName.trim() || isQuickSaving) return;
+    try {
+      isQuickSaving = true;
+      const savedId = await invoke<number>('save_customer', {
+        input: { name: quickAddName.trim(), phone: quickAddPhone.trim() || null, balance: 0 },
+      });
+      await refreshCustomers();
+      $selectedCustomerId = savedId;
+      isQuickAddCustomerOpen = false;
+      quickAddName = '';
+      quickAddPhone = '';
+    } catch (e: any) {
+      alert('Could not save customer: ' + (e?.message || e));
+    } finally {
+      isQuickSaving = false;
+    }
+  }
+
+  let isQuickAddSupplierOpen = false;
+  let quickSupplierName = '';
+  let quickSupplierPhone = '';
+
+  async function handleQuickAddSupplier() {
+    if (!quickSupplierName.trim() || isQuickSaving) return;
+    try {
+      isQuickSaving = true;
+      await invoke('save_supplier', {
+        input: { name_fr: quickSupplierName.trim(), contact_person: quickSupplierPhone.trim() || null, balance: 0 },
+      });
+      await refreshSuppliers();
+      isQuickAddSupplierOpen = false;
+      quickSupplierName = '';
+      quickSupplierPhone = '';
+    } catch (e: any) {
+      alert('Could not save supplier: ' + (e?.message || e));
+    } finally {
+      isQuickSaving = false;
+    }
+  }
   let isSupplierSelectorOpen = false;
   let isOtherArticleOpen = false;
 
@@ -90,6 +137,8 @@
   let showCartCost = false;
   // Cart cost = Σ purchase_price × qty (falls back to unit_price in
   // purchase mode, where unit_price IS the cost).
+  // Line count vs summed quantities: "2 lines · 13 units".
+  $: totalUnits = $cartItems.reduce((sum, i) => sum + i.quantity, 0);
   $: cartCost = $cartItems.reduce(
     (sum, i) => sum + Math.round((i.purchase_price ?? (i as any).unit_cost ?? i.unit_price) * i.quantity),
     0
@@ -293,6 +342,7 @@
       } else {
         unknownScannedBarcode = code;
         isUnknownBarcodeModalOpen = true;
+        searchQuery = '';
       }
     } catch (e) {
       console.error('Error looking up scanned barcode:', e);
@@ -488,8 +538,6 @@
           },
         });
       }
-      lastSaleSuccessNumber = mode === 'purchase' ? 'Purchase saved' : 'Broken write-off saved';
-      clearCart();
       await loadProducts();
       setTimeout(() => (lastSaleSuccessNumber = ''), 4000);
     } catch (err: any) {
@@ -1178,6 +1226,39 @@
                     {/if}
                   </button>
                 {/each}
+                <!-- Quick Add Customer -->
+                <div class="border-t border-pos-border pt-1.5 mt-1 space-y-1">
+                  {#if isQuickAddCustomerOpen}
+                    <input
+                      type="text"
+                      bind:value={quickAddName}
+                      placeholder={t('customer_name') || 'Name'}
+                      class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                    />
+                    <input
+                      type="text"
+                      bind:value={quickAddPhone}
+                      placeholder="Phone / هاتف"
+                      class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                    />
+                    <button
+                      type="button"
+                      on:click={handleQuickAddCustomer}
+                      disabled={!quickAddName.trim() || isQuickSaving}
+                      class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-[10px] font-black rounded-lg cursor-pointer"
+                    >
+                      {t('cart_add_customer')}
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      on:click={() => (isQuickAddCustomerOpen = true)}
+                      class="w-full flex items-center justify-center gap-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 text-[10px] font-black rounded-lg cursor-pointer"
+                    >
+                      <Plus class="w-3 h-3" /> {t('cart_add_customer')}
+                    </button>
+                  {/if}
+                </div>
               </div>
             </div>
           {/if}
@@ -1222,6 +1303,39 @@
                       {/if}
                     </button>
                   {/each}
+                  <!-- Quick Add Supplier -->
+                  <div class="border-t border-pos-border pt-1.5 mt-1 space-y-1">
+                    {#if isQuickAddSupplierOpen}
+                      <input
+                        type="text"
+                        bind:value={quickSupplierName}
+                        placeholder="Supplier name / اسم المورد"
+                        class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                      />
+                      <input
+                        type="text"
+                        bind:value={quickSupplierPhone}
+                        placeholder="Phone / هاتف"
+                        class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                      />
+                      <button
+                        type="button"
+                        on:click={handleQuickAddSupplier}
+                        disabled={!quickSupplierName.trim() || isQuickSaving}
+                        class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-[10px] font-black rounded-lg cursor-pointer"
+                      >
+                        {t('cart_add_supplier')}
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        on:click={() => (isQuickAddSupplierOpen = true)}
+                        class="w-full flex items-center justify-center gap-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 text-[10px] font-black rounded-lg cursor-pointer"
+                      >
+                        <Plus class="w-3 h-3" /> {t('cart_add_supplier')}
+                      </button>
+                    {/if}
+                  </div>
                 </div>
               </div>
             {/if}
@@ -1267,7 +1381,9 @@
           <div class="flex items-center justify-between">
             <div>
               <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block">{t('total_payable')}</span>
-              <span class="text-[11px] font-bold text-sky-600">{$cartItems.length} {t('pos_items')}</span>
+              <span class="text-[11px] font-bold text-sky-600">
+                {$cartItems.length} {t('pos_lines')} · {totalUnits} {t('pos_units')}
+              </span>
             </div>
             <div class="flex items-center gap-2">
               <button
@@ -1369,7 +1485,7 @@
   <UnknownBarcodeModal
     isOpen={isUnknownBarcodeModalOpen}
     barcode={unknownScannedBarcode}
-    onClose={() => (isUnknownBarcodeModalOpen = false)}
+    onClose={() => { isUnknownBarcodeModalOpen = false; searchQuery = ''; }}
     onAddNewWithBarcode={(bc) => {
       editingProduct = null;
       initialBarcodeForNewProduct = bc;

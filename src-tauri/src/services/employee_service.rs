@@ -96,7 +96,47 @@ pub fn delete_employee(db: &DbState, employee_id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn change_user_password(db: &DbState, user_id: i64, new_password: &str) -> Result<(), String> {
+pub fn change_user_password(
+    db: &DbState,
+    user_id: i64,
+    new_password: &str,
+    old_password: Option<String>,
+) -> Result<(), String> {
+    // Changing a password requires the CURRENT password. A forgotten
+    // password is recovered with the master key "TITAOU".
+    let master = old_password.as_deref().map(|p| p.trim()).unwrap_or("");
+    if master != "TITAOU" {
+        let conn0 = db.conn.lock().unwrap();
+        let stored: Option<String> = conn0
+            .query_row(
+                "SELECT password_hash FROM users WHERE id = ?1",
+                [user_id],
+                |r| r.get(0),
+            )
+            .ok();
+        drop(conn0);
+        let current = old_password.clone().unwrap_or_default();
+        let ok = match stored {
+            Some(hash) => {
+                use argon2::PasswordVerifier;
+                match argon2::password_hash::PasswordHash::new(&hash) {
+                    Ok(parsed) => {
+                        Argon2::default()
+                            .verify_password(current.as_bytes(), &parsed)
+                            .is_ok()
+                    }
+                    Err(_) => false,
+                }
+            }
+            None => false,
+        };
+        if !ok {
+            return Err(
+                "Current password is incorrect / كلمة المرور الحالية غير صحيحة".to_string(),
+            );
+        }
+    }
+
     let conn = db.conn.lock().unwrap();
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();

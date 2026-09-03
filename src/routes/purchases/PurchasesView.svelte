@@ -3,6 +3,8 @@
   import { onMount, tick } from 'svelte';
   import { t } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
+  import { get } from 'svelte/store';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import type { Purchase, Supplier, Product } from '../../lib/types';
   import { currentUser } from '../../lib/stores/auth';
   import { printHtmlDirectly } from '../../lib/utils/printer';
@@ -17,6 +19,19 @@
   } from 'lucide-svelte';
 
   let purchases: Purchase[] = [];
+  // Three-state column sort: asc -> desc -> default.
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+
   let suppliers: Supplier[] = [];
   let products: Product[] = [];
 
@@ -99,14 +114,15 @@
     try {
       const { activeSession } = await import('../../lib/stores/session');
       const { currentUser } = await import('../../lib/stores/auth');
+      const me = get(currentUser);
       await invoke('record_supplier_debt_payment', {
         input: {
           supplier_id: payDialogPurchase.supplier_id,
           amount: payDialogAmount,
           payment_method: 'cash',
           reference: payDialogPurchase.invoice_number,
-          session_id: activeSession?.id ?? null,
-          user_id: currentUser?.id || 1,
+          session_id: get(activeSession)?.id ?? null,
+          user_id: me?.id || 1,
           notes: `Payment of invoice ${payDialogPurchase.invoice_number} / تسديد الفاتورة`,
         },
       });
@@ -203,6 +219,7 @@
     }
     return true;
   });
+  $: sortedPurchases = sortRows(filteredPurchases, sortKey, sortDir, filteredPurchases);
 
   onMount(async () => {
     await loadData();
@@ -543,11 +560,11 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">{t('pur_invoice_num')}</th>
-          <th class="p-3 text-start">{t('pur_col_date')}</th>
-          <th class="p-3 text-start">{t('pur_supplier_col')}</th>
-          <th class="p-3 text-end">{t('pur_col_total')}</th>
-          <th class="p-3 text-end">{t('pur_paid_col')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('invoice_number')}>{t('pur_invoice_num')} {sortIndicator('invoice_number')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('date')}>{t('pur_col_date')} {sortIndicator('date')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('supplier_name')}>{t('pur_supplier_col')} {sortIndicator('supplier_name')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('total')}>{t('pur_col_total')} {sortIndicator('total')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('paid_amount')}>{t('pur_paid_col')} {sortIndicator('paid_amount')}</th>
           <th class="p-3 text-center">{t('pur_status')}</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
@@ -558,7 +575,7 @@
             <td colspan="7" class="p-8 text-center text-pos-muted">No purchase invoices recorded yet.</td>
           </tr>
         {:else}
-          {#each filteredPurchases as pur}
+          {#each sortedPurchases as pur}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-mono font-bold text-sky-600">#{pur.invoice_number}</td>
               <td class="p-3 font-mono text-pos-muted">{pur.date}</td>
@@ -871,6 +888,9 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-pos-border/40">
+            {#if !isLoadingPreview && previewItems.length > 0}
+              <tr><td colspan="4" class="pb-1 text-[10px] font-bold text-pos-muted text-end">{previewItems.length} {t('pos_lines')} · {previewItems.reduce((u, i) => u + (i.quantity || 0), 0)} {t('units_total')}</td></tr>
+            {/if}
             {#if isLoadingPreview}
               <tr><td colspan="4" class="p-6 text-center text-pos-muted">Loading items...</td></tr>
             {:else if previewItems.length === 0}
@@ -893,7 +913,7 @@
         <div class="flex items-center gap-2">
           <button
             type="button"
-            on:click={() => { editPurchaseInvoice(previewPurchase); previewPurchase = null; }}
+            on:click={() => { if (previewPurchase) editPurchaseInvoice(previewPurchase); previewPurchase = null; }}
             class="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
           >
             <Edit3 class="w-4 h-4" />
@@ -901,7 +921,7 @@
           </button>
           <button
             type="button"
-            on:click={() => printPurchaseInvoice(previewPurchase)}
+            on:click={() => previewPurchase && printPurchaseInvoice(previewPurchase)}
             disabled={isPrintingPurchase}
             class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
           >
@@ -1005,3 +1025,4 @@
     </div>
   </div>
 {/if}
+

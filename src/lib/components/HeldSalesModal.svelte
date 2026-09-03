@@ -21,6 +21,14 @@
   function getSaleDetails(sale: HeldSale): { total: number; count: number; preview: string; discount: number } {
     try {
       const { items, discountMode, discountValue } = parseHeldCart(sale.cart_json);
+      // Raw parse again for the mode field (parseHeldCart doesn't return it).
+      let heldMode: string | undefined;
+      try {
+        const raw = JSON.parse(sale.cart_json);
+        heldMode = (raw && raw.mode) as string | undefined;
+      } catch {
+        heldMode = undefined;
+      }
       const subtotal = items.reduce((sum, i) => {
         const val = i.total_price || (i.quantity * (i.unit_price - (i.discount_amount || 0)));
         return i.is_refund ? sum - val : sum + val;
@@ -54,6 +62,14 @@
       // Restore items AND the saved cart-level remise; a fresh sale (nothing held)
       // starts with no discount because resume/hold flows reset the stores.
       const { items, discountMode, discountValue } = parseHeldCart(sale.cart_json);
+      // Raw parse for the mode field (parseHeldCart doesn't return it).
+      let heldMode: string | undefined;
+      try {
+        const raw = JSON.parse(sale.cart_json);
+        heldMode = (raw && raw.mode) as string | undefined;
+      } catch {
+        heldMode = undefined;
+      }
       if ($cartItems.length > 0) {
         await holdCurrentSale();
       }
@@ -61,15 +77,20 @@
       $globalDiscountMode = discountMode;
       $globalDiscountValue = discountValue;
 
-      // A cart held from a specific mode returns in that mode: the hold
-      // note carries a [SALE MODE] / [PURCHASE MODE] / [BROKEN MODE] tag.
-      const note = (sale.notes || '').toUpperCase();
-      if (note.includes('[PURCHASE MODE]')) {
-        posMode.set('purchase');
-      } else if (note.includes('[BROKEN MODE]')) {
-        posMode.set('broken');
+      // A cart held from a specific mode returns in that mode. Priority:
+      // the JSON's own `mode` field (held since v0.5.9), else the legacy
+      // [SALE MODE] note tag, else sale.
+      if (heldMode === 'purchase' || heldMode === 'broken' || heldMode === 'sale') {
+        posMode.set(heldMode);
       } else {
-        posMode.set('sale');
+        const note = (sale.note || '').toUpperCase();
+        if (note.includes('[PURCHASE MODE]')) {
+          posMode.set('purchase');
+        } else if (note.includes('[BROKEN MODE]')) {
+          posMode.set('broken');
+        } else {
+          posMode.set('sale');
+        }
       }
 
       await handleDelete(sale.id);

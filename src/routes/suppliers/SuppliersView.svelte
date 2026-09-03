@@ -2,6 +2,7 @@
   import QrImage from '../../lib/components/QrImage.svelte';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import SupplierDebtModal from '../../lib/components/SupplierDebtModal.svelte';
   import { entityQrPayload, entityQrUrl, printHtmlDirectly } from '../../lib/utils/printer';
   import type { Supplier } from '../../lib/types';
@@ -130,6 +131,19 @@
     const qr = ('SUP:' + (x.qr_code || 'SUP-' + x.id)).toLowerCase();
     return qr === q || qr.includes(q);
   });
+  // Three-state column sort: asc -> desc -> default.
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedSuppliers = sortRows(filteredSuppliers, sortKey, sortDir, filteredSuppliers);
 
   function openAddModal() {
     editingId = null;
@@ -237,10 +251,10 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Supplier Name / الشركة</th>
-          <th class="p-3 text-start">Contact Person</th>
-          <th class="p-3 text-start">Phone</th>
-          <th class="p-3 text-start">Address</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('name_fr')}>Supplier Name / الشركة {sortIndicator('name_fr')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('contact_person')}>Contact Person {sortIndicator('contact_person')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('phone')}>Phone {sortIndicator('phone')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('address')}>Address {sortIndicator('address')}</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
       </thead>
@@ -250,7 +264,7 @@
             <td colspan="5" class="p-8 text-center text-pos-muted">No suppliers found.</td>
           </tr>
         {:else}
-          {#each filteredSuppliers as s}
+          {#each sortedSuppliers as s}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => { previewSupplier = s; loadSupplierHistory(s); }}>
                 {s.name}

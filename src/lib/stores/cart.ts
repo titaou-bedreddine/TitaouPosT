@@ -262,6 +262,10 @@ export async function holdCurrentSale(note?: string): Promise<boolean> {
         items,
         discountMode: get(globalDiscountMode),
         discountValue: get(globalDiscountValue),
+        // The cart's POS mode (sale/purchase/broken) rides in the JSON so
+        // resuming returns the user to the mode they held from — the note
+        // string is display-only now.
+        mode: get(posMode),
       }),
       totalAmount: total,
       notes: finalNote,

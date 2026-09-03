@@ -23,6 +23,8 @@ pub struct UserAccount {
     pub is_active: bool,
     pub last_login: Option<String>,
     pub created_at: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

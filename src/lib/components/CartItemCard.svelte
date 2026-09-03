@@ -12,9 +12,12 @@
     itemKey,
     stopQtyEdit,
   } from '../stores/cart';
-  import { Minus, Plus, Trash2, Undo2, Percent, Package } from 'lucide-svelte';
+  import { Minus, Plus, Trash2, Undo2, Percent, Package, Eye, Edit2 } from 'lucide-svelte';
 
   export let item: CartItem;
+  // Eye: show this item's purchase cost; Pen: open its editor.
+  export let onViewCost: () => void = () => {};
+  export let onEdit: () => void = () => {};
 
   let showDiscountInput = false;
   let lineDiscountValue: number | null = item.discount_amount;
@@ -196,6 +199,26 @@
 
     <!-- Action Buttons -->
     <div class="flex items-center gap-1">
+      <!-- View Cost (eye) -->
+      <button
+        type="button"
+        on:click={onViewCost}
+        class="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-muted hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 cursor-pointer transition"
+        title="Purchase cost / سعر الشراء"
+      >
+        <Eye class="w-3.5 h-3.5" />
+      </button>
+
+      <!-- Edit (pen) -->
+      <button
+        type="button"
+        on:click={onEdit}
+        class="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-muted hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer transition"
+        title="Edit product / تعديل المنتج"
+      >
+        <Edit2 class="w-3.5 h-3.5" />
+      </button>
+
       <!-- Item Discount Toggle Button -->
       <button
         type="button"
@@ -204,7 +227,7 @@
         title={t('pos_item_discount')}
       >
         <Percent class="w-3 h-3" />
-        <span>{item.discount_amount > 0 ? `-$\{item.discount_amount\}` : t('pos_remise')}</span>
+        <span>{item.discount_amount > 0 ? '-' + item.discount_amount.toLocaleString() : t('pos_remise')}</span>
       </button>
 
       <!-- Item Refund Toggle Button -->

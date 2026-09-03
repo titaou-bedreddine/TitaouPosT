@@ -57,6 +57,18 @@ impl DbState {
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN ai TEXT;", []);
         let _ = conn.execute("ALTER TABLE suppliers ADD COLUMN contact_person TEXT;", []);
         let _ = conn.execute("ALTER TABLE employees ADD COLUMN rfid_code TEXT;", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN pinned INTEGER DEFAULT 0;", []);
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS employee_absences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                days INTEGER NOT NULL,
+                reason TEXT,
+                date TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
         let _ = conn.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN is_scalable INTEGER DEFAULT 0;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_code TEXT;", []);
@@ -275,14 +287,14 @@ impl DbState {
 
         if count == 0 {
             let _ = conn.execute(
-                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, notes)
-                 VALUES (1, 1, 10000, 10000, 'open', 'Default Auto-Opened Session')",
+                "INSERT INTO cash_sessions (register_id, user_id, opening_amount, expected_cash, status, notes, opened_at)
+                 VALUES (1, 1, 0, 0, 'open', 'Default Auto-Opened Session', datetime('now','localtime'))",
                 [],
             );
             let session_id = conn.last_insert_rowid();
             let _ = conn.execute(
                 "INSERT INTO cash_movements (session_id, user_id, type, amount, reason)
-                 VALUES (?1, 1, 'opening_balance', 10000, 'Startup Cash / رصيد افتتاحي')",
+                 VALUES (?1, 1, 'opening_balance', 0, 'Startup Cash / رصيد افتتاحي')",
                 [session_id],
             );
         }

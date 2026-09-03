@@ -10,10 +10,11 @@ pub fn get_all_users(db: &DbState) -> Result<Vec<UserAccount>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn
         .prepare(
-            "SELECT u.id, u.username, u.display_name, u.role_id, r.name, u.max_discount_percent, u.is_active, u.last_login, u.created_at
+            "SELECT u.id, u.username, u.display_name, u.role_id, r.name, u.max_discount_percent, u.is_active, u.last_login, u.created_at,
+                    COALESCE(u.pinned, 0)
              FROM users u
              LEFT JOIN roles r ON u.role_id = r.id
-             ORDER BY u.id ASC",
+             ORDER BY COALESCE(u.pinned, 0) DESC, u.id ASC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -29,6 +30,7 @@ pub fn get_all_users(db: &DbState) -> Result<Vec<UserAccount>, String> {
                 is_active: row.get(6)?,
                 last_login: row.get(7)?,
                 created_at: row.get(8)?,
+                pinned: row.get::<_, Option<i64>>(9).ok().flatten().map(|v| v != 0).unwrap_or(false),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -196,5 +198,16 @@ pub fn delete_user(db: &DbState, user_id: i64) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    Ok(())
+}
+
+/// Pin/unpin a user; pinned users float to the top of the login screen.
+pub fn toggle_user_pin(db: &DbState, user_id: i64, pinned: bool) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "UPDATE users SET pinned = ?1 WHERE id = ?2",
+        rusqlite::params![if pinned { 1 } else { 0 }, user_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }

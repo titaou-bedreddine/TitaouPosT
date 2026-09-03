@@ -138,7 +138,7 @@ pub fn list_active_users(db: &DbState) -> Result<Vec<User>, String> {
              FROM users u
              LEFT JOIN roles r ON u.role_id = r.id
              WHERE (u.is_active = 1 OR u.is_active IS NULL)
-             ORDER BY u.id ASC",
+             ORDER BY COALESCE(u.pinned, 0) DESC, u.id ASC",
         )
         .map_err(|e| e.to_string())?;
 

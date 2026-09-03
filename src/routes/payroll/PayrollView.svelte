@@ -24,6 +24,19 @@
   let baseSalary = 0;
   let phone = '';
   let rfidCode = '';
+  let employeeSearch = '';
+  // Search across name, employee code, job title and RFID tag.
+  $: filteredEmployees = employeeSearch.trim()
+    ? employees.filter(e => {
+        const q = employeeSearch.trim().toLowerCase();
+        return (
+          (e.full_name || '').toLowerCase().includes(q) ||
+          (e.employee_code || '').toLowerCase().includes(q) ||
+          ((e as any).job_title || '').toLowerCase().includes(q) ||
+          (((e as any).rfid_code || '')).toLowerCase().includes(q)
+        );
+      })
+    : employees;
 
   // Advance modal state
   let selectedEmpForAdvance: Employee | null = null;
@@ -59,13 +72,17 @@
   onMount(async () => {
     await loadEmployees();
     await loadAdvances();
+    await loadAbsences();
   });
 
   // Advances are persisted in the backend (booked as expenses too) — this
   // month's records rebuild the session map after a restart.
   async function loadAdvances() {
     try {
-      const month = new Date().toISOString().slice(0, 7);
+      // LOCAL month — toISOString() returns UTC and shifted the month near
+      // boundaries, hiding legitimate records.
+      const d = new Date();
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const list = await invoke<any[]>('list_employee_advances', {
         employeeId: null,
         month,
@@ -76,6 +93,23 @@
       }
     } catch (e) {
       console.warn('Could not load advances:', e);
+    }
+  }
+
+  // Absences are persisted in employee_absences (v0.5.9) — the map rebuilds
+  // after restart so the cards and salary slips keep them.
+  async function loadAbsences() {
+    try {
+      const list = await invoke<any[]>('list_employee_absences', {
+        employeeId: null,
+        month: null,
+      });
+      absencesMap = {};
+      for (const ab of list) {
+        absencesMap[ab[1]] = (absencesMap[ab[1]] || 0) + ab[2];
+      }
+    } catch (e) {
+      console.warn('Could not load absences:', e);
     }
   }
 
@@ -191,10 +225,21 @@
     advanceAmount = 0;
   }
 
-  function recordAbsence() {
+  async function recordAbsence() {
     if (!selectedEmpForAbsence || absenceDays <= 0) return;
-    const empId = selectedEmpForAbsence.id;
-    absencesMap[empId] = (absencesMap[empId] || 0) + absenceDays;
+    const emp = selectedEmpForAbsence;
+    try {
+      await invoke('record_employee_absence', {
+        employeeId: emp.id,
+        days: absenceDays,
+        reason: 'Absence / غياب',
+        date: new Date().toISOString().split('T')[0],
+      });
+      absencesMap[emp.id] = (absencesMap[emp.id] || 0) + absenceDays;
+    } catch (e) {
+      console.error('Could not record absence:', e);
+      alert('Could not record absence: ' + e);
+    }
     selectedEmpForAbsence = null;
     absenceDays = 1;
   }
@@ -309,8 +354,23 @@
     </div>
   {/if}
 
+  <!-- Employee search: name, code, job title, RFID tag -->
+  <div class="flex items-center gap-2">
+    <input
+      type="text"
+      bind:value={employeeSearch}
+      placeholder={t('emp_search')}
+      class="flex-1 max-w-md px-4 py-2.5 bg-pos-card border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+    />
+    {#if employeeSearch}
+      <span class="text-[10px] font-bold text-pos-muted">
+        {filteredEmployees.length} / {employees.length}
+      </span>
+    {/if}
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {#each employees as emp}
+    {#each filteredEmployees as emp}
       {@const advances = advancesMap[emp.id] || 0}
       {@const daysAbsent = absencesMap[emp.id] || 0}
       {@const dailyRate = Math.round(emp.base_salary / 30)}
