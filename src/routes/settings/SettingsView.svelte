@@ -253,6 +253,7 @@
 
   // Account
   let newPassword = '';
+  let oldPassword = '';
   let passwordSuccess = false;
 
   // Shop Logo
@@ -416,8 +417,28 @@
   let isClearingHistory = false;
   let clearHistoryMsg = '';
 
-  async function handleClearHistory() {
+  // Clearing history is destructive: after typing CLEAR HISTORY the job
+  // waits 10 seconds (cancellable) before executing.
+  let clearHistoryCountdown = 0;
+  let clearHistoryTimer: any = null;
+  function handleClearHistory() {
     if (clearHistoryConfirmText.trim() !== 'CLEAR HISTORY') return;
+    clearHistoryCountdown = 10;
+    clearInterval(clearHistoryTimer);
+    clearHistoryTimer = setInterval(() => {
+      clearHistoryCountdown -= 1;
+      if (clearHistoryCountdown <= 0) {
+        clearInterval(clearHistoryTimer);
+        doClearHistory();
+      }
+    }, 1000);
+  }
+  function cancelClearHistory() {
+    clearInterval(clearHistoryTimer);
+    clearHistoryCountdown = 0;
+    clearHistoryMsg = 'Cancelled / تم الإلغاء';
+  }
+  async function doClearHistory() {
     try {
       isClearingHistory = true;
       clearHistoryMsg = '';
@@ -430,6 +451,7 @@
       clearHistoryMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || 'Failed');
     } finally {
       isClearingHistory = false;
+      clearHistoryCountdown = 0;
     }
   }
 
@@ -875,17 +897,24 @@
 
   async function handleChangePassword() {
     if (!$currentUser || !newPassword) return;
+    if (!oldPassword) {
+      triggerSaveNotification('Enter your current password first / أدخل كلمة المرور الحالية أولاً');
+      return;
+    }
     try {
       await invoke('change_user_password', {
         userId: $currentUser.id,
         newPassword,
+        oldPassword,
       });
       newPassword = '';
+      oldPassword = '';
       passwordSuccess = true;
-      triggerSaveNotification('Password updated successfully!');
+      triggerSaveNotification('Password updated successfully! / تم تغيير كلمة المرور');
       setTimeout(() => (passwordSuccess = false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      triggerSaveNotification(typeof e === 'string' ? e : e?.message || 'Password change failed');
     }
   }
 
@@ -917,6 +946,16 @@
     };
     userFormError = '';
     showUserModal = true;
+  }
+
+  async function toggleUserPin(u: UserAccountItem) {
+    try {
+      await invoke('toggle_user_pin', { userId: u.id, pinned: !u.pinned });
+      triggerSaveNotification(u.pinned ? 'User unpinned' : 'User pinned — first on the login screen');
+      await loadUsersAndRoles();
+    } catch (e: any) {
+      triggerSaveNotification('Pin failed: ' + (typeof e === 'string' ? e : e?.message || e));
+    }
   }
 
   function openEditUserModal(u: UserAccountItem) {
@@ -3065,7 +3104,16 @@
 
             <!-- Quick Password Change for Active User -->
             <div class="flex items-center gap-2 w-full md:w-auto">
-              <div class="relative flex-1 md:w-56">
+              <div class="relative flex-1 md:w-44">
+                <Lock class="w-3.5 h-3.5 text-pos-muted absolute start-3 top-2.5" />
+                <input
+                  type="password"
+                  bind:value={oldPassword}
+                  placeholder="Current password"
+                  class="w-full ps-8 pe-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text"
+                />
+              </div>
+              <div class="relative flex-1 md:w-44">
                 <Lock class="w-3.5 h-3.5 text-pos-muted absolute start-3 top-2.5" />
                 <input
                   type="password"
@@ -3076,12 +3124,13 @@
               </div>
               <button
                 on:click={handleChangePassword}
-                disabled={!newPassword}
+                disabled={!newPassword || !oldPassword}
                 class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition shrink-0"
               >
                 Change My Password
               </button>
-            </div>
+            
+              <p class="text-[9px] text-pos-muted w-full md:w-auto">Forgotten? Enter <span class="font-mono font-black text-sky-600">TITAOU</span> as the current password to force a reset.</p></div>
           </div>
         </div>
 
@@ -3232,11 +3281,25 @@
           <button
             type="button"
             on:click={handleClearHistory}
-            disabled={isClearingHistory || clearHistoryConfirmText.trim() !== 'CLEAR HISTORY'}
+            disabled={isClearingHistory || clearHistoryCountdown > 0 || clearHistoryConfirmText.trim() !== 'CLEAR HISTORY'}
             class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer"
           >
             {isClearingHistory ? 'Clearing…' : 'Clear History Only'}
           </button>
+          {#if clearHistoryCountdown > 0}
+            <div class="flex items-center justify-between p-2.5 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 rounded-xl animate-in fade-in duration-150">
+              <span class="text-xs font-black text-amber-700 dark:text-amber-300">
+                Clearing in {clearHistoryCountdown}s… / سيتم المسح خلال {clearHistoryCountdown} ثانية
+              </span>
+              <button
+                type="button"
+                on:click={cancelClearHistory}
+                class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-black rounded-lg cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+              >
+                Cancel / إلغاء
+              </button>
+            </div>
+          {/if}
           {#if clearHistoryMsg}
             <p class="text-[11px] font-bold text-amber-700 dark:text-amber-300">{clearHistoryMsg}</p>
           {/if}

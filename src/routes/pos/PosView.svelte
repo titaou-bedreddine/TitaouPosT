@@ -75,6 +75,24 @@
   let isVersementOpen = false;
   let isCheckoutOpen = false;
   let isCustomerSelectorOpen = false;
+  // In-dropdown search (customers / suppliers) so picking from a long list
+  // is fast while adding a quick customer/supplier stays one click away.
+  let customerSearchInCart = '';
+  let supplierSearchInCart = '';
+  $: filteredCartCustomers = customerSearchInCart.trim()
+    ? $customers.filter(
+        (c) =>
+          (c.name || '').toLowerCase().includes(customerSearchInCart.trim().toLowerCase()) ||
+          (c.phone || '').includes(customerSearchInCart.trim())
+      )
+    : $customers;
+  $: filteredCartSuppliers = supplierSearchInCart.trim()
+    ? $suppliers.filter(
+        (x) =>
+          (x.name || '').toLowerCase().includes(supplierSearchInCart.trim().toLowerCase()) ||
+          (x.phone || '').includes(supplierSearchInCart.trim())
+      )
+    : $suppliers;
   let isQuickAddCustomerOpen = false;
   let quickAddName = '';
   let quickAddPhone = '';
@@ -143,12 +161,19 @@
     (sum, i) => sum + Math.round((i.purchase_price ?? (i as any).unit_cost ?? i.unit_price) * i.quantity),
     0
   );
-  // Purchase mode: estimated sale value of the cart at the entered sale
-  // prices (falls back to +20% guess when only a cost was given).
+  // Purchase mode: estimated sale value of the cart. Priority per line:
+  // 1. the sale price ENTERED in the price dialog (sale_price_est),
+  // 2. the product's current stored sale price,
+  // 3. cost × 1.2 as a last-resort guess (unit_price is the COST here).
   $: estSaleTotal = $cartItems.reduce((sum, i) => {
-    const estPerUnit = (i as any).sale_price_est ?? i.unit_price * 1.2;
+    const live = products.find((pp) => pp.id === i.product_id);
+    const estPerUnit =
+      (i as any).sale_price_est ?? (live ? live.sale_price : i.unit_price * 1.2);
     return sum + Math.round(estPerUnit * i.quantity);
   }, 0);
+  // Estimated profit of the buy: est. sale value − invoice cost.
+  $: estProfit = estSaleTotal - cartCost;
+
   let barcodeBuffer = '';
   let lastKeyTime = 0;
 
@@ -181,65 +206,6 @@
   }
 
   let cartContainerEl: HTMLDivElement;
-
-  onMount(async () => {
-    try {
-      const s = await invoke<Record<string, string>>('get_all_settings');
-      currentShopName = s['shop_name_fr'] || s['shop_name_ar'] || 'TitaouPOS';
-      if (s['cart_item_order'] === 'top' || s['cart_item_order'] === 'bottom') {
-        $cartItemOrder = s['cart_item_order'];
-      }
-      // Auto-print persistence: stays as last left (on/off), across restarts.
-      if (s['pos_autoprint'] === 'false') {
-        autoPrintEnabled = false;
-      } else {
-        autoPrintEnabled = true;
-      }
-      // Auto-focus search: enabled flag + idle timer in seconds.
-      if (s['pos_autofocus_search'] === 'true') {
-        autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-
-    timeInterval = setInterval(() => {
-      currentTime = new Date().toLocaleTimeString();
-      currentDate = new Date().toLocaleDateString();
-    }, 1000);
-
-    try {
-      const raw = await invoke<string | null>('get_setting', { key: 'pos_shortcuts' });
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          shortcuts = { ...shortcuts, ...parsed };
-        }
-      }
-    } catch {
-      // Defaults stand.
-    }
-
-    await loadCategories();
-    await loadUnits();
-    await loadProducts();
-    await refreshCustomers();
-    await refreshSuppliers();
-
-    // Recover an interrupted sale (shutdown/crash) before it was checked out.
-    await restoreActiveCart();
-
-    // Notification deep-link: open the product's editor.
-    if (initialOpenProductId) {
-      const target = products.find((p) => p.id === initialOpenProductId);
-      if (target) {
-        handleOpenEdit(target);
-        onProductOpened();
-      }
-    }
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-  });
 
   // Auto-scroll ONLY when a new item is actually added (not on every cart
   // mutation like qty edits, which caused the jumpy scrolling). The new line
@@ -510,6 +476,24 @@
             notes: 'POS Purchase Mode (شراء)',
           },
         });
+
+        // The purchase is paid cash from the drawer: book the supplier
+        // payment as a cash movement so the register and stats reflect the
+        // money leaving (previously the drawer never moved for POS buys —
+        // "cash out on purchase mode didn't work").
+        if ($activeSession?.id) {
+          await invoke('record_supplier_debt_payment', {
+            input: {
+              supplier_id: $selectedSupplierId ?? 1,
+              amount: total,
+              payment_method: 'cash',
+              reference: 'ACH-' + stamp,
+              session_id: $activeSession.id,
+              user_id: $currentUser?.id || 1,
+              notes: 'POS purchase paid cash / دفع شراء نقدي من الصندوق',
+            },
+          }).catch(() => {});
+        }
       } else {
         // Broken: quantity leaves stock and the value becomes an expense
         // per line (negative-quantity purchase = write-off movement).
@@ -1210,8 +1194,16 @@
 
           {#if isCustomerSelectorOpen}
             <div class="absolute left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-xl shadow-2xl overflow-hidden z-40 animate-in fade-in duration-100">
+              <div class="p-1.5 pb-0">
+                <input
+                  type="text"
+                  bind:value={customerSearchInCart}
+                  placeholder="Search… / بحث…"
+                  class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                />
+              </div>
               <div class="max-h-56 overflow-y-auto p-1.5 space-y-1">
-                {#each $customers as c}
+                {#each filteredCartCustomers as c}
                   <button
                     type="button"
                     on:click={() => { $selectedCustomerId = c.id; isCustomerSelectorOpen = false; }}
@@ -1287,8 +1279,16 @@
 
             {#if isSupplierSelectorOpen}
               <div class="absolute left-0 right-0 top-full mt-1 bg-pos-card border border-pos-border rounded-xl shadow-2xl overflow-hidden z-40 animate-in fade-in duration-100">
+                <div class="p-1.5 pb-0">
+                  <input
+                    type="text"
+                    bind:value={supplierSearchInCart}
+                    placeholder="Search… / بحث…"
+                    class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-[11px] font-bold text-pos-text outline-none"
+                  />
+                </div>
                 <div class="max-h-56 overflow-y-auto p-1.5 space-y-1">
-                  {#each $suppliers as s}
+                  {#each filteredCartSuppliers as s}
                     <button
                       type="button"
                       on:click={() => { $selectedSupplierId = s.id; isSupplierSelectorOpen = false; }}
@@ -1350,7 +1350,21 @@
           </div>
         {:else}
           {#each $cartItems as item (item.product_id + (item.is_refund ? '_ref' : ''))}
-            <CartItemCard {item} />
+            <CartItemCard
+              {item}
+              onViewCost={() =>
+                alert(
+                  `${item.name_fr || item.name_ar}
+` +
+                  `${t('pem_purchase_cost')}: ${(item.purchase_price ?? item.unit_price).toLocaleString()} DZD
+` +
+                  `${t('pem_sale_price')}: ${item.unit_price.toLocaleString()} DZD`
+                )}
+              onEdit={() => {
+                const live = products.find((pp) => pp.id === item.product_id);
+                if (live) handleOpenEdit(live);
+              }}
+            />
           {/each}
         {/if}
       </div>
@@ -1413,6 +1427,9 @@
             <p class="text-[10px] font-bold text-pos-muted text-end flex items-center justify-end gap-1">
               <TrendingUp class="w-3 h-3 text-emerald-500" />
               {t('est_sale_price')}: <span class="font-mono text-emerald-600 dark:text-emerald-400">{estSaleTotal.toLocaleString()} DZD</span>
+              {#if estProfit > 0}
+                <span class="font-mono text-sky-600 dark:text-sky-400">(+{estProfit.toLocaleString()})</span>
+              {/if}
             </p>
           {/if}
         </div>

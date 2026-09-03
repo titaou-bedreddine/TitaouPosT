@@ -42,7 +42,13 @@
   let selectedEmpForAdvance: Employee | null = null;
   let advanceAmount = 0;
   let advanceReason = 'Avance sur salaire';
-  let advanceDate = new Date().toISOString().split('T')[0];
+  // LOCAL date (toISOString is UTC and recorded "yesterday" between
+  // 00:00-01:00 local, which made current-month history miss records).
+  function localDateStr(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  let advanceDate = localDateStr();
 
   // Absence modal state
   let selectedEmpForAbsence: Employee | null = null;
@@ -233,7 +239,7 @@
         employeeId: emp.id,
         days: absenceDays,
         reason: 'Absence / غياب',
-        date: new Date().toISOString().split('T')[0],
+        date: localDateStr(),
       });
       absencesMap[emp.id] = (absencesMap[emp.id] || 0) + absenceDays;
     } catch (e) {

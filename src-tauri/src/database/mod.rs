@@ -69,6 +69,65 @@ impl DbState {
             )",
             [],
         )?;
+
+        // ---- One-time UTC -> local migration (v0.5.10) ---------------------
+        // Rows written before v0.5.9 carry UTC timestamps (SQLite
+        // CURRENT_TIMESTAMP) and displayed one hour behind on UTC+ machines.
+        // New writes are local; this shifts every legacy row once, guarded
+        // by a settings flag so it never runs twice.
+        let migrated: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM app_settings WHERE key = 'utc_migrated_v1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if migrated == 0 {
+            // SQLite lacks a direct UTC->local modifier, so compute the
+            // machine's current offset in hours and apply it with
+            // strftime('%H:%M:%S' arithmetic). chrono gives us the offset.
+            let offset_secs = chrono::Local::now().offset().local_minus_utc();
+            let sign = if offset_secs >= 0 { "+" } else { "-" };
+            let abs_off = offset_secs.abs();
+            let modifier = format!(
+                "{}{:02}:{:02}",
+                sign,
+                abs_off / 3600,
+                (abs_off % 3600) / 60
+            );
+            let tables_cols: &[(&str, &str)] = &[
+                ("sales", "created_at"),
+                ("sale_payments", "created_at"),
+                ("cash_sessions", "opened_at"),
+                ("cash_sessions", "closed_at"),
+                ("cash_movements", "created_at"),
+                ("expenses", "created_at"),
+                ("purchases", "created_at"),
+                ("inventory_movements", "created_at"),
+                ("product_price_history", "created_at"),
+                ("employees", "hire_date"),
+                ("customer_debt_payments", "created_at"),
+                ("supplier_debt_payments", "created_at"),
+                ("employee_advances", "created_at"),
+                ("employee_absences", "created_at"),
+            ];
+            for (table, col) in tables_cols {
+                let _ = conn.execute(
+                    &format!(
+                        "UPDATE {table} SET {col} = datetime({col}, '{modifier}')
+                         WHERE {col} IS NOT NULL AND {col} != ''",
+                        table = table,
+                        col = col,
+                        modifier = modifier
+                    ),
+                    [],
+                );
+            }
+            let _ = conn.execute(
+                "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('utc_migrated_v1', '1')",
+                [],
+            );
+        }
         let _ = conn.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN is_scalable INTEGER DEFAULT 0;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN scale_code TEXT;", []);

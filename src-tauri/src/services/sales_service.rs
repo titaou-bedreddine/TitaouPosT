@@ -1,4 +1,6 @@
 use crate::database::DbState;
+
+
 use crate::models::{CartItem, CreateSaleInput, HeldSale, Sale};
 use rusqlite::Result;
 
@@ -18,8 +20,8 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     };
 
     tx.execute(
-        "INSERT INTO sales (sale_number, session_id, user_id, customer_id, subtotal, discount_amount, discount_percentage, discount_reason, tax_amount, total_amount, paid_amount, change_amount, payment_status, status, notes)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'completed', ?14)",
+        "INSERT INTO sales (sale_number, session_id, user_id, customer_id, subtotal, discount_amount, discount_percentage, discount_reason, tax_amount, total_amount, paid_amount, change_amount, payment_status, status, notes, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'completed', ?14, datetime('now','localtime'))",
         rusqlite::params![
             sale_number, input.session_id, input.user_id, input.customer_id,
             input.subtotal, input.discount_amount, input.discount_percentage,
