@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, restoreActiveCart, holdCurrentSale } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, originSaleId, restoreActiveCart, holdCurrentSale } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlSilently, buildReceiptHtml, entityQrDataUrl } from '../../lib/utils/printer';
@@ -105,7 +106,17 @@
     try {
       isQuickSaving = true;
       const savedId = await invoke<number>('save_customer', {
-        input: { name: quickAddName.trim(), phone: quickAddPhone.trim() || null, balance: 0 },
+        name: quickAddName.trim(),
+        phone: quickAddPhone.trim() || null,
+        email: null,
+        address: null,
+        rc: null,
+        nif: null,
+        nis: null,
+        ai: null,
+        initialDebt: 0,
+        notes: null,
+        customerId: null,
       });
       await refreshCustomers();
       $selectedCustomerId = savedId;
@@ -127,9 +138,20 @@
     if (!quickSupplierName.trim() || isQuickSaving) return;
     try {
       isQuickSaving = true;
-      await invoke('save_supplier', {
-        input: { name_fr: quickSupplierName.trim(), contact_person: quickSupplierPhone.trim() || null, balance: 0 },
+      const newSupplierId = await invoke<number>('save_supplier', {
+        name: quickSupplierName.trim(),
+        contactPerson: quickSupplierPhone.trim() || null,
+        phone: quickSupplierPhone.trim() || null,
+        email: null,
+        address: null,
+        rc: null,
+        nif: null,
+        nis: null,
+        ai: null,
+        notes: null,
+        supplierId: null,
       });
+      $selectedSupplierId = newSupplierId;
       await refreshSuppliers();
       isQuickAddSupplierOpen = false;
       quickSupplierName = '';
@@ -229,6 +251,7 @@
   onDestroy(() => {
     clearInterval(timeInterval);
     window.removeEventListener('keydown', handleGlobalKeyDown);
+    window.removeEventListener('mousedown', handlePageMouseDown);
   });
 
   async function loadCategories() {
@@ -326,11 +349,21 @@
     addToCart(product, 1, $isRefundMode);
   }
 
-  function handlePurchasePriceConfirm(price: number, _salePrice: number, qty = 1) {
+  function handlePurchasePriceConfirm(price: number, salePriceEntered: number, qty = 1) {
     if (!purchasePriceTarget) return;
-    // Buy at the entered cost: the cart's unit_price mirrors sale_price.
+    // Buy at the entered cost (unit_price mirrors sale_price = cost here).
     // The packaging picker can multiply the quantity (1 carton = 24 u).
-    addToCart({ ...purchasePriceTarget, sale_price: price }, qty, $isRefundMode);
+    // sale_price_est carries the entered sale price for the footer's
+    // estimated-sale-value and profit readout.
+    addToCart(
+      {
+        ...purchasePriceTarget,
+        sale_price: price,
+        sale_price_est: salePriceEntered || purchasePriceTarget.sale_price,
+      } as any,
+      qty,
+      $isRefundMode
+    );
     purchasePriceTarget = null;
   }
 
@@ -522,6 +555,10 @@
           },
         });
       }
+      // Purchase/broken checkouts empty the cart: the buy is recorded, the
+      // drawer movement booked — the lines must not linger on screen.
+      clearCart();
+      if (mode === 'purchase') refreshSuppliers().catch(() => {});
       await loadProducts();
       setTimeout(() => (lastSaleSuccessNumber = ''), 4000);
     } catch (err: any) {
@@ -529,6 +566,73 @@
       alert('Checkout Failed: ' + (err?.message || err));
     }
   }
+
+  // Clicking anywhere outside the customer/supplier dropdowns closes them.
+  function handlePageMouseDown(e: MouseEvent) {
+    const el = e.target as HTMLElement;
+    if (!el.closest('[data-customer-selector]')) isCustomerSelectorOpen = false;
+    if (!el.closest('[data-supplier-selector]')) isSupplierSelectorOpen = false;
+  }
+
+  onMount(async () => {
+    try {
+      const s = await invoke<Record<string, string>>('get_all_settings');
+      currentShopName = s['shop_name_fr'] || s['shop_name_ar'] || 'TitaouPOS';
+      if (s['cart_item_order'] === 'top' || s['cart_item_order'] === 'bottom') {
+        $cartItemOrder = s['cart_item_order'];
+      }
+      // Auto-print persistence: stays as last left (on/off), across restarts.
+      autoPrintEnabled = s['pos_autoprint'] !== 'false';
+      // Auto-drawer kick on cash checkout: same persistence rule.
+      autoDrawerEnabled = s['open_drawer_on_sale'] !== 'false';
+      // Auto-focus search: enabled flag + idle timer in seconds.
+      if (s['pos_autofocus_search'] === 'true') {
+        autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
+    timeInterval = setInterval(() => {
+      currentTime = new Date().toLocaleTimeString();
+      currentDate = new Date().toLocaleDateString();
+    }, 1000);
+
+    try {
+      const raw = await invoke<string | null>('get_setting', { key: 'pos_shortcuts' });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          shortcuts = { ...shortcuts, ...parsed };
+        }
+      }
+    } catch {
+      // Defaults stand.
+    }
+
+    // Catalog: families + products must load on mount — losing this call
+    // emptied the whole POS grid until a manual category switch.
+    await loadCategories();
+    await loadUnits();
+    await loadProducts();
+    await refreshCustomers();
+    await refreshSuppliers();
+
+    // Recover an interrupted sale (shutdown/crash) before it was checked out.
+    await restoreActiveCart();
+
+    // Notification deep-link: open the product's editor.
+    if (initialOpenProductId) {
+      const target = products.find((p) => p.id === initialOpenProductId);
+      if (target) {
+        handleOpenEdit(target);
+        onProductOpened();
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('mousedown', handlePageMouseDown);
+  });
 
   // Unified Checkout dialog (TopBar Checkout / F2): customer + amount +
   // reste/change; amount < total lets the cashier pick credit vs versement.
@@ -623,7 +727,13 @@
         })),
       };
 
-      await invoke('create_sale', { input: saleInput });
+      // Editing a sale loaded from history? Update it in place (tagged
+      // MODIFIED, no duplicate) instead of creating a new row.
+      if (get(originSaleId)) {
+        await invoke('replace_sale', { originalSaleId: get(originSaleId), input: saleInput });
+      } else {
+        await invoke('create_sale', { input: saleInput });
+      }
 
       // Offline receipt QR (local data URL; no network needed).
       const receiptQrDataUrl = await entityQrDataUrl(
@@ -1173,10 +1283,17 @@
         <!-- Customer Selector (defaults to Walk-in / Client Comptoir).
              In purchase mode the supplier selector replaces it. -->
         {#if $posMode !== 'purchase'}
-        <div class="relative" class:z-30={isCustomerSelectorOpen}>
+        <div class="relative" class:z-30={isCustomerSelectorOpen} data-customer-selector>
           <button
             type="button"
-            on:click={() => (isCustomerSelectorOpen = !isCustomerSelectorOpen)}
+            on:click={() => {
+              if (!isCustomerSelectorOpen) {
+                isQuickAddCustomerOpen = false;
+                quickAddName = '';
+                quickAddPhone = '';
+              }
+              isCustomerSelectorOpen = !isCustomerSelectorOpen;
+            }}
             class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold cursor-pointer hover:border-sky-400 transition {isCustomerSelectorOpen ? 'ring-2 ring-sky-400 border-sky-400' : ''}"
             title={t('pos_select_customer')}
           >
@@ -1258,10 +1375,17 @@
         {/if}
         <!-- Supplier Selector: purchase mode picks the source supplier -->
         {#if $posMode === 'purchase'}
-          <div class="relative" class:z-30={isSupplierSelectorOpen}>
+          <div class="relative" class:z-30={isSupplierSelectorOpen} data-supplier-selector>
             <button
               type="button"
-              on:click={() => (isSupplierSelectorOpen = !isSupplierSelectorOpen)}
+              on:click={() => {
+                if (!isSupplierSelectorOpen) {
+                  isQuickAddSupplierOpen = false;
+                  quickSupplierName = '';
+                  quickSupplierPhone = '';
+                }
+                isSupplierSelectorOpen = !isSupplierSelectorOpen;
+              }}
               class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-sky-400 rounded-xl text-xs font-bold cursor-pointer transition {isSupplierSelectorOpen ? 'ring-2 ring-sky-400' : ''}"
               title={t('pos_select_supplier')}
             >
@@ -1352,14 +1476,7 @@
           {#each $cartItems as item (item.product_id + (item.is_refund ? '_ref' : ''))}
             <CartItemCard
               {item}
-              onViewCost={() =>
-                alert(
-                  `${item.name_fr || item.name_ar}
-` +
-                  `${t('pem_purchase_cost')}: ${(item.purchase_price ?? item.unit_price).toLocaleString()} DZD
-` +
-                  `${t('pem_sale_price')}: ${item.unit_price.toLocaleString()} DZD`
-                )}
+              purchaseCost={item.purchase_price ?? products.find((pp) => pp.id === item.product_id)?.purchase_price ?? null}
               onEdit={() => {
                 const live = products.find((pp) => pp.id === item.product_id);
                 if (live) handleOpenEdit(live);

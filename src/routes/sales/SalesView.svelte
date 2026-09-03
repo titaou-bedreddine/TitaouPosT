@@ -9,7 +9,7 @@
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import { entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
-  import { cartItems, clearCart } from '../../lib/stores/cart';
+  import { originSaleId,  cartItems, clearCart } from '../../lib/stores/cart';
   import { selectedCustomerId } from '../../lib/stores/customers';
   import {
     ShoppingBag, Search, Printer, Calendar, User as UserIcon,
@@ -211,6 +211,9 @@
       clearCart();
       $cartItems = mapped;
       if (sale.customer_id) $selectedCustomerId = sale.customer_id;
+      // Editing in place: the checkout updates this sale (tagged MODIFIED)
+      // instead of inserting a duplicate row.
+      originSaleId.set(sale.id);
       isDetailModalOpen = false;
       onRequestPosRoute?.();
     } catch (e) {

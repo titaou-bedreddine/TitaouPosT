@@ -968,6 +968,16 @@ pub fn list_employee_absences(
     payroll_service::list_employee_absences(&db, employee_id, month)
 }
 
+/// Re-checkout a sale edited from history in place (no duplicate row).
+#[tauri::command]
+pub fn replace_sale(
+    db: State<'_, DbState>,
+    original_sale_id: i64,
+    input: CreateSaleInput,
+) -> Result<String, String> {
+    sales_service::replace_sale(&db, original_sale_id, input)
+}
+
 #[tauri::command]
 pub fn delete_user(db: State<'_, DbState>, user_id: i64) -> Result<(), String> {
     user_service::delete_user(&db, user_id)

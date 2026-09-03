@@ -62,6 +62,8 @@
   let advanceLog: any[] = [];
   let historyEmployee: Employee | null = null;
 
+  let absenceLog: any[] = [];
+
   async function openAdvanceHistory(emp: Employee) {
     historyEmployee = emp;
     try {
@@ -71,6 +73,16 @@
       });
     } catch {
       advanceLog = [];
+    }
+    // Absences share the history popup (tuple rows: id, employee_id, days,
+    // reason, date).
+    try {
+      absenceLog = await invoke<any[]>('list_employee_absences', {
+        employeeId: emp.id,
+        month: null,
+      });
+    } catch {
+      absenceLog = [];
     }
   }
   let absencesMap: Record<number, number> = {};
@@ -536,10 +548,17 @@
           <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg text-xs">
             <span class="font-mono text-pos-muted">{adv.date}</span>
             <span class="text-pos-text truncate max-w-[160px]">{adv.reason || 'Avance sur salaire'}</span>
-            <span class="font-mono font-black text-rose-600">{adv.amount.toLocaleString()} DZD</span>
+            <span class="font-mono font-black text-rose-600">-{adv.amount.toLocaleString()} DZD</span>
           </div>
         {/each}
-        {#if advanceLog.length === 0}
+        {#each absenceLog as ab}
+          <div class="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-xs">
+            <span class="font-mono text-pos-muted">{ab[4]}</span>
+            <span class="text-pos-text truncate max-w-[160px]">{ab[3] || 'Absence / غياب'}</span>
+            <span class="font-mono font-black text-amber-600">{ab[2]} day(s)</span>
+          </div>
+        {/each}
+        {#if advanceLog.length === 0 && absenceLog.length === 0}
           <p class="text-xs text-pos-muted text-center py-4">{t('pay_no_advances')}</p>
         {/if}
       </div>

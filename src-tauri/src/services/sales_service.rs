@@ -482,3 +482,115 @@ mod tests {
         }
     }
 }
+
+/// Re-checkout of a sale edited from history ("Edit in POS"): the original
+/// sale keeps its id, sale_number and created_at (no duplicate row), and is
+/// tagged MODIFIED. Inventory movements and the drawer's cash_sale entry
+/// are reversed for the old contents and rebooked for the new ones, so the
+/// stock and register statistics always reflect the current cart.
+pub fn replace_sale(
+    db: &DbState,
+    original_sale_id: i64,
+    input: CreateSaleInput,
+) -> Result<String, String> {
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let (sale_number, session_id, created_at): (String, i64, String) = tx
+        .query_row(
+            "SELECT sale_number, COALESCE(session_id, 0), COALESCE(created_at, '') FROM sales WHERE id = ?1",
+            [original_sale_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .map_err(|e| format!("Original sale not found: {}", e))?;
+
+    // Reverse the old stock movements & sale items.
+    let old_items = {
+        let mut stmt = tx
+            .prepare("SELECT product_id, quantity FROM sale_items WHERE sale_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([original_sale_id], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|x| x.ok()).collect::<Vec<_>>()
+    };
+    for (pid, qty) in &old_items {
+        // Old sale took qty out of stock; put it back.
+        let _ = tx.execute(
+            "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
+            rusqlite::params![qty, pid],
+        );
+    }
+    let _ = tx.execute("DELETE FROM inventory_movements WHERE reference_type = 'sale' AND reference_id = ?1", [original_sale_id]);
+    let _ = tx.execute("DELETE FROM sale_payments WHERE sale_id = ?1", [original_sale_id]);
+    let _ = tx.execute("DELETE FROM sale_items WHERE sale_id = ?1", [original_sale_id]);
+    // Reverse the old drawer effect.
+    let _ = tx.execute(
+        "UPDATE cash_sessions SET expected_cash = expected_cash - COALESCE((SELECT amount FROM cash_movements WHERE reference_type = 'sale' AND reference_id = ?1), 0) WHERE id = ?2",
+        rusqlite::params![original_sale_id, session_id],
+    );
+    let _ = tx.execute("DELETE FROM cash_movements WHERE reference_type = 'sale' AND reference_id = ?1", [original_sale_id]);
+
+    // Rewrite the sale row in place: same id/number/date, MODIFIED tag.
+    tx.execute(
+        "UPDATE sales SET
+            session_id = ?2, user_id = ?3, customer_id = ?4,
+            subtotal = ?5, discount_amount = ?6, discount_percentage = ?7, discount_reason = ?8,
+            tax_amount = ?9, total_amount = ?10, paid_amount = ?11, change_amount = ?12,
+            payment_status = ?13, notes = COALESCE(notes, '') || ' | MODIFIED ' || datetime('now','localtime')
+         WHERE id = ?1",
+        rusqlite::params![
+            original_sale_id, input.session_id, input.user_id, input.customer_id,
+            input.subtotal, input.discount_amount, input.discount_percentage, input.discount_reason,
+            input.tax_amount, input.total_amount, input.paid_amount, input.change_amount,
+            "paid",
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // New items + movements.
+    for item in &input.items {
+        let stock_change = if item.is_refund { item.quantity } else { -item.quantity };
+        tx.execute(
+            "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",
+            rusqlite::params![stock_change, item.product_id],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO inventory_movements (product_id, quantity, type, reference_type, reference_id, user_id)
+             VALUES (?1, ?2, ?3, 'sale', ?4, ?5)",
+            rusqlite::params![
+                item.product_id, stock_change,
+                if item.is_refund { "sale_refund" } else { "sale" },
+                original_sale_id, input.user_id
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // New drawer effect (cash sales only).
+    if input.payment_method.as_deref() == Some("cash") {
+        let net_cash = input.paid_amount - input.change_amount;
+        if net_cash != 0 && input.session_id > 0 {
+            tx.execute(
+                "INSERT INTO cash_movements (session_id, user_id, type, amount, reason, reference_type, reference_id)
+                 VALUES (?1, ?2, 'cash_sale', ?3, ?4, 'sale', ?5)",
+                rusqlite::params![
+                    input.session_id, input.user_id, net_cash,
+                    format!("Edited sale / بيع معدل {}", sale_number), original_sale_id
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "UPDATE cash_sessions SET expected_cash = expected_cash + ?1 WHERE id = ?2",
+                rusqlite::params![net_cash, input.session_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(sale_number)
+}

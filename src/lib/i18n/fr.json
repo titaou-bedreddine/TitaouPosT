@@ -521,5 +521,14 @@
   "batch_label_title": "Impression d'Étiquettes en Lot",
   "batch_label_hint": "Scannez des produits puis imprimez",
   "old_password": "Mot de passe actuel",
-  "old_password_hint": "Oublié ? Entrez TITAOU comme mot de passe actuel pour le réinitialiser."
+  "old_password_hint": "Oublié ? Entrez TITAOU comme mot de passe actuel pour le réinitialiser.",
+  "set_account": "Compte & Utilisateurs",
+  "set_network": "Réseau",
+  "set_import_export": "Import / Export",
+  "set_activation": "Activation",
+  "tg_quick_toggle": "Notifications Telegram",
+  "tg_master_password": "Mot de passe admin",
+  "tg_schedule_title": "Heures silencieuses (notifications désactivées)",
+  "tg_add_window": "Ajouter une période OFF",
+  "sale_modified_tag": "MODIFIÉE"
 }

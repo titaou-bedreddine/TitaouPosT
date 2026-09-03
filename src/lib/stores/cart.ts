@@ -16,6 +16,10 @@ export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
 // broken (damaged goods written off as expenses).
 export type PosMode = 'sale' | 'purchase' | 'broken';
 export const posMode = writable<PosMode>('sale');
+// When a sale from history is loaded for editing, this holds its id; the
+// POS checkout then UPDATES that sale in place instead of creating a new
+// (duplicate) row.
+export const originSaleId = writable<number | null>(null);
 
 // Quantity-edit mode (F6): the cart line currently being edited, keyed by
 // "productId[_ref]". null = not editing.
@@ -210,6 +214,7 @@ export function clearCart() {
   selectedCustomerId.set(DEFAULT_WALKIN_CUSTOMER_ID);
   isRefundMode.set(false);
   posMode.set('sale');
+  originSaleId.set(null);
   stopQtyEdit();
   clearPersistedCart();
 }

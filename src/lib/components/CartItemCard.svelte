@@ -15,9 +15,10 @@
   import { Minus, Plus, Trash2, Undo2, Percent, Package, Eye, Edit2 } from 'lucide-svelte';
 
   export let item: CartItem;
-  // Eye: show this item's purchase cost; Pen: open its editor.
-  export let onViewCost: () => void = () => {};
+  // Eye: reveal this item's purchase cost inline; Pen: open its editor.
+  export let purchaseCost: number | null = null;
   export let onEdit: () => void = () => {};
+  let showCost = false;
 
   let showDiscountInput = false;
   let lineDiscountValue: number | null = item.discount_amount;
@@ -148,6 +149,11 @@
           <span class="text-purple-600 font-bold">(-{item.discount_amount} DZD)</span>
         {/if}
       </div>
+      {#if showCost}
+        <div class="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+          {t('pem_purchase_cost')}: {(purchaseCost ?? item.purchase_price ?? item.unit_price).toLocaleString()} DZD
+        </div>
+      {/if}
     </div>
 
     <!-- Total Line Price -->
@@ -199,11 +205,11 @@
 
     <!-- Action Buttons -->
     <div class="flex items-center gap-1">
-      <!-- View Cost (eye) -->
+      <!-- View Cost (eye): reveals the purchase cost inline -->
       <button
         type="button"
-        on:click={onViewCost}
-        class="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-muted hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 cursor-pointer transition"
+        on:click={() => (showCost = !showCost)}
+        class="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-pos-muted hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 cursor-pointer transition {showCost ? 'text-sky-600 bg-sky-50 dark:bg-sky-950/40' : ''}"
         title="Purchase cost / سعر الشراء"
       >
         <Eye class="w-3.5 h-3.5" />

@@ -521,5 +521,14 @@
   "batch_label_title": "Batch Label Printing",
   "batch_label_hint": "Scan products to queue labels, then print",
   "old_password": "Current Password",
-  "old_password_hint": "Forgotten? Enter TITAOU as the current password to force a reset."
+  "old_password_hint": "Forgotten? Enter TITAOU as the current password to force a reset.",
+  "set_account": "Account & Users",
+  "set_network": "Network",
+  "set_import_export": "Import / Export",
+  "set_activation": "Activation",
+  "tg_quick_toggle": "Telegram notifications",
+  "tg_master_password": "Admin password",
+  "tg_schedule_title": "Quiet hours (notifications OFF)",
+  "tg_add_window": "Add OFF window",
+  "sale_modified_tag": "MODIFIED"
 }

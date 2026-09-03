@@ -54,6 +54,7 @@ pub fn run() {
             commands::reorder_pinned_products,
             commands::process_sale,
             commands::create_sale,
+            commands::replace_sale,
             commands::list_sales,
             commands::get_sale_items,
             commands::hold_sale,

@@ -85,6 +85,8 @@
     notify_expiry: 'true',
     notify_low_stock: 'true',
     notify_recap_enabled: 'false',
+    telegram_master_enabled: 'true',
+    telegram_quiet_windows: '',
     recap_interval_minutes: '60',
     app_license_status: 'activated',
     allow_negative_stock: 'false',
@@ -2174,6 +2176,22 @@
               </div>
               <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
+
+            <!-- Quiet hours: comma-separated OFF windows, notifications
+                 silent inside them (e.g. 08:00-13:00,17:00-21:00). -->
+            <div class="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-pos-border space-y-2">
+              <span class="text-[11px] font-black text-pos-text block">{t('tg_schedule_title')}</span>
+              <input
+                type="text"
+                bind:value={settings.telegram_quiet_windows}
+                on:change={autoSaveSettings}
+                placeholder="08:00-13:00,17:00-21:00"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+              />
+              <p class="text-[9px] text-pos-muted font-bold">
+                Format: HH:MM-HH:MM, separated by commas. Outside these windows notifications are ON.
+              </p>
+            </div>
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">Recap frequency</label>
               <select bind:value={settings.recap_interval_minutes} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">

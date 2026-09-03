@@ -521,5 +521,14 @@
   "batch_label_title": "طباعة ملصقات متعددة",
   "batch_label_hint": "امسح المنتجات لإضافتها ثم اطبع",
   "old_password": "كلمة المرور الحالية",
-  "old_password_hint": "نسيت؟ أدخل TITAOU ككلمة المرور الحالية لإعادة التعيين."
+  "old_password_hint": "نسيت؟ أدخل TITAOU ككلمة المرور الحالية لإعادة التعيين.",
+  "set_account": "الحساب والمستخدمون",
+  "set_network": "الشبكة",
+  "set_import_export": "استيراد / تصدير",
+  "set_activation": "التنشيط",
+  "tg_quick_toggle": "تنبيهات تيليجرام",
+  "tg_master_password": "كلمة مرور المدير",
+  "tg_schedule_title": "ساعات الصمت (إيقاف التنبيهات)",
+  "tg_add_window": "إضافة فترة إيقاف",
+  "sale_modified_tag": "معدلة"
 }

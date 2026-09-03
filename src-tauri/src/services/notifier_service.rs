@@ -29,7 +29,48 @@ pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<
     Ok(())
 }
 
-/// Push a message if the given notify switch is enabled ("true").
+/// True when the current LOCAL time falls inside one of the configured
+/// quiet windows ("HH:MM-HH:MM" comma/semicolon separated, e.g.
+/// "08:00-13:00,17:00-21:00"). Windows may wrap midnight.
+fn in_quiet_hours(settings: &std::collections::HashMap<String, String>) -> bool {
+    let raw = match settings.get("telegram_quiet_windows") {
+        Some(v) => v.trim().to_string(),
+        None => return false,
+    };
+    if raw.is_empty() {
+        return false;
+    }
+    let now = chrono::Local::now();
+    use chrono::Timelike;
+    let now_mins = now.hour() as i32 * 60 + now.minute() as i32;
+    let parse = |t: &str| -> Option<i32> {
+        let mut it = t.trim().split(':');
+        let h: i32 = it.next()?.trim().parse().ok()?;
+        let m: i32 = it.next().unwrap_or("0").trim().parse().ok()?;
+        Some(h * 60 + m)
+    };
+    for win in raw.split(|c| c == ',' || c == ';') {
+        let mut parts = win.split('-');
+        let (Some(st), Some(en)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+        let (Some(a), Some(b)) = (parse(st), parse(en)) else {
+            continue;
+        };
+        if a <= b {
+            if now_mins >= a && now_mins < b {
+                return true;
+            }
+        } else if now_mins >= a || now_mins < b {
+            // Window wraps midnight (e.g. 22:00-06:00).
+            return true;
+        }
+    }
+    false
+}
+
+/// Push a message if the given notify switch is enabled ("true") AND the
+/// current time is not inside a quiet window.
 pub fn notify_if_enabled(db: &DbState, switch_key: &str, text: String) {
     let cfg = match get_telegram_config(db) {
         Some(c) => c,
@@ -41,6 +82,13 @@ pub fn notify_if_enabled(db: &DbState, switch_key: &str, text: String) {
         .map(|v| v == "true")
         .unwrap_or(false);
     if !enabled {
+        return;
+    }
+    if settings.get("telegram_master_enabled").map(|v| v == "false").unwrap_or(false) {
+        // Master kill-switch (the quick toggle): silent until re-enabled.
+        return;
+    }
+    if in_quiet_hours(&settings) {
         return;
     }
     std::thread::spawn(move || {
