@@ -1198,24 +1198,36 @@ pub fn get_autostart() -> Result<bool, String> {
     }
 }
 
+static PRINTERS_CACHE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+
 /// List installed printer names so Settings can offer a choice.
 #[tauri::command]
 pub fn list_printers() -> Result<Vec<String>, String> {
+    if let Ok(guard) = PRINTERS_CACHE.lock() {
+        if let Some(cached) = guard.as_ref() {
+            return Ok(cached.clone());
+        }
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        let output = std::process::Command::new("wmic")
+        let mut names: Vec<String> = Vec::new();
+        if let Ok(output) = std::process::Command::new("wmic")
             .args(["printer", "get", "name"])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output()
-            .map_err(|e| e.to_string())?;
-        let text = String::from_utf8_lossy(&output.stdout).to_string();
-        let names: Vec<String> = text
-            .lines()
-            .map(|l| l.trim())
-            .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("name"))
-            .map(|l| l.to_string())
-            .collect();
+        {
+            let text = String::from_utf8_lossy(&output.stdout).to_string();
+            names = text
+                .lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("name"))
+                .map(|l| l.to_string())
+                .collect();
+        }
+        if let Ok(mut guard) = PRINTERS_CACHE.lock() {
+            *guard = Some(names.clone());
+        }
         Ok(names)
     }
     #[cfg(not(windows))]

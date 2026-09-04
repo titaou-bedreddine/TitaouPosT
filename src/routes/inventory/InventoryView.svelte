@@ -88,10 +88,14 @@
 
   async function loadProducts() {
     try {
+      const catId = (selectedCategory !== null && selectedCategory !== undefined && String(selectedCategory) !== 'null' && String(selectedCategory) !== '')
+        ? Number(selectedCategory)
+        : null;
+
       const list = await invoke<Product[]>('search_products', {
-        query: searchQuery,
-        categoryId: selectedCategory ? Number(selectedCategory) : null,
-        searchType: searchType === 'qr' ? 'barcode' : searchType,
+        query: searchQuery || '',
+        categoryId: (catId && !isNaN(catId)) ? catId : null,
+        searchType: searchType === 'qr' ? 'barcode' : (searchType || 'all'),
       });
 
       const today = new Date().toISOString().split('T')[0];
@@ -334,7 +338,7 @@
         on:change={loadProducts}
         class="bg-transparent outline-none cursor-pointer"
       >
-        <option value={null}>All Families (كل الفئات)</option>
+        <option value="">All Families (كل الفئات)</option>
         {#each categories as cat}
           <option value={cat.id}>{cat.name_fr} / {cat.name_ar}</option>
         {/each}
@@ -386,6 +390,7 @@
           {:else}
             {#each sortedProducts as p}
               {@const expired = isProductExpired(p.expiry_date)}
+              {@const nearExp = isProductNearExpiry(p.expiry_date)}
               {@const isBeingDeleted = isDeleteModalOpen && productToDelete?.id === p.id}
               <tr
                 on:click={() => openEdit(p)}

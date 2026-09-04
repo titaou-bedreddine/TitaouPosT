@@ -24,12 +24,13 @@
   import FirstSetupWizard from './lib/components/FirstSetupWizard.svelte';
 
   import { printHtmlDirectly } from './lib/utils/printer';
+  import { stockWarningModal } from './lib/stores/cart';
 
   // Icons
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Lock
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Lock, AlertTriangle
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -790,6 +791,56 @@
             class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
           >
             Unlock Settings / فتح الإعدادات
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Stock 0 / Negative Stock Warning Modal -->
+  {#if $stockWarningModal}
+    <div class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-3xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
+        <div class="flex items-center gap-3 text-rose-500">
+          <div class="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center shrink-0">
+            <AlertTriangle class="w-5 h-5 text-rose-600" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">Stock Insuffisant / نفاد المخزون</h3>
+            <p class="text-[11px] text-pos-muted">Out of Stock Warning</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 dark:bg-slate-800/60 border border-pos-border rounded-2xl p-4 space-y-2">
+          <p class="font-black text-sm text-pos-text">{$stockWarningModal.productName}</p>
+          <div class="flex items-center justify-between text-xs pt-1 border-t border-pos-border/40">
+            <span class="text-pos-muted">Disponible / المتاح:</span>
+            <span class="font-mono font-black {$stockWarningModal.available <= 0 ? 'text-rose-600' : 'text-amber-600'}">
+              {$stockWarningModal.available} pcs
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-pos-muted">Requis / المطلوب:</span>
+            <span class="font-mono font-black text-sky-600">
+              {$stockWarningModal.requested} pcs
+            </span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-pos-muted text-center leading-relaxed">
+          La vente en stock négatif est désactivée dans les paramètres.<br/>
+          تم تعطيل البيع في حالة نفاد المخزون في الإعدادات.
+        </p>
+
+        <div class="pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            autofocus
+            on:click={() => stockWarningModal.set(null)}
+            on:keydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') stockWarningModal.set(null); }}
+            class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition active:scale-95 text-center"
+          >
+            Compris / حسناً / Understand
           </button>
         </div>
       </div>

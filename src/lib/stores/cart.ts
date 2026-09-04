@@ -41,6 +41,12 @@ export function stopQtyEdit() {
 // Kept for backward compatibility: the canonical store now lives in ./customers.
 export { selectedCustomerId };
 
+export const stockWarningModal = writable<{
+  productName: string;
+  available: number;
+  requested: number;
+} | null>(null);
+
 export function addToCart(product: Product, quantity = 1, asRefund = false): boolean {
   if (!asRefund && !get(allowNegativeStock) && get(posMode) === 'sale') {
     const items = get(cartItems);
@@ -48,7 +54,11 @@ export function addToCart(product: Product, quantity = 1, asRefund = false): boo
     const existingQty = existing ? existing.quantity : 0;
     const available = product.current_stock ?? 0;
     if (existingQty + quantity > available) {
-      alert(`Stock insuffisant pour "${product.name_fr || product.name_ar}" (Disponible: ${available}, Requis: ${existingQty + quantity}). Vente en stock négatif désactivée.`);
+      stockWarningModal.set({
+        productName: product.name_fr || product.name_ar || product.name_en || 'Product',
+        available,
+        requested: existingQty + quantity,
+      });
       return false;
     }
   }
@@ -108,7 +118,11 @@ export function updateItemQuantity(productId: number, isRefund: boolean, newQty:
     const items = get(cartItems);
     const item = items.find((i) => i.product_id === productId && !i.is_refund);
     if (item && item.current_stock !== undefined && newQty > item.current_stock) {
-      alert(`Stock insuffisant pour "${item.name_fr || item.name_ar}" (Disponible: ${item.current_stock}, Requis: ${newQty}). Vente en stock négatif désactivée.`);
+      stockWarningModal.set({
+        productName: item.name_fr || item.name_ar || item.name_en || 'Product',
+        available: item.current_stock,
+        requested: newQty,
+      });
       return;
     }
   }

@@ -1494,7 +1494,7 @@
 
       <button
         type="button"
-        on:click={() => { currentTab = 'account'; loadUsersAndRoles(); }}
+        on:click={() => (currentTab = 'account')}
         class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'account' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
       >
         <Users class="w-4 h-4 mb-1" />
@@ -1523,7 +1523,7 @@
   <!-- Content Container -->
   <div class="flex-1 bg-pos-card border border-pos-border rounded-2xl p-6 overflow-y-auto shadow-xs">
     <!-- 1. GENERAL TAB -->
-    {#if currentTab === 'general'}
+    <div class:hidden={currentTab !== 'general'}>
       <div class="max-w-4xl space-y-6">
         <div>
           <h2 class="text-base font-black text-pos-text">Shop Profile & Store Logo</h2>
@@ -1621,8 +1621,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 2. INVOICES & PRINTING TAB -->
-    {:else if currentTab === 'invoices'}
+    <div class:hidden={currentTab !== 'invoices'}>
       <div class="max-w-5xl space-y-6">
         <!-- Invoice / Receipt Printer Selection -->
         <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-pos-border flex items-center justify-between gap-4">
@@ -2025,8 +2027,10 @@
       </div>
 
 
+    </div>
+
     <!-- SCALE TAB (ACLAS Real SDK) -->
-    {:else if currentTab === 'scale'}
+    <div class:hidden={currentTab !== 'scale'}>
       <div class="max-w-4xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
@@ -2177,8 +2181,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- NOTIFICATIONS TAB -->
-    {:else if currentTab === 'notifications'}
+    <div class:hidden={currentTab !== 'notifications'}>
       <div class="max-w-4xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
@@ -2364,8 +2370,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 3. BARCODE LABELS TAB (Two Distinct Sections with Live Previews & Full Customization) -->
-    {:else if currentTab === 'barcodes'}
+    <div class:hidden={currentTab !== 'barcodes'}>
       <div class="max-w-5xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
@@ -2790,8 +2798,10 @@
       </div>
 
 
+    </div>
+
     <!-- POS RULES TAB -->
-    {:else if currentTab === 'pos'}
+    <div class:hidden={currentTab !== 'pos'}>
       <div class="max-w-4xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
@@ -2896,8 +2906,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- KEYBOARD SHORTCUTS TAB -->
-    {:else if currentTab === 'shortcuts'}
+    <div class:hidden={currentTab !== 'shortcuts'}>
       <div class="max-w-4xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
@@ -2919,8 +2931,10 @@
       </div></div>
       </div>
 
+    </div>
+
     <!-- 4. NETWORK & MOBILE APP TAB -->
-    {:else if currentTab === 'network'}
+    <div class:hidden={currentTab !== 'network'}>
       <div class="max-w-4xl space-y-6">
         <div>
           <h2 class="text-base font-black text-pos-text">Local Network & Android Mobile App Sync</h2>
@@ -2993,8 +3007,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 5. IMPORT / EXPORT TAB -->
-    {:else if currentTab === 'import_export'}
+    <div class:hidden={currentTab !== 'import_export'}>
       <div class="max-w-4xl space-y-6">
         <div>
           <h2 class="text-base font-black text-pos-text">Import, Export & Full Database Backups</h2>
@@ -3078,8 +3094,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 6. ACTIVATION TAB -->
-    {:else if currentTab === 'activation'}
+    <div class:hidden={currentTab !== 'activation'}>
       <div class="max-w-3xl space-y-6">
         <div>
           <h2 class="text-base font-black text-pos-text">App Activation & License Management</h2>
@@ -3159,8 +3177,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 7. UPDATES TAB -->
-    {:else if currentTab === 'updates'}
+    <div class:hidden={currentTab !== 'updates'}>
       <div class="max-w-3xl space-y-6">
         <div>
           <h2 class="text-base font-black text-pos-text">Application Updates & Rollback</h2>
@@ -3232,8 +3252,10 @@
         </div>
       </div>
 
+    </div>
+
     <!-- 8. ACCOUNT & USER MANAGEMENT TAB -->
-    {:else if currentTab === 'account'}
+    <div class:hidden={currentTab !== 'account'}>
       <div class="max-w-5xl space-y-6">
         <!-- Tab Header -->
         <div class="flex items-center justify-between">
@@ -3414,11 +3436,15 @@
           </div>
         </div>
       </div>
+    </div>
 
-    <!-- 9. DANGER / FACTORY RESET TAB -->
-    {:else if currentTab === 'about'}
+    <!-- 9. ABOUT TAB -->
+    <div class:hidden={currentTab !== 'about'}>
       <AboutView />
-    {:else if currentTab === 'danger'}
+    </div>
+
+    <!-- 10. DANGER / FACTORY RESET TAB -->
+    <div class:hidden={currentTab !== 'danger'}>
       <div class="max-w-3xl space-y-6">
         <div>
           <h2 class="text-base font-black text-rose-600 flex items-center gap-2">
@@ -3574,7 +3600,7 @@
           </div>
         </div>
       </div>
-    {/if}
+    </div>
   </div>
 
   <!-- User Account Add / Edit Modal -->

@@ -413,17 +413,15 @@
               <Wallet class="w-4 h-4 text-sky-500" />
               <span>{t('reg_opening_balance')}</span>
             </span>
-            {#if $currentUser?.role === 'admin'}
-              <button
-                type="button"
-                on:click={openEditOpeningModal}
-                class="text-[10px] font-bold text-sky-600 hover:text-sky-700 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-200 dark:border-sky-800 transition cursor-pointer flex items-center gap-1"
-                title={t('edit_opening_balance')}
-              >
-                <Edit2 class="w-3 h-3" />
-                <span>{t('edit_opening_balance')}</span>
-              </button>
-            {/if}
+            <button
+              type="button"
+              on:click={openEditOpeningModal}
+              class="text-xs font-bold text-sky-700 dark:text-sky-300 hover:text-white hover:bg-sky-600 bg-sky-50 dark:bg-sky-950/80 px-2.5 py-1 rounded-xl border border-sky-300 dark:border-sky-800 transition cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95"
+              title={t('edit_opening_balance')}
+            >
+              <Edit2 class="w-3.5 h-3.5" />
+              <span>{t('edit_opening_balance')}</span>
+            </button>
           </div>
           <div class="text-2xl font-black font-mono text-pos-text">
             {$activeSession.opening_amount.toLocaleString()} DZD
@@ -662,36 +660,38 @@
                 </td>
                 <td class="p-3 text-center">
                   <div class="flex items-center justify-center gap-1.5">
-                    {#if $currentUser?.role === 'admin'}
-                      <button
-                        type="button"
-                        on:click={() => openEditSessionModal(s)}
-                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-sky-950 text-slate-600 hover:text-sky-600 transition cursor-pointer"
-                        title={t('edit_session')}
-                      >
-                        <Edit2 class="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        on:click={() => openArchiveModal(s)}
-                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950 text-slate-600 hover:text-amber-600 transition cursor-pointer"
-                        title={s.is_archived ? 'Restore session / إلغاء الأرشفة' : t('archive_session')}
-                      >
-                        {#if s.is_archived}
-                          <ArchiveRestore class="w-3.5 h-3.5" />
-                        {:else}
-                          <Archive class="w-3.5 h-3.5" />
-                        {/if}
-                      </button>
-                      <button
-                        type="button"
-                        on:click={() => openDeleteModal(s)}
-                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-600 hover:text-rose-600 transition cursor-pointer"
-                        title={t('btn_delete')}
-                      >
-                        <Trash2 class="w-3.5 h-3.5" />
-                      </button>
-                    {/if}
+                    <button
+                      type="button"
+                      on:click={() => openEditSessionModal(s)}
+                      class="px-2 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title={t('edit_session')}
+                    >
+                      <Edit2 class="w-3 h-3" />
+                      <span>{t('btn_edit')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      on:click={() => openArchiveModal(s)}
+                      class="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title={s.is_archived ? 'Restore session / إلغاء الأرشفة' : t('archive_session')}
+                    >
+                      {#if s.is_archived}
+                        <ArchiveRestore class="w-3 h-3" />
+                        <span>Restore</span>
+                      {:else}
+                        <Archive class="w-3 h-3" />
+                        <span>{t('archive_session')}</span>
+                      {/if}
+                    </button>
+                    <button
+                      type="button"
+                      on:click={() => openDeleteModal(s)}
+                      class="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title={t('btn_delete')}
+                    >
+                      <Trash2 class="w-3 h-3" />
+                      <span>{t('btn_delete')}</span>
+                    </button>
                   </div>
                 </td>
               </tr>

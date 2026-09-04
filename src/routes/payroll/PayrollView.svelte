@@ -24,6 +24,7 @@
   let baseSalary = 0;
   let phone = '';
   let rfidCode = '';
+  let startDate = localDateStr();
   let employeeSearch = '';
   // Search across name, employee code, job title and RFID tag.
   $: filteredEmployees = employeeSearch.trim()
@@ -54,15 +55,122 @@
   let selectedEmpForAbsence: Employee | null = null;
   let absenceDays = 1;
   let absenceReason = 'Absence non justifiée';
-  let absenceDate = new Date().toISOString().split('T')[0];
+  let absenceDate = localDateStr();
 
-  // Active advance/absence logs in memory for session display
+  // Raw persisted logs from backend
+  let allAdvances: any[] = [];
+  let allAbsences: any[] = [];
+
+  // Active advance/absence maps by employee ID for current cycle
   let advancesMap: Record<number, number> = {};
+  let absencesMap: Record<number, number> = {};
+
   // Full advance log per employee for the history section.
   let advanceLog: any[] = [];
   let historyEmployee: Employee | null = null;
-
   let absenceLog: any[] = [];
+
+  // Employee monthly pay-period cycle calculation respecting individual Start Date
+  function getEmployeePayPeriod(emp: Employee, refDate: Date = new Date()): { startStr: string; endStr: string; label: string } {
+    const rawStart = emp.salary_start_date || (emp as any).hire_date;
+    const currentYear = refDate.getFullYear();
+    const currentMonth = refDate.getMonth(); // 0-11
+    const currentDay = refDate.getDate();
+
+    if (!rawStart || !/^\d{4}-\d{2}-\d{2}$/.test(rawStart.trim())) {
+      // Safe backward-compatible default: 1st of current calendar month to last day of month
+      const start = new Date(currentYear, currentMonth, 1);
+      const end = new Date(currentYear, currentMonth + 1, 0);
+      const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+      return { startStr, endStr, label: `${startStr} ➔ ${endStr}` };
+    }
+
+    const [sY, sM, sD] = rawStart.trim().split('-').map(Number);
+    const startDay = Math.max(1, Math.min(31, sD || 1));
+
+    if (startDay === 1) {
+      const start = new Date(currentYear, currentMonth, 1);
+      const end = new Date(currentYear, currentMonth + 1, 0);
+      const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+      return { startStr, endStr, label: `${startStr} ➔ ${endStr}` };
+    }
+
+    const startFull = new Date(sY, sM - 1, startDay);
+    if (startFull > refDate) {
+      const endDay = startDay - 1;
+      let endMonth = sM; // 1-based next month
+      let endYear = sY;
+      if (endMonth > 12) {
+        endMonth = 1;
+        endYear++;
+      }
+      const maxEndDays = new Date(endYear, endMonth, 0).getDate();
+      const clampedEndDay = Math.min(endDay, maxEndDays);
+      const startStr = rawStart;
+      const endStr = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(clampedEndDay).padStart(2, '0')}`;
+      return { startStr, endStr, label: `${startStr} ➔ ${endStr}` };
+    }
+
+    let cycleStartYear: number;
+    let cycleStartMonth: number;
+    let cycleEndYear: number;
+    let cycleEndMonth: number;
+
+    if (currentDay >= startDay) {
+      cycleStartYear = currentYear;
+      cycleStartMonth = currentMonth;
+      cycleEndMonth = currentMonth + 1;
+      cycleEndYear = cycleStartYear;
+      if (cycleEndMonth > 11) {
+        cycleEndMonth = 0;
+        cycleEndYear++;
+      }
+    } else {
+      cycleStartMonth = currentMonth - 1;
+      cycleStartYear = currentYear;
+      if (cycleStartMonth < 0) {
+        cycleStartMonth = 11;
+        cycleStartYear--;
+      }
+      cycleEndYear = currentYear;
+      cycleEndMonth = currentMonth;
+    }
+
+    const maxStartDays = new Date(cycleStartYear, cycleStartMonth + 1, 0).getDate();
+    const actualStartDay = Math.min(startDay, maxStartDays);
+
+    const endDayWanted = startDay - 1;
+    const maxEndDays = new Date(cycleEndYear, cycleEndMonth + 1, 0).getDate();
+    const actualEndDay = Math.min(endDayWanted === 0 ? maxEndDays : endDayWanted, maxEndDays);
+
+    const startStr = `${cycleStartYear}-${String(cycleStartMonth + 1).padStart(2, '0')}-${String(actualStartDay).padStart(2, '0')}`;
+    const endStr = `${cycleEndYear}-${String(cycleEndMonth + 1).padStart(2, '0')}-${String(actualEndDay).padStart(2, '0')}`;
+
+    return {
+      startStr,
+      endStr,
+      label: `${startStr} ➔ ${endStr}`,
+    };
+  }
+
+  function rebuildMaps() {
+    advancesMap = {};
+    absencesMap = {};
+    for (const emp of employees) {
+      const period = getEmployeePayPeriod(emp);
+      const advTotal = allAdvances
+        .filter((a) => a.employee_id === emp.id && a.date >= period.startStr && a.date <= period.endStr)
+        .reduce((sum, a) => sum + (a.amount || 0), 0);
+      advancesMap[emp.id] = advTotal;
+
+      const absTotal = allAbsences
+        .filter((a) => a[1] === emp.id && a[4] >= period.startStr && a[4] <= period.endStr)
+        .reduce((sum, a) => sum + (a[2] || 0), 0);
+      absencesMap[emp.id] = absTotal;
+    }
+  }
 
   async function openAdvanceHistory(emp: Employee) {
     historyEmployee = emp;
@@ -74,8 +182,6 @@
     } catch {
       advanceLog = [];
     }
-    // Absences share the history popup (tuple rows: id, employee_id, days,
-    // reason, date).
     try {
       absenceLog = await invoke<any[]>('list_employee_absences', {
         employeeId: emp.id,
@@ -85,7 +191,6 @@
       absenceLog = [];
     }
   }
-  let absencesMap: Record<number, number> = {};
 
   onMount(async () => {
     await loadEmployees();
@@ -93,39 +198,25 @@
     await loadAbsences();
   });
 
-  // Advances are persisted in the backend (booked as expenses too) — this
-  // month's records rebuild the session map after a restart.
   async function loadAdvances() {
     try {
-      // LOCAL month — toISOString() returns UTC and shifted the month near
-      // boundaries, hiding legitimate records.
-      const d = new Date();
-      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const list = await invoke<any[]>('list_employee_advances', {
+      allAdvances = await invoke<any[]>('list_employee_advances', {
         employeeId: null,
-        month,
+        month: null,
       });
-      advancesMap = {};
-      for (const adv of list) {
-        advancesMap[adv.employee_id] = (advancesMap[adv.employee_id] || 0) + adv.amount;
-      }
+      rebuildMaps();
     } catch (e) {
       console.warn('Could not load advances:', e);
     }
   }
 
-  // Absences are persisted in employee_absences (v0.5.9) — the map rebuilds
-  // after restart so the cards and salary slips keep them.
   async function loadAbsences() {
     try {
-      const list = await invoke<any[]>('list_employee_absences', {
+      allAbsences = await invoke<any[]>('list_employee_absences', {
         employeeId: null,
         month: null,
       });
-      absencesMap = {};
-      for (const ab of list) {
-        absencesMap[ab[1]] = (absencesMap[ab[1]] || 0) + ab[2];
-      }
+      rebuildMaps();
     } catch (e) {
       console.warn('Could not load absences:', e);
     }
@@ -134,6 +225,7 @@
   async function loadEmployees() {
     try {
       employees = await invoke<Employee[]>('list_employees');
+      rebuildMaps();
     } catch (e) {
       console.error(e);
     }
@@ -159,6 +251,7 @@
     baseSalary = 0;
     phone = '';
     rfidCode = '';
+    startDate = localDateStr();
     isAddOpen = true;
   }
 
@@ -170,7 +263,18 @@
     baseSalary = emp.base_salary || 0;
     phone = (emp as any).phone || '';
     rfidCode = ((emp as any).rfid_code as string) || '';
+    startDate = emp.salary_start_date || (emp as any).hire_date || localDateStr();
     isAddOpen = true;
+  }
+
+  let errorToast = '';
+  let errorToastTimer: any = null;
+  function showError(msg: string) {
+    errorToast = msg;
+    clearTimeout(errorToastTimer);
+    errorToastTimer = setTimeout(() => {
+      errorToast = '';
+    }, 4500);
   }
 
   async function handleDeleteEmployee() {
@@ -180,13 +284,13 @@
       employeeToDelete = null;
       await loadEmployees();
     } catch (e: any) {
-      alert('Failed to delete employee: ' + (e.message || e));
+      showError('Failed to delete employee: ' + (e.message || e));
     }
   }
 
   async function handleSaveEmployee() {
     if (!name.trim() || !code.trim()) {
-      alert('Name and code are required / الاسم والرمز إجباريان');
+      showError('Name and code are required / الاسم والرمز إجباريان');
       return;
     }
     try {
@@ -199,7 +303,8 @@
         jobTitle,
         baseSalary,
         salaryType: 'monthly',
-        hireDate: new Date().toISOString().split('T')[0],
+        salaryStartDate: startDate || null,
+        hireDate: startDate || localDateStr(),
         notes: null,
         rfidCode: rfidCode || null,
         employeeId: editingEmployeeId,
@@ -212,10 +317,11 @@
       jobTitle = '';
       baseSalary = 0;
       phone = '';
+      startDate = localDateStr();
       await loadEmployees();
     } catch (e: any) {
       // Editing reuses the same employee_code — show why it failed.
-      alert('Save failed: ' + (typeof e === 'string' ? e : e.message || e));
+      showError('Save failed: ' + (typeof e === 'string' ? e : e.message || e));
     }
   }
 
@@ -235,9 +341,9 @@
           user_id: $currentUser?.id || 1,
         },
       });
-      advancesMap[emp.id] = (advancesMap[emp.id] || 0) + advanceAmount;
+      await loadAdvances();
     } catch (e: any) {
-      alert('Failed to record advance: ' + (typeof e === 'string' ? e : e.message || e));
+      showError('Failed to record advance: ' + (typeof e === 'string' ? e : e.message || e));
     }
     selectedEmpForAdvance = null;
     advanceAmount = 0;
@@ -253,10 +359,10 @@
         reason: absenceReason || 'Absence / غياب',
         date: absenceDate || localDateStr(),
       });
-      absencesMap[emp.id] = (absencesMap[emp.id] || 0) + absenceDays;
+      await loadAbsences();
     } catch (e) {
       console.error('Could not record absence:', e);
-      alert('Could not record absence: ' + e);
+      showError('Could not record absence: ' + e);
     }
     selectedEmpForAbsence = null;
     absenceDays = 1;
@@ -278,7 +384,7 @@
           <div style="display: flex; justify-content: space-between;"><span>Employé:</span><strong>${emp.full_name}</strong></div>
           <div style="display: flex; justify-content: space-between;"><span>Matricule:</span><span>#${emp.employee_code}</span></div>
           <div style="display: flex; justify-content: space-between;"><span>Poste:</span><span>${emp.job_title}</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>Période:</span><span>${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Période:</span><span>${getEmployeePayPeriod(emp).label}</span></div>
         </div>
         <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
         <div style="text-align: left; font-size: 9px; line-height: 1.4;">
@@ -327,7 +433,7 @@
         <h3 class="font-black text-sm text-pos-text">{t('pay_modal_new')}</h3>
         <button on:click={() => (isAddOpen = false)} class="text-pos-muted hover:text-pos-text"><X class="w-4 h-4" /></button>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 text-xs">
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-4 text-xs">
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_code')} *</label>
           <div class="flex items-center gap-1.5">
@@ -345,6 +451,14 @@
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_name')} *</label>
           <input type="text" bind:value={name} placeholder="Ahmed Benali" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-bold outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-pos-muted mb-1">Start Date / تاريخ البدء *</label>
+          <input
+            type="date"
+            bind:value={startDate}
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-pos-text font-mono font-bold outline-none"
+          />
         </div>
         <div>
           <label class="block font-bold text-pos-muted mb-1">{t('pay_field_job')} *</label>
@@ -436,6 +550,14 @@
         </div>
 
         <div class="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border text-xs">
+          <div class="flex items-center justify-between text-[11px] font-bold text-pos-muted border-b border-pos-border/40 pb-1">
+            <span>Start / البدء:</span>
+            <span class="font-mono text-pos-text">{emp.salary_start_date || '01 (Défaut)'}</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] font-bold text-sky-600 dark:text-sky-400 border-b border-pos-border/40 pb-1">
+            <span>Cycle / الفترة:</span>
+            <span class="font-mono">{getEmployeePayPeriod(emp).label}</span>
+          </div>
           <div class="flex items-center justify-between">
             <span class="text-pos-muted font-bold">{t('pay_base_monthly')}:</span>
             <span class="font-bold font-mono text-pos-text">{emp.base_salary.toLocaleString()} DZD</span>
@@ -603,5 +725,12 @@
         <button on:click={handleDeleteEmployee} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">Confirm Delete</button>
       </div>
     </div>
+  </div>
+{/if}
+
+{#if errorToast}
+  <div class="fixed bottom-6 end-6 z-[70] bg-rose-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-in slide-in-from-bottom-3 duration-200">
+    <AlertTriangle class="w-4 h-4 shrink-0" />
+    <span>{errorToast}</span>
   </div>
 {/if}
