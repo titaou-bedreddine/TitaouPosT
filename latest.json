@@ -1,11 +1,11 @@
 {
-  "version": "0.5.12",
-  "notes": "Employee advances and absences finally load on the employee cards and the history popup. The records were saving correctly all along — the list query read a non-existent column (e.name instead of full_name), failed silently, and returned empty lists. One-word fix, verified against existing data: your recorded advances and absences reappear on the cards, in the history popup, and in the salary calculations.",
-  "pub_date": "2026-09-03T17:44:23.616Z",
+  "version": "0.5.13",
+  "notes": "Saving a new employee no longer fails with a unique-constraint error. The GEN button guessed the next code from the active employee list only, but deleted employees keep their codes (database uniqueness), so the guess collided with a taken code. The next free code is now computed by the backend against all employees — active and deleted — so every new save gets a genuinely free code.",
+  "pub_date": "2026-09-04T01:37:26.915Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnVVUTBYMEUrT2U5WWYvUytqT2s1V2VFVGFNUFRSRHpnNVhOQk51MkVIakxBMWtBOHpES2MxWnFSaFFDSVR1eGZuZFRweTR5QiszR3QvQ0VIY3lCa2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDU3Mzc5CWZpbGU6VGl0YW91UE9TXzAuNS4xMl94NjQtc2V0dXAuZXhlCkc1YUVYbUtNSW1LODlzTHN2cnBwNUREcUtDcHRYUWN1M0dlVDZ5bDloN2g3QUQ3RzBYTmordXd6TURsdElUcnJKbUtBVmZEV2c4RmdKUCtjWDhxd0J3PT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.12/TitaouPOS_0.5.12_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTm5IY242allBeDk4STNzdlZsQSsvT0c5YmRLckVJMVFqYTVtMW52VWRnOGw0cTdUMm96REtXb2lXekxrVFlwUjhEcVdsMGpyLzF0TFBiZUQvMXV1NXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDg1Nzg0CWZpbGU6VGl0YW91UE9TXzAuNS4xM194NjQtc2V0dXAuZXhlClRNbnVoQVh1OEZWTitybWhqZWtuTnh2bEZ1alAvenhVRzhUbkVTeXh2TVNVVFJHL01VOGhqNVE2bGRTUGtzL25yL2E2R1RIdWNVanhXSWhqWm1WVUNnPT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.13/TitaouPOS_0.5.13_x64-setup.exe"
     }
   }
 }
