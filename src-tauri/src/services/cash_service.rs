@@ -33,6 +33,7 @@ pub fn get_active_session(db: &DbState, _user_id: i64) -> Result<Option<CashSess
             status: row.get(10)?,
             notes: row.get(11)?,
             is_stale: None,
+            is_archived: false,
         })
     }) {
         Ok(s) => Some(s),
@@ -158,6 +159,7 @@ pub fn open_session(db: &DbState, user_id: i64, register_id: i64, opening_amount
         status: "open".to_string(),
         notes,
         is_stale: Some(false),
+        is_archived: false,
     })
 }
 
@@ -313,20 +315,47 @@ pub fn list_movements(db: &DbState, session_id: i64) -> Result<Vec<CashMovement>
     Ok(list)
 }
 
-pub fn list_session_history(db: &DbState) -> Result<Vec<CashSession>, String> {
+pub fn list_session_history(
+    db: &DbState,
+    from_date: Option<String>,
+    to_date: Option<String>,
+    include_archived: Option<bool>,
+) -> Result<Vec<CashSession>, String> {
     let conn = db.conn.lock().unwrap();
-    let mut stmt = conn
-        .prepare(
-            "SELECT cs.id, cs.register_id, cs.user_id, u.display_name, cs.opened_at, cs.closed_at,
-                    cs.opening_amount, cs.expected_cash, cs.actual_cash, cs.difference, cs.status, cs.notes
-             FROM cash_sessions cs
-             LEFT JOIN users u ON cs.user_id = u.id
-             ORDER BY cs.id DESC LIMIT 100",
-        )
-        .map_err(|e| e.to_string())?;
+    let mut sql = String::from(
+        "SELECT cs.id, cs.register_id, cs.user_id, u.display_name, cs.opened_at, cs.closed_at,
+                cs.opening_amount, cs.expected_cash, cs.actual_cash, cs.difference, cs.status, cs.notes,
+                COALESCE(cs.is_archived, 0)
+         FROM cash_sessions cs
+         LEFT JOIN users u ON cs.user_id = u.id
+         WHERE 1=1",
+    );
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
+    if !include_archived.unwrap_or(false) {
+        sql.push_str(" AND COALESCE(cs.is_archived, 0) = 0");
+    }
+
+    if let Some(from) = from_date {
+        if !from.trim().is_empty() {
+            sql.push_str(" AND date(cs.opened_at) >= date(?)");
+            params.push(Box::new(from));
+        }
+    }
+
+    if let Some(to) = to_date {
+        if !to.trim().is_empty() {
+            sql.push_str(" AND date(cs.opened_at) <= date(?)");
+            params.push(Box::new(to));
+        }
+    }
+
+    sql.push_str(" ORDER BY cs.id DESC LIMIT 200");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([], |row| {
+        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            let archived_int: i64 = row.get(12).unwrap_or(0);
             Ok(CashSession {
                 id: row.get(0)?,
                 register_id: row.get(1)?,
@@ -344,6 +373,7 @@ pub fn list_session_history(db: &DbState) -> Result<Vec<CashSession>, String> {
                 status: row.get(10)?,
                 notes: row.get(11)?,
                 is_stale: None,
+                is_archived: archived_int == 1,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -351,6 +381,182 @@ pub fn list_session_history(db: &DbState) -> Result<Vec<CashSession>, String> {
     let list: Vec<CashSession> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
 }
+
+pub fn edit_opening_balance(
+    db: &DbState,
+    session_id: i64,
+    new_amount: i64,
+    reason: String,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    if let Some(pwd) = &admin_password {
+        if !crate::auth::verify_admin_password(db, pwd)? {
+            return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+        }
+    }
+
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let (old_opening, old_expected, actual_opt): (i64, i64, Option<i64>) = tx
+        .query_row(
+            "SELECT opening_amount, expected_cash, actual_cash FROM cash_sessions WHERE id = ?1",
+            [session_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .map_err(|e| format!("Session introuvable: {}", e))?;
+
+    let delta = new_amount - old_opening;
+    let new_expected = old_expected + delta;
+    let new_diff = actual_opt.map(|act| act - new_expected);
+
+    tx.execute(
+        "UPDATE cash_sessions
+         SET opening_amount = ?1,
+             expected_cash = ?2,
+             difference = ?3,
+             notes = COALESCE(notes, '') || ' | Solde ouv. modifié: ' || ?4 || ' DZD (' || ?5 || ')'
+         WHERE id = ?6",
+        rusqlite::params![new_amount, new_expected, new_diff, new_amount, reason, session_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Update opening_balance cash_movement if exists, else insert audit movement
+    let updated = tx.execute(
+        "UPDATE cash_movements SET amount = ?1, reason = 'Opening balance updated: ' || ?2 WHERE session_id = ?3 AND type = 'opening_balance'",
+        rusqlite::params![new_amount, reason, session_id],
+    ).unwrap_or(0);
+
+    if updated == 0 {
+        let _ = tx.execute(
+            "INSERT INTO cash_movements (session_id, user_id, type, amount, reason, reference_type, reference_id)
+             VALUES (?1, 1, 'opening_balance', ?2, ?3, 'adjustment', ?4)",
+            rusqlite::params![session_id, delta, format!("Ajustement solde d'ouverture: {}", reason), session_id],
+        );
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    let lang = crate::services::notifier_service::ui_language(db);
+    let text = crate::services::notifier_service::tr(
+        &lang,
+        (
+            format!("⚠️ *Cash Session #{} Opening Balance Edited*\nOld: {} DZD ➔ New: {} DZD\nReason: {}", session_id, old_opening, new_amount, reason),
+            format!("⚠️ *تعديل الرصيد الافتتاحي للجلسة #{}*\nالسابق: {} دج ➔ الجديد: {} دج\nالسبب: {}", session_id, old_opening, new_amount, reason),
+            format!("⚠️ *Session #{} : Solde d'ouverture modifié*\nAncien : {} DZD ➔ Nouveau : {} DZD\nMotif : {}", session_id, old_opening, new_amount, reason),
+        ),
+    );
+    crate::services::notifier_service::notify_if_enabled(db, "notify_cash_edited", text);
+
+    Ok(())
+}
+
+pub fn edit_cash_session(
+    db: &DbState,
+    session_id: i64,
+    opening_amount: Option<i64>,
+    actual_cash: Option<i64>,
+    notes: Option<String>,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    if let Some(pwd) = &admin_password {
+        if !crate::auth::verify_admin_password(db, pwd)? {
+            return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+        }
+    }
+
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let (curr_opening, curr_expected, curr_actual): (i64, i64, Option<i64>) = tx
+        .query_row(
+            "SELECT opening_amount, expected_cash, actual_cash FROM cash_sessions WHERE id = ?1",
+            [session_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .map_err(|e| format!("Session introuvable: {}", e))?;
+
+    let final_opening = opening_amount.unwrap_or(curr_opening);
+    let delta = final_opening - curr_opening;
+    let final_expected = curr_expected + delta;
+    let final_actual = actual_cash.or(curr_actual);
+    let final_diff = final_actual.map(|act| act - final_expected);
+
+    tx.execute(
+        "UPDATE cash_sessions
+         SET opening_amount = ?1,
+             expected_cash = ?2,
+             actual_cash = ?3,
+             difference = ?4,
+             notes = COALESCE(?5, notes)
+         WHERE id = ?6",
+        rusqlite::params![final_opening, final_expected, final_actual, final_diff, notes, session_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    let lang = crate::services::notifier_service::ui_language(db);
+    let text = crate::services::notifier_service::tr(
+        &lang,
+        (
+            format!("⚠️ *Cash Session #{} Details Edited by Admin*", session_id),
+            format!("⚠️ *تم تعديل بيانات جلسة الصندوق #{} من قبل المسؤول*", session_id),
+            format!("⚠️ *Session de caisse #{} modifiée par l'administrateur*", session_id),
+        ),
+    );
+    crate::services::notifier_service::notify_if_enabled(db, "notify_cash_edited", text);
+
+    Ok(())
+}
+
+pub fn archive_cash_session(
+    db: &DbState,
+    session_id: i64,
+    archived: bool,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    if let Some(pwd) = &admin_password {
+        if !crate::auth::verify_admin_password(db, pwd)? {
+            return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+        }
+    }
+
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "UPDATE cash_sessions SET is_archived = ?1 WHERE id = ?2",
+        rusqlite::params![if archived { 1 } else { 0 }, session_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub fn delete_cash_session(
+    db: &DbState,
+    session_id: i64,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    if let Some(pwd) = &admin_password {
+        if !crate::auth::verify_admin_password(db, pwd)? {
+            return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+        }
+    }
+
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute("DELETE FROM cash_movements WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM cash_sessions WHERE id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,9 +597,9 @@ mod tests {
     // cashier starts a fresh one.
     #[test]
     fn previous_day_session_auto_closes() {
-        // Dynamic "yesterday evening" so the test never expires.
+        // Dynamic "yesterday noon" so timezone offset never rolls into today.
         let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-            .format("%Y-%m-%d 23:00:00")
+            .format("%Y-%m-%d 12:00:00")
             .to_string();
         let db = test_db_with_open_session(&yesterday);
         let s = get_active_session(&db, 1).unwrap();

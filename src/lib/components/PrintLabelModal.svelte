@@ -329,15 +329,35 @@
       </div>
 
       <div class="p-5 space-y-4">
-        <!-- Print Preset Picker (built-in mm-true thermal presets vs settings-driven custom) -->
+        <!-- Print Preset Tabs (built-in mm-true thermal presets vs settings-driven custom) -->
         <div>
-          <label class="block text-[11px] font-bold text-pos-muted mb-1">Print Preset (نوع الملصق)</label>
-          <select bind:value={presetId} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
-            <option value="custom">Custom — configured in Settings → Barcode Labels</option>
-            {#each LABEL_PRESET_IDS as pid}
-              <option value={pid}>{LABEL_PRESETS[pid].name}</option>
-            {/each}
-          </select>
+          <label class="block text-[11px] font-bold text-pos-muted mb-1.5">Preset / نوع الملصق</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              on:click={() => { presetId = 'vprice40x20'; }}
+              class="px-2.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-0.5 {presetId === 'vprice40x20' ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 shadow-xs' : 'border-pos-border bg-slate-50 dark:bg-slate-800/40 text-pos-muted hover:text-pos-text'}"
+            >
+              <span class="leading-tight">Vertical Price</span>
+              <span class="text-[10px] opacity-75 font-mono">40×20 mm</span>
+            </button>
+            <button
+              type="button"
+              on:click={() => { presetId = 'shelf40x20'; }}
+              class="px-2.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-0.5 {presetId === 'shelf40x20' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'border-pos-border bg-slate-50 dark:bg-slate-800/40 text-pos-muted hover:text-pos-text'}"
+            >
+              <span class="leading-tight">Shelf Price</span>
+              <span class="text-[10px] opacity-75 font-mono">40×20 mm</span>
+            </button>
+            <button
+              type="button"
+              on:click={() => { presetId = 'custom'; }}
+              class="px-2.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-0.5 {presetId === 'custom' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'border-pos-border bg-slate-50 dark:bg-slate-800/40 text-pos-muted hover:text-pos-text'}"
+            >
+              <span class="leading-tight">Custom</span>
+              <span class="text-[10px] opacity-75">Settings</span>
+            </button>
+          </div>
         </div>
 
         {#if presetId === 'custom'}

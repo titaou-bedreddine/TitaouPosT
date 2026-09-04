@@ -75,9 +75,9 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
         // — no PDF, no viewer window, still fully silent.
         let gdi_req = crate::printing::label_gdi::LabelPrintRequest {
             html: html.clone(),
-            printer: None,
+            printer: if printer.is_empty() { None } else { Some(printer.clone()) },
             width_mm: 80.0,
-            height_mm: 297.0,
+            height_mm: 80.0,
             copies: 1,
             dpi: Some(203),
             label: title.clone(),
@@ -318,8 +318,55 @@ pub fn list_cash_movements(db: State<'_, DbState>, session_id: i64) -> Result<Ve
 }
 
 #[tauri::command]
-pub fn list_session_history(db: State<'_, DbState>) -> Result<Vec<CashSession>, String> {
-    cash_service::list_session_history(&db)
+pub fn list_session_history(
+    db: State<'_, DbState>,
+    from_date: Option<String>,
+    to_date: Option<String>,
+    include_archived: Option<bool>,
+) -> Result<Vec<CashSession>, String> {
+    cash_service::list_session_history(&db, from_date, to_date, include_archived)
+}
+
+#[tauri::command]
+pub fn edit_opening_balance(
+    db: State<'_, DbState>,
+    session_id: i64,
+    new_amount: i64,
+    reason: String,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    cash_service::edit_opening_balance(&db, session_id, new_amount, reason, admin_password)
+}
+
+#[tauri::command]
+pub fn edit_cash_session(
+    db: State<'_, DbState>,
+    session_id: i64,
+    opening_amount: Option<i64>,
+    actual_cash: Option<i64>,
+    notes: Option<String>,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    cash_service::edit_cash_session(&db, session_id, opening_amount, actual_cash, notes, admin_password)
+}
+
+#[tauri::command]
+pub fn archive_cash_session(
+    db: State<'_, DbState>,
+    session_id: i64,
+    archived: bool,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    cash_service::archive_cash_session(&db, session_id, archived, admin_password)
+}
+
+#[tauri::command]
+pub fn delete_cash_session(
+    db: State<'_, DbState>,
+    session_id: i64,
+    admin_password: Option<String>,
+) -> Result<(), String> {
+    cash_service::delete_cash_session(&db, session_id, admin_password)
 }
 
 // Products & Categories

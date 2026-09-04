@@ -195,7 +195,6 @@ pub fn record_employee_absence(
     Ok(conn.last_insert_rowid())
 }
 
-/// Total absent days for an employee (optionally within a YYYY-MM month).
 pub fn list_employee_absences(
     db: &DbState,
     employee_id: Option<i64>,
@@ -205,18 +204,21 @@ pub fn list_employee_absences(
     let mut sql = String::from(
         "SELECT id, employee_id, days, reason, date FROM employee_absences WHERE 1=1",
     );
-    if employee_id.is_some() {
-        sql.push_str(" AND employee_id = ?1");
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if let Some(eid) = employee_id {
+        sql.push_str(" AND employee_id = ?");
+        params.push(Box::new(eid));
     }
     if let Some(m) = &month {
         if !m.is_empty() {
-            sql.push_str(&format!(" AND substr(date, 1, 7) = '{}'", m));
+            sql.push_str(" AND substr(date, 1, 7) = ?");
+            params.push(Box::new(m.clone()));
         }
     }
     sql.push_str(" ORDER BY id DESC LIMIT 500");
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([employee_id.unwrap_or(0)], |r| {
+        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
         })
         .map_err(|e| e.to_string())?;

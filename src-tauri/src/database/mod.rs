@@ -139,6 +139,7 @@ impl DbState {
         // their family; pin_order is the manual arrangement among pinned.
         let _ = conn.execute("ALTER TABLE products ADD COLUMN pinned INTEGER DEFAULT 0;", []);
         let _ = conn.execute("ALTER TABLE products ADD COLUMN pin_order INTEGER DEFAULT 0;", []);
+        let _ = conn.execute("ALTER TABLE cash_sessions ADD COLUMN is_archived INTEGER DEFAULT 0;", []);
 
         let _ = conn.execute(
             "CREATE TABLE IF NOT EXISTS scale_sync_logs (

@@ -250,8 +250,8 @@
       await invoke('record_employee_absence', {
         employeeId: emp.id,
         days: absenceDays,
-        reason: 'Absence / غياب',
-        date: localDateStr(),
+        reason: absenceReason || 'Absence / غياب',
+        date: absenceDate || localDateStr(),
       });
       absencesMap[emp.id] = (absencesMap[emp.id] || 0) + absenceDays;
     } catch (e) {
@@ -498,16 +498,26 @@
     <div class="bg-pos-card border border-pos-border rounded-3xl p-6 shadow-2xl max-w-sm w-full space-y-4 animate-in zoom-in-95 duration-150">
       <div class="flex items-center justify-between border-b border-pos-border pb-3">
         <h3 class="font-black text-sm text-pos-text">Record Advance (تسبيق راتب)</h3>
-        <button on:click={() => (selectedEmpForAdvance = null)} class="text-pos-muted"><X class="w-4 h-4" /></button>
+        <button on:click={() => (selectedEmpForAdvance = null)} class="text-pos-muted cursor-pointer"><X class="w-4 h-4" /></button>
       </div>
       <p class="text-xs text-pos-muted font-bold">Employee: {selectedEmpForAdvance.full_name}</p>
-      <div>
-        <label class="block text-xs font-bold text-pos-muted mb-1">Advance Amount (DZD)</label>
-        <input type="number" min="500" step="500" bind:value={advanceAmount} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono font-black text-pos-text" />
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Advance Amount (DZD) / المبلغ</label>
+          <input type="number" min="500" step="500" bind:value={advanceAmount} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono font-black text-pos-text outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Date / التاريخ</label>
+          <input type="date" bind:value={advanceDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-pos-text outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Reason / السبب أو ملاحظات</label>
+          <input type="text" bind:value={advanceReason} placeholder="Avance sur salaire" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-pos-text outline-none" />
+        </div>
       </div>
-      <div class="flex justify-end gap-2 pt-2">
-        <button on:click={() => (selectedEmpForAdvance = null)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl">Cancel</button>
-        <button on:click={recordAdvance} class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl">Confirm Advance</button>
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (selectedEmpForAdvance = null)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={recordAdvance} class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl cursor-pointer">Confirm Advance</button>
       </div>
     </div>
   </div>
@@ -519,16 +529,26 @@
     <div class="bg-pos-card border border-pos-border rounded-3xl p-6 shadow-2xl max-w-sm w-full space-y-4 animate-in zoom-in-95 duration-150">
       <div class="flex items-center justify-between border-b border-pos-border pb-3">
         <h3 class="font-black text-sm text-pos-text">Record Absence (تسجيل غياب)</h3>
-        <button on:click={() => (selectedEmpForAbsence = null)} class="text-pos-muted"><X class="w-4 h-4" /></button>
+        <button on:click={() => (selectedEmpForAbsence = null)} class="text-pos-muted cursor-pointer"><X class="w-4 h-4" /></button>
       </div>
       <p class="text-xs text-pos-muted font-bold">Employee: {selectedEmpForAbsence.full_name}</p>
-      <div>
-        <label class="block text-xs font-bold text-pos-muted mb-1">Number of Days</label>
-        <input type="number" min="1" max="30" bind:value={absenceDays} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono font-black text-pos-text" />
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Number of Days / عدد الأيام</label>
+          <input type="number" min="1" max="30" bind:value={absenceDays} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono font-black text-pos-text outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Date / التاريخ</label>
+          <input type="date" bind:value={absenceDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-pos-text outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Reason / السبب</label>
+          <input type="text" bind:value={absenceReason} placeholder="Absence non justifiée" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-pos-text outline-none" />
+        </div>
       </div>
-      <div class="flex justify-end gap-2 pt-2">
-        <button on:click={() => (selectedEmpForAbsence = null)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl">Cancel</button>
-        <button on:click={recordAbsence} class="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl">Confirm Deduction</button>
+      <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+        <button on:click={() => (selectedEmpForAbsence = null)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={recordAbsence} class="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl cursor-pointer">Confirm Deduction</button>
       </div>
     </div>
   </div>

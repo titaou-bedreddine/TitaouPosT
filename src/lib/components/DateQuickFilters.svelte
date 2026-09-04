@@ -5,13 +5,14 @@
   export let endDate = '';
   export let onChange: () => void = () => {};
 
-  function toISO(d: Date): string {
-    return d.toISOString().split('T')[0];
+  function toLocalISODate(d: Date): string {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
   function apply(start: Date, end: Date) {
-    startDate = toISO(start);
-    endDate = toISO(end);
+    startDate = toLocalISODate(start);
+    endDate = toLocalISODate(end);
     onChange();
   }
 

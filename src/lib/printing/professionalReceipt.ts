@@ -131,7 +131,7 @@ export function buildProfessionalReceiptHtml(o: ProReceiptOptions): string {
   const currency = (o.currency || 'DA').toUpperCase();
   const showUnitPrice = !compact;
 
-  const font = `'Segoe UI',Arial,'Helvetica Neue',Tahoma,sans-serif`;
+  const font = `'Segoe UI',Arial,'Helvetica Neue',Tahoma,'Noto Sans Arabic',sans-serif`;
   const style = `<style>
     .tpRcp,.tpRcp *{box-sizing:border-box;margin:0;padding:0;font-family:${font};color:#000;}
     .tpRcp{width:${paperW}mm;background:#fff;font-size:2.6mm;line-height:1.4;padding:2mm 2.5mm 2.5mm;}

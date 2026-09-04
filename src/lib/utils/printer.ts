@@ -90,19 +90,22 @@ export async function printHtmlSilently(
 }
 
 function wrapFullDocument(htmlContent: string, paper?: PrintPaper): string {
-  const pageRule = paper
-    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm ? paper.heightMm + 'mm' : 'auto'}; margin: 0mm; }
-       body { width: ${paper.widthMm}mm; margin: 0; padding: 0; background: #fff; }`
-    : `@page { size: 80mm auto; margin: 0mm; }
-       body { width: 76mm; margin: 2mm auto; font-size: 11px; line-height: 1.3; background: #fff; padding: 2mm; }`;
+  const widthMm = paper?.widthMm || 80;
+  const heightMm = paper?.heightMm ?? (widthMm === 80 ? 80 : undefined);
+  const pageRule = heightMm
+    ? `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0mm; }
+       html, body { width: ${widthMm}mm; height: ${heightMm}mm; max-height: ${heightMm}mm; margin: 0; padding: 0; background: #fff; overflow: hidden; }`
+    : `@page { size: ${widthMm}mm auto; margin: 0mm; }
+       html, body { width: ${widthMm}mm; margin: 0; padding: 0; background: #fff; }`;
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /><style>
     ${pageRule}
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; color: #000; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans Arabic', Arial, sans-serif; color: #000; }
     .text-center { text-align: center; } .text-end { text-align: right; } .text-start { text-align: left; }
     .font-bold { font-weight: bold; } .font-black { font-weight: 900; }
-    table { width: 100%; border-collapse: collapse; margin: 4px 0; }
-    th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; padding: 2px 0; }
-    td { padding: 2px 0; font-size: 10px; }
+    table { width: 100%; border-collapse: collapse; margin: 2px 0; }
+    th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; padding: 1px 0; }
+    td { padding: 1px 0; font-size: 10px; }
     .border-b-dashed { border-bottom: 1px dashed #000; } .border-t-dashed { border-top: 1px dashed #000; }
     .flex { display: flex; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
   </style></head><body>${htmlContent}</body></html>`;
@@ -130,13 +133,24 @@ export function printHtmlDirectly(
     return;
   }
 
-  // Labels pass an exact page size so px font sizes print 1:1 instead of
-  // being rescaled by an 80mm receipt page. heightMm omitted = dynamic height.
-  const pageRule = paper
-    ? `@page { size: ${paper.widthMm}mm ${paper.heightMm ? paper.heightMm + 'mm' : 'auto'}; margin: 0mm; }`
-    : `@page { size: 80mm auto; margin: 0mm; }`;
-  const bodyRule = paper
-    ? `body { width: ${paper.widthMm}mm; margin: 0 auto; background: #fff; position: relative; }`
+  const widthMm = paper?.widthMm || 80;
+  const heightMm = paper?.heightMm ?? (widthMm === 80 ? 80 : undefined);
+  const pageRule = heightMm
+    ? `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0mm; }`
+    : `@page { size: ${widthMm}mm auto; margin: 0mm; }`;
+  const bodyRule = heightMm
+    ? `html, body {
+          width: ${widthMm}mm;
+          height: ${heightMm}mm;
+          max-height: ${heightMm}mm;
+          margin: 0;
+          padding: 1.5mm;
+          font-size: 10px;
+          line-height: 1.25;
+          background: #fff;
+          overflow: hidden;
+          position: relative;
+        }`
     : `body {
           width: 76mm;
           margin: 2mm auto;
@@ -160,7 +174,7 @@ export function printHtmlDirectly(
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Courier New', Courier, monospace, 'Segoe UI', Tahoma, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans Arabic', Arial, sans-serif;
             color: #000;
           }
           ${bodyRule}

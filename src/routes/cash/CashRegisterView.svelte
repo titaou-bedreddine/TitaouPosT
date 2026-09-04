@@ -5,7 +5,7 @@
   import type { CashMovement, CashSession, Customer } from '../../lib/types';
   import { activeSession } from '../../lib/stores/session';
   import { currentUser } from '../../lib/stores/auth';
-  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon } from 'lucide-svelte';
+  import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon, Edit2, Archive, ArchiveRestore, Trash2, AlertTriangle, X } from 'lucide-svelte';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import { printHtmlDirectly } from '../../lib/utils/printer';
 
@@ -28,6 +28,40 @@
   // History Filter
   let fromDate = '';
   let toDate = '';
+  let showArchived = false;
+
+  // Issue 10: Edit Opening Balance (Active Session)
+  let isEditOpeningOpen = false;
+  let editOpeningAmount = 0;
+  let editOpeningReason = '';
+  let editOpeningAdminPassword = '';
+  let editOpeningError = '';
+  let isSubmittingOpening = false;
+
+  // Issue 11: Edit Past Session Details
+  let isEditSessionModalOpen = false;
+  let sessionToEdit: CashSession | null = null;
+  let editSessionOpening = 0;
+  let editSessionActual = 0;
+  let editSessionNotes = '';
+  let editSessionAdminPassword = '';
+  let editSessionError = '';
+  let isSubmittingEditSession = false;
+
+  // Issue 12: Archive / Restore Past Session
+  let isArchiveModalOpen = false;
+  let sessionToArchive: CashSession | null = null;
+  let archiveAdminPassword = '';
+  let archiveError = '';
+  let isSubmittingArchive = false;
+
+  // Issue 12: Delete Past Session
+  let isDeleteModalOpen = false;
+  let sessionToDelete: CashSession | null = null;
+  let deleteAdminPassword = '';
+  let deleteConfirmText = '';
+  let deleteError = '';
+  let isSubmittingDelete = false;
 
   // Debt & versement KPIs for the register page
   let totalUnpaidDebt = 0;
@@ -77,9 +111,141 @@
       if (active) {
         movements = await invoke<CashMovement[]>('list_cash_movements', { sessionId: active.id });
       }
-      historySessions = await invoke<CashSession[]>('list_session_history');
+      await loadHistorySessions();
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function loadHistorySessions() {
+    try {
+      historySessions = await invoke<CashSession[]>('list_session_history', {
+        fromDate: fromDate || null,
+        toDate: toDate || null,
+        includeArchived: showArchived,
+      });
+    } catch (e) {
+      console.error('Error loading history sessions:', e);
+    }
+  }
+
+  function openEditOpeningModal() {
+    if (!$activeSession) return;
+    editOpeningAmount = $activeSession.opening_amount;
+    editOpeningReason = '';
+    editOpeningAdminPassword = '';
+    editOpeningError = '';
+    isEditOpeningOpen = true;
+  }
+
+  async function handleEditOpeningBalance() {
+    if (!$activeSession) return;
+    if (editOpeningAmount < 0) {
+      editOpeningError = 'Amount cannot be negative';
+      return;
+    }
+    isSubmittingOpening = true;
+    editOpeningError = '';
+    try {
+      await invoke('edit_opening_balance', {
+        sessionId: $activeSession.id,
+        newAmount: editOpeningAmount,
+        reason: editOpeningReason || 'Correction',
+        adminPassword: editOpeningAdminPassword || null,
+      });
+      isEditOpeningOpen = false;
+      await loadData();
+    } catch (e: any) {
+      editOpeningError = e?.toString() || 'Failed to update opening balance';
+    } finally {
+      isSubmittingOpening = false;
+    }
+  }
+
+  function openEditSessionModal(s: CashSession) {
+    sessionToEdit = s;
+    editSessionOpening = s.opening_amount;
+    editSessionActual = s.actual_cash !== null && s.actual_cash !== undefined ? s.actual_cash : s.expected_cash;
+    editSessionNotes = s.notes || '';
+    editSessionAdminPassword = '';
+    editSessionError = '';
+    isEditSessionModalOpen = true;
+  }
+
+  async function handleEditSession() {
+    if (!sessionToEdit) return;
+    isSubmittingEditSession = true;
+    editSessionError = '';
+    try {
+      await invoke('edit_cash_session', {
+        sessionId: sessionToEdit.id,
+        openingAmount: editSessionOpening,
+        actualCash: editSessionActual,
+        notes: editSessionNotes || null,
+        adminPassword: editSessionAdminPassword || null,
+      });
+      isEditSessionModalOpen = false;
+      await loadHistorySessions();
+    } catch (e: any) {
+      editSessionError = e?.toString() || 'Failed to edit session';
+    } finally {
+      isSubmittingEditSession = false;
+    }
+  }
+
+  function openArchiveModal(s: CashSession) {
+    sessionToArchive = s;
+    archiveAdminPassword = '';
+    archiveError = '';
+    isArchiveModalOpen = true;
+  }
+
+  async function handleToggleArchive() {
+    if (!sessionToArchive) return;
+    isSubmittingArchive = true;
+    archiveError = '';
+    try {
+      await invoke('archive_cash_session', {
+        sessionId: sessionToArchive.id,
+        archived: !sessionToArchive.is_archived,
+        adminPassword: archiveAdminPassword || null,
+      });
+      isArchiveModalOpen = false;
+      await loadHistorySessions();
+    } catch (e: any) {
+      archiveError = e?.toString() || 'Failed to archive/restore session';
+    } finally {
+      isSubmittingArchive = false;
+    }
+  }
+
+  function openDeleteModal(s: CashSession) {
+    sessionToDelete = s;
+    deleteAdminPassword = '';
+    deleteConfirmText = '';
+    deleteError = '';
+    isDeleteModalOpen = true;
+  }
+
+  async function handleDeleteSession() {
+    if (!sessionToDelete) return;
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE' && deleteConfirmText.trim() !== 'حذف') {
+      deleteError = 'Type DELETE to confirm';
+      return;
+    }
+    isSubmittingDelete = true;
+    deleteError = '';
+    try {
+      await invoke('delete_cash_session', {
+        sessionId: sessionToDelete.id,
+        adminPassword: deleteAdminPassword || null,
+      });
+      isDeleteModalOpen = false;
+      await loadHistorySessions();
+    } catch (e: any) {
+      deleteError = e?.toString() || 'Failed to delete session';
+    } finally {
+      isSubmittingDelete = false;
     }
   }
 
@@ -241,11 +407,24 @@
 
       <!-- Metric Cards matching screenshot -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs">
-          <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
-            <Wallet class="w-4 h-4 text-sky-500" />
-            <span>{t('reg_opening_balance')}</span>
-          </span>
+        <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs relative">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5">
+              <Wallet class="w-4 h-4 text-sky-500" />
+              <span>{t('reg_opening_balance')}</span>
+            </span>
+            {#if $currentUser?.role === 'admin'}
+              <button
+                type="button"
+                on:click={openEditOpeningModal}
+                class="text-[10px] font-bold text-sky-600 hover:text-sky-700 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-200 dark:border-sky-800 transition cursor-pointer flex items-center gap-1"
+                title={t('edit_opening_balance')}
+              >
+                <Edit2 class="w-3 h-3" />
+                <span>{t('edit_opening_balance')}</span>
+              </button>
+            {/if}
+          </div>
           <div class="text-2xl font-black font-mono text-pos-text">
             {$activeSession.opening_amount.toLocaleString()} DZD
           </div>
@@ -400,23 +579,32 @@
   {:else}
     <!-- Session History matching screenshot -->
     <div class="bg-pos-card border border-pos-border rounded-2xl p-4 shadow-xs space-y-4">
-      <DateQuickFilters bind:startDate={fromDate} bind:endDate={toDate} onChange={loadData} />
+      <DateQuickFilters bind:startDate={fromDate} bind:endDate={toDate} onChange={loadHistorySessions} />
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
         <div>
           <label class="block text-xs font-bold text-pos-muted mb-1">{t('from_date')}</label>
-          <input type="date" bind:value={fromDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
+          <input type="date" bind:value={fromDate} on:change={loadHistorySessions} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
         </div>
         <div>
           <label class="block text-xs font-bold text-pos-muted mb-1">{t('to_date')}</label>
-          <input type="date" bind:value={toDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
+          <input type="date" bind:value={toDate} on:change={loadHistorySessions} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold" />
         </div>
-        <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">{t('employee')}</label>
-          <select class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs text-pos-text font-bold">
-            <option>جميع الموظفين</option>
-          </select>
+        <div class="flex items-center h-9">
+          <label class="flex items-center gap-2 text-xs font-bold text-pos-muted hover:text-pos-text cursor-pointer select-none">
+            <input
+              type="checkbox"
+              bind:checked={showArchived}
+              on:change={loadHistorySessions}
+              class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-pos-border"
+            />
+            <span>Show Archived Sessions (عرض المؤرشفة)</span>
+          </label>
         </div>
-        <button class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer">
+        <button
+          type="button"
+          on:click={loadHistorySessions}
+          class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+        >
           <Search class="w-4 h-4" />
           <span>{t('btn_search')}</span>
         </button>
@@ -434,28 +622,81 @@
             <th class="p-3 text-end">Expected</th>
             <th class="p-3 text-end">Difference</th>
             <th class="p-3 text-center">Status</th>
+            <th class="p-3 text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {#each historySessions as s}
-            <tr class="border-b border-pos-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-              <td class="p-3 font-mono font-bold text-pos-muted">{s.id}</td>
-              <td class="p-3 font-bold text-pos-text">{s.user_name || 'Admin'}</td>
-              <td class="p-3 font-mono text-pos-muted">{s.opened_at}</td>
-              <td class="p-3 font-mono text-pos-muted">{s.closed_at || '-'}</td>
-              <td class="p-3 text-end font-mono font-bold">{s.opening_amount.toLocaleString()}</td>
-              <td class="p-3 text-end font-mono font-bold">{s.actual_cash !== null && s.actual_cash !== undefined ? s.actual_cash.toLocaleString() : '-'}</td>
-              <td class="p-3 text-end font-mono font-bold">{s.expected_cash.toLocaleString()}</td>
-              <td class="p-3 text-end font-mono font-bold {s.difference && s.difference < 0 ? 'text-rose-600' : 'text-emerald-600'}">
-                {s.difference !== null && s.difference !== undefined ? s.difference.toLocaleString() : '-'}
-              </td>
-              <td class="p-3 text-center">
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {s.status === 'open' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-800'}">
-                  {s.status === 'open' ? 'مفتوحة' : 'مغلقة'}
-                </span>
+          {#if historySessions.length === 0}
+            <tr>
+              <td colspan="10" class="p-8 text-center text-pos-muted font-bold">
+                No cash sessions found for this period.
               </td>
             </tr>
-          {/each}
+          {:else}
+            {#each historySessions as s}
+              <tr class="border-b border-pos-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 {s.is_archived ? 'opacity-60 bg-slate-50/50 dark:bg-slate-900/20' : ''}">
+                <td class="p-3 font-mono font-bold text-pos-muted">{s.id}</td>
+                <td class="p-3 font-bold text-pos-text">{s.user_name || 'Admin'}</td>
+                <td class="p-3 font-mono text-pos-muted">{s.opened_at}</td>
+                <td class="p-3 font-mono text-pos-muted">{s.closed_at || '-'}</td>
+                <td class="p-3 text-end font-mono font-bold">{s.opening_amount.toLocaleString()}</td>
+                <td class="p-3 text-end font-mono font-bold">{s.actual_cash !== null && s.actual_cash !== undefined ? s.actual_cash.toLocaleString() : '-'}</td>
+                <td class="p-3 text-end font-mono font-bold">{s.expected_cash.toLocaleString()}</td>
+                <td class="p-3 text-end font-mono font-bold {s.difference && s.difference < 0 ? 'text-rose-600' : 'text-emerald-600'}">
+                  {s.difference !== null && s.difference !== undefined ? s.difference.toLocaleString() : '-'}
+                </td>
+                <td class="p-3 text-center">
+                  {#if s.is_archived}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                      مؤرشفة / Archived
+                    </span>
+                  {:else if s.status === 'open'}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      مفتوحة
+                    </span>
+                  {:else}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+                      مغلقة
+                    </span>
+                  {/if}
+                </td>
+                <td class="p-3 text-center">
+                  <div class="flex items-center justify-center gap-1.5">
+                    {#if $currentUser?.role === 'admin'}
+                      <button
+                        type="button"
+                        on:click={() => openEditSessionModal(s)}
+                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-sky-950 text-slate-600 hover:text-sky-600 transition cursor-pointer"
+                        title={t('edit_session')}
+                      >
+                        <Edit2 class="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        on:click={() => openArchiveModal(s)}
+                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950 text-slate-600 hover:text-amber-600 transition cursor-pointer"
+                        title={s.is_archived ? 'Restore session / إلغاء الأرشفة' : t('archive_session')}
+                      >
+                        {#if s.is_archived}
+                          <ArchiveRestore class="w-3.5 h-3.5" />
+                        {:else}
+                          <Archive class="w-3.5 h-3.5" />
+                        {/if}
+                      </button>
+                      <button
+                        type="button"
+                        on:click={() => openDeleteModal(s)}
+                        class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-600 hover:text-rose-600 transition cursor-pointer"
+                        title={t('btn_delete')}
+                      >
+                        <Trash2 class="w-3.5 h-3.5" />
+                      </button>
+                    {/if}
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </div>
@@ -555,6 +796,286 @@
           >
             <Check class="w-4 h-4" />
             <span>Open Session (فتح الصندوق)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Issue 10: Edit Active Session Opening Balance Modal -->
+  {#if isEditOpeningOpen && $activeSession}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
+            <Edit2 class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">{t('edit_opening_balance')}</h3>
+            <p class="text-[11px] text-pos-muted">Active Session #{$activeSession.id}</p>
+          </div>
+        </div>
+
+        {#if editOpeningError}
+          <div class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle class="w-4 h-4 shrink-0" />
+            <span>{editOpeningError}</span>
+          </div>
+        {/if}
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">New Opening Amount (DZD) *</label>
+          <input
+            type="number"
+            bind:value={editOpeningAmount}
+            min="0"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-lg font-mono font-black text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Reason / Motif</label>
+          <input
+            type="text"
+            bind:value={editOpeningReason}
+            placeholder="Correction solde d'ouverture / تصحيح رصيد البداية"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('admin_password')} *</label>
+          <input
+            type="password"
+            bind:value={editOpeningAdminPassword}
+            placeholder="••••••••"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            on:click={() => (isEditOpeningOpen = false)}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel / إلغاء
+          </button>
+          <button
+            type="button"
+            on:click={handleEditOpeningBalance}
+            disabled={isSubmittingOpening}
+            class="px-5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
+            {isSubmittingOpening ? 'Saving...' : 'Confirm / حفظ'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Issue 11: Edit Past Session Details Modal -->
+  {#if isEditSessionModalOpen && sessionToEdit}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
+            <Edit2 class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">{t('edit_session')}</h3>
+            <p class="text-[11px] text-pos-muted">Session #{sessionToEdit.id} ({sessionToEdit.user_name || 'Cashier'})</p>
+          </div>
+        </div>
+
+        {#if editSessionError}
+          <div class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle class="w-4 h-4 shrink-0" />
+            <span>{editSessionError}</span>
+          </div>
+        {/if}
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Opening Amount (DZD)</label>
+          <input
+            type="number"
+            bind:value={editSessionOpening}
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-sm font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Counted Closing Cash (DZD)</label>
+          <input
+            type="number"
+            bind:value={editSessionActual}
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-sm font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">Notes</label>
+          <input
+            type="text"
+            bind:value={editSessionNotes}
+            placeholder="Notes..."
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('admin_password')} *</label>
+          <input
+            type="password"
+            bind:value={editSessionAdminPassword}
+            placeholder="••••••••"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            on:click={() => (isEditSessionModalOpen = false)}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel / إلغاء
+          </button>
+          <button
+            type="button"
+            on:click={handleEditSession}
+            disabled={isSubmittingEditSession}
+            class="px-5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
+            {isSubmittingEditSession ? 'Saving...' : 'Save / حفظ'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Issue 12: Archive Past Session Modal -->
+  {#if isArchiveModalOpen && sessionToArchive}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center font-bold">
+            <Archive class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">
+              {sessionToArchive.is_archived ? 'Restore Session' : t('archive_session')}
+            </h3>
+            <p class="text-[11px] text-pos-muted">Session #{sessionToArchive.id}</p>
+          </div>
+        </div>
+
+        <p class="text-xs text-pos-muted">
+          {sessionToArchive.is_archived
+            ? 'Restore this session back to the active history list?'
+            : 'Archive this session? It will be hidden from normal history views unless "Show Archived" is enabled.'}
+        </p>
+
+        {#if archiveError}
+          <div class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle class="w-4 h-4 shrink-0" />
+            <span>{archiveError}</span>
+          </div>
+        {/if}
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('admin_password')}</label>
+          <input
+            type="password"
+            bind:value={archiveAdminPassword}
+            placeholder="••••••••"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono text-pos-text outline-none focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            on:click={() => (isArchiveModalOpen = false)}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel / إلغاء
+          </button>
+          <button
+            type="button"
+            on:click={handleToggleArchive}
+            disabled={isSubmittingArchive}
+            class="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
+            {isSubmittingArchive ? 'Saving...' : sessionToArchive.is_archived ? 'Restore / استرجاع' : 'Archive / أرشفة'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Issue 12: Delete Past Session Modal -->
+  {#if isDeleteModalOpen && sessionToDelete}
+    <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold">
+            <Trash2 class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-rose-600">Delete Session #{sessionToDelete.id}</h3>
+            <p class="text-[11px] text-pos-muted">Permanent action / حذف نهائي</p>
+          </div>
+        </div>
+
+        <p class="text-xs text-pos-muted">
+          Are you sure you want to permanently delete Session #{sessionToDelete.id} and all its cash movements? This cannot be undone.
+        </p>
+
+        {#if deleteError}
+          <div class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+            <AlertTriangle class="w-4 h-4 shrink-0" />
+            <span>{deleteError}</span>
+          </div>
+        {/if}
+
+        <div class="space-y-1">
+          <label class="block text-xs font-bold text-pos-muted">
+            Type <span class="text-rose-600 font-mono font-black">DELETE</span> to confirm:
+          </label>
+          <input
+            type="text"
+            bind:value={deleteConfirmText}
+            placeholder="DELETE"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono font-black text-rose-600 outline-none focus:ring-2 focus:ring-rose-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('admin_password')} *</label>
+          <input
+            type="password"
+            bind:value={deleteAdminPassword}
+            placeholder="••••••••"
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono text-pos-text outline-none focus:ring-2 focus:ring-rose-500"
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button
+            type="button"
+            on:click={() => (isDeleteModalOpen = false)}
+            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Cancel / إلغاء
+          </button>
+          <button
+            type="button"
+            on:click={handleDeleteSession}
+            disabled={isSubmittingDelete || (deleteConfirmText.trim().toUpperCase() !== 'DELETE' && deleteConfirmText.trim() !== 'حذف')}
+            class="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+          >
+            {isSubmittingDelete ? 'Deleting...' : 'Delete Session / حذف'}
           </button>
         </div>
       </div>

@@ -29,7 +29,7 @@
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Lock
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -47,14 +47,48 @@
   }
   function routeAllowed(route: string, user: any): boolean {
     if (!user) return false;
+    if (route === 'settings') {
+      return isAdmin(user) || adminSettingsUnlocked;
+    }
     if (isAdmin(user)) return true;
     if (isCashier(user)) return CASHIER_ALLOWED.has(route);
     return true; // Manager & custom roles
   }
-  function settingsAllowed(user: any): boolean {
-    return isAdmin(user);
+
+  let showAdminAuthModal = false;
+  let adminAuthPassword = '';
+  let adminAuthError = '';
+  let adminSettingsUnlocked = false;
+
+  function handleNavigateSettings() {
+    if (isAdmin($currentUser) || adminSettingsUnlocked) {
+      currentRoute = 'settings';
+      return;
+    }
+    adminAuthPassword = '';
+    adminAuthError = '';
+    showAdminAuthModal = true;
   }
-  // Bounce the cashier out of a route they can't see (e.g. after login).
+
+  async function confirmAdminAuth() {
+    try {
+      const ok = await invoke<boolean>('verify_admin_password', { password: adminAuthPassword });
+      if (!ok) {
+        adminAuthError = 'Wrong admin password / كلمة المرور غير صحيحة';
+        return;
+      }
+      adminSettingsUnlocked = true;
+      showAdminAuthModal = false;
+      currentRoute = 'settings';
+    } catch (e: any) {
+      adminAuthError = typeof e === 'string' ? e : e?.message || 'Verification failed';
+    }
+  }
+
+  function settingsAllowed(user: any): boolean {
+    return true;
+  }
+  // Bounce unauthorized routes (e.g. after login or logout).
   $: if (!routeAllowed(currentRoute, $currentUser)) {
     currentRoute = 'pos';
   }
@@ -271,6 +305,7 @@
   }
 
   function handleLogout() {
+    adminSettingsUnlocked = false;
     logout();
   }
 </script>
@@ -418,11 +453,14 @@
         {#if settingsAllowed($currentUser)}
         <button
           type="button"
-          on:click={() => currentRoute = 'settings'}
+          on:click={handleNavigateSettings}
           class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer {currentRoute === 'settings' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-pos-text'}"
         >
           <Settings class="w-4 h-4" />
           <span>{t('nav_settings', $currentLocale)}</span>
+          {#if !isAdmin($currentUser) && !adminSettingsUnlocked}
+            <Lock class="w-3.5 h-3.5 ms-auto text-pos-muted/60" />
+          {/if}
         </button>
         {/if}
       </nav>
@@ -711,6 +749,48 @@
         <div class="flex justify-end gap-2 pt-1">
           <button on:click={() => (showTelegramPinModal = false)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
           <button on:click={confirmTelegramToggle} class="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer">Confirm</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Admin Auth Modal for Settings -->
+  {#if showAdminAuthModal}
+    <div class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
+        <div class="flex items-center gap-3 text-sky-600">
+          <Lock class="w-6 h-6 shrink-0" />
+          <h3 class="font-black text-sm text-pos-text">Admin Access Required / تأكيد صلاحيات المسؤول</h3>
+        </div>
+        <p class="text-xs text-pos-muted">
+          Settings are restricted to administrators. Enter the Admin password to proceed.
+        </p>
+
+        <div class="space-y-1">
+          <label class="block text-xs font-bold text-pos-muted">Admin Password / كلمة المرور</label>
+          <input
+            type="password"
+            bind:value={adminAuthPassword}
+            placeholder="••••••••"
+            autofocus
+            on:keydown={(e) => { if (e.key === 'Enter') confirmAdminAuth(); }}
+            class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          {#if adminAuthError}
+            <p class="text-[11px] font-bold text-rose-500">{adminAuthError}</p>
+          {/if}
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+          <button on:click={() => (showAdminAuthModal = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
+            Cancel / إلغاء
+          </button>
+          <button
+            on:click={confirmAdminAuth}
+            class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
+          >
+            Unlock Settings / فتح الإعدادات
+          </button>
         </div>
       </div>
     </div>

@@ -101,6 +101,8 @@ export interface CartItem {
   expiry_date?: string;
   // Product's purchase cost (cart profit/estimated-sale-price indicators).
   purchase_price?: number;
+  // Product's available inventory balance for negative-stock enforcement.
+  current_stock?: number;
 }
 
 export interface CashSession {
@@ -119,6 +121,7 @@ export interface CashSession {
   current_balance?: number;
   status: 'open' | 'closed';
   notes?: string;
+  is_archived?: boolean;
 }
 
 export interface CashMovement {

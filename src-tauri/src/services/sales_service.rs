@@ -42,8 +42,34 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     // decremented when the sale is fully paid and released.
     let skip_stock = input.skip_stock || is_versement;
 
+    let allow_negative_stock: bool = tx
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'allow_negative_stock'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
     // Process each cart item & update stock
     for item in &input.items {
+        if !skip_stock && !item.is_refund && !allow_negative_stock {
+            let (curr_stock, prod_name): (f64, String) = tx
+                .query_row(
+                    "SELECT current_stock, coalesce(name_fr, name_ar, 'Produit') FROM products WHERE id = ?1",
+                    rusqlite::params![item.product_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .map_err(|e| e.to_string())?;
+
+            if curr_stock < item.quantity {
+                return Err(format!(
+                    "Stock insuffisant pour '{}' (Stock: {}, Demandé: {}). Vente en stock négatif désactivée.",
+                    prod_name, curr_stock, item.quantity
+                ));
+            }
+        }
+
         tx.execute(
             "INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount_amount, tax_amount, total_price, is_refunded, refunded_quantity)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -141,6 +167,24 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
         }
     }
 
+    let mut total_cost: i64 = 0;
+    for item in &input.items {
+        let p_cost: i64 = tx
+            .query_row(
+                "SELECT purchase_price FROM products WHERE id = ?1",
+                rusqlite::params![item.product_id],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        let item_cost = (p_cost as f64 * item.quantity).round() as i64;
+        if item.is_refund {
+            total_cost -= item_cost;
+        } else {
+            total_cost += item_cost;
+        }
+    }
+    let gross_profit: i64 = input.total_amount - total_cost;
+
     tx.commit().map_err(|e| e.to_string())?;
 
     // Release the connection lock BEFORE the notifier: notify_if_enabled
@@ -153,12 +197,22 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     {
         let lang = crate::services::notifier_service::ui_language(db);
         let actor = crate::services::notifier_service::actor_label(db, Some(input.user_id));
+        let date_str = now.format("%Y-%m-%d %H:%M").to_string();
         let text = crate::services::notifier_service::tr(
             &lang,
             (
-                format!("🧾 *New Sale* {}\n💰 Total: *{} DZD*\n👤 Cashier: {}", sale_number, input.total_amount, actor),
-                format!("🧾 *بيع جديد* {}\n💰 المجموع: *{} دج*\n👤 الكاشير: {}", sale_number, input.total_amount, actor),
-                format!("🧾 *Nouvelle Vente* {}\n💰 Total : *{} DZD*\n👤 Caissier : {}", sale_number, input.total_amount, actor),
+                format!(
+                    "🧾 *Receipt #{}* ({})\n💰 Total: *{} DZD*\n📈 Gross Profit: *{} DZD*\n👤 Cashier: {}\n📅 Date: {}",
+                    sale_id, sale_number, input.total_amount, gross_profit, actor, date_str
+                ),
+                format!(
+                    "🧾 *وصل رقم #{}* ({})\n💰 المجموع: *{} دج*\n📈 إجمالي الربح: *{} دج*\n👤 الكاشير: {}\n📅 التاريخ: {}",
+                    sale_id, sale_number, input.total_amount, gross_profit, actor, date_str
+                ),
+                format!(
+                    "🧾 *Reçu N°{}* ({})\n💰 Total : *{} DZD*\n📈 Marge brute : *{} DZD*\n👤 Caissier : {}\n📅 Date : {}",
+                    sale_id, sale_number, input.total_amount, gross_profit, actor, date_str
+                ),
             ),
         );
         crate::services::notifier_service::notify_if_enabled(db, "notify_each_sale", text);
@@ -496,7 +550,7 @@ pub fn replace_sale(
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    let (sale_number, session_id, created_at): (String, i64, String) = tx
+    let (sale_number, session_id, _created_at): (String, i64, String) = tx
         .query_row(
             "SELECT sale_number, COALESCE(session_id, 0), COALESCE(created_at, '') FROM sales WHERE id = ?1",
             [original_sale_id],
@@ -550,8 +604,34 @@ pub fn replace_sale(
     )
     .map_err(|e| e.to_string())?;
 
+    let allow_negative_stock: bool = tx
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'allow_negative_stock'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
     // New items + movements.
     for item in &input.items {
+        if !item.is_refund && !allow_negative_stock {
+            let (curr_stock, prod_name): (f64, String) = tx
+                .query_row(
+                    "SELECT current_stock, coalesce(name_fr, name_ar, 'Produit') FROM products WHERE id = ?1",
+                    rusqlite::params![item.product_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .map_err(|e| e.to_string())?;
+
+            if curr_stock < item.quantity {
+                return Err(format!(
+                    "Stock insuffisant pour '{}' (Stock: {}, Demandé: {}). Vente en stock négatif désactivée.",
+                    prod_name, curr_stock, item.quantity
+                ));
+            }
+        }
+
         let stock_change = if item.is_refund { item.quantity } else { -item.quantity };
         tx.execute(
             "UPDATE products SET current_stock = current_stock + ?1 WHERE id = ?2",

@@ -11,6 +11,7 @@ export const heldSalesList = writable<HeldSale[]>([]);
 export const lastAddedProductId = writable<number | null>(null);
 export const heldNotification = writable<string | null>(null);
 export const cartItemOrder = writable<'top' | 'bottom'>('bottom');
+export const allowNegativeStock = writable<boolean>(false);
 
 // POS transaction mode: sale (default), purchase (stock from supplier),
 // broken (damaged goods written off as expenses).
@@ -40,7 +41,19 @@ export function stopQtyEdit() {
 // Kept for backward compatibility: the canonical store now lives in ./customers.
 export { selectedCustomerId };
 
-export function addToCart(product: Product, quantity = 1, asRefund = false) {
+export function addToCart(product: Product, quantity = 1, asRefund = false): boolean {
+  if (!asRefund && !get(allowNegativeStock) && get(posMode) === 'sale') {
+    const items = get(cartItems);
+    const existing = items.find((i) => i.product_id === product.id && !i.is_refund);
+    const existingQty = existing ? existing.quantity : 0;
+    const available = product.current_stock ?? 0;
+    if (existingQty + quantity > available) {
+      alert(`Stock insuffisant pour "${product.name_fr || product.name_ar}" (Disponible: ${available}, Requis: ${existingQty + quantity}). Vente en stock négatif désactivée.`);
+      return false;
+    }
+  }
+
+  isCartExplicitlyCleared = false;
   lastAddedProductId.set(product.id);
   setTimeout(() => lastAddedProductId.set(null), 800);
 
@@ -72,6 +85,7 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
         is_refund: asRefund,
         expiry_date: (product as any).expiry_date,
         purchase_price: product.purchase_price,
+        current_stock: product.current_stock,
       };
       
       const order = get(cartItemOrder);
@@ -82,12 +96,21 @@ export function addToCart(product: Product, quantity = 1, asRefund = false) {
       }
     }
   });
+  return true;
 }
 
 export function updateItemQuantity(productId: number, isRefund: boolean, newQty: number) {
   if (newQty <= 0) {
     removeFromCart(productId, isRefund);
     return;
+  }
+  if (!isRefund && !get(allowNegativeStock) && get(posMode) === 'sale') {
+    const items = get(cartItems);
+    const item = items.find((i) => i.product_id === productId && !i.is_refund);
+    if (item && item.current_stock !== undefined && newQty > item.current_stock) {
+      alert(`Stock insuffisant pour "${item.name_fr || item.name_ar}" (Disponible: ${item.current_stock}, Requis: ${newQty}). Vente en stock négatif désactivée.`);
+      return;
+    }
   }
   cartItems.update((items) =>
     items.map((item) => {
@@ -144,8 +167,11 @@ export function removeFromCart(productId: number, isRefund: boolean) {
 // (app start) restores it, so a shutdown never loses an in-progress sale.
 
 const ACTIVE_CART_KEY = 'active_cart_json';
+let hasRestoredOnce = false;
+let isCartExplicitlyCleared = false;
 
 export function persistActiveCart() {
+  if (isCartExplicitlyCleared) return;
   try {
     const payload = JSON.stringify({
       items: get(cartItems),
@@ -161,16 +187,19 @@ export function persistActiveCart() {
   }
 }
 
-function clearPersistedCart() {
+export function clearPersistedCart() {
   try {
     invoke('set_setting', { key: ACTIVE_CART_KEY, value: '' }).catch(() => {});
   } catch {}
 }
 
 export async function restoreActiveCart() {
+  if (isCartExplicitlyCleared) return false;
+  if (hasRestoredOnce && get(cartItems).length === 0) return false;
   try {
     const payload = await invoke<string | null>('get_setting', { key: ACTIVE_CART_KEY });
-    if (!payload) return false;
+    hasRestoredOnce = true;
+    if (!payload || payload.trim() === '') return false;
     const parsed = JSON.parse(payload);
     if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) return false;
     cartItems.set(parsed.items);
@@ -191,12 +220,8 @@ export async function restoreActiveCart() {
 
 function mirrorCartToDb() {
   const items = get(cartItems);
-  // Only mirror a NON-EMPTY cart. The empty case must NOT wipe here: a
-  // Svelte subscribe fires immediately with the current value, so at app
-  // startup this ran with [] and the async clear landed BEFORE
-  // restoreActiveCart could read the setting — wiping the persisted cart
-  // on every restart. clearCart() wipes persistence explicitly.
   if (items.length > 0) {
+    isCartExplicitlyCleared = false;
     persistActiveCart();
   }
 }
@@ -207,6 +232,7 @@ globalDiscountMode.subscribe(() => mirrorCartToDb());
 globalDiscountValue.subscribe(() => mirrorCartToDb());
 
 export function clearCart() {
+  isCartExplicitlyCleared = true;
   cartItems.set([]);
   globalDiscountMode.set('none');
   globalDiscountValue.set(0);

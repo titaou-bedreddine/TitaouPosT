@@ -21,7 +21,7 @@
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
     Scale, Bell, Send, CreditCard, Keyboard, Type, Bold, Eye,
-    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin
+    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -74,9 +74,10 @@
     notify_each_sale: 'false',
     notify_cash_in: 'false',
     notify_cash_out: 'false',
-    notify_each_expense: 'false',
-    notify_opening_cash: 'false',
-    notify_supplier_payment: 'false',
+    notify_each_expense: false,
+    notify_opening_cash: false,
+    notify_cash_edited: true,
+    notify_supplier_payment: false,
     notify_product_change: 'true',
     notify_price_change: 'false',
     notify_qty_change: 'false',
@@ -515,10 +516,116 @@
     await loadUsersAndRoles();
   });
 
+  const BOOLEAN_KEYS = new Set([
+    'auto_cut_paper',
+    'open_drawer_on_sale',
+    'scale_enabled',
+    'scale_auto_sync',
+    'notify_daily_summary',
+    'notify_each_sale',
+    'notify_cash_in',
+    'notify_cash_out',
+    'notify_each_expense',
+    'notify_opening_cash',
+    'notify_cash_edited',
+    'notify_supplier_payment',
+    'notify_product_change',
+    'notify_price_change',
+    'notify_qty_change',
+    'notify_history_change',
+    'notify_each_refund',
+    'notify_expiry',
+    'notify_low_stock',
+    'notify_recap_enabled',
+    'telegram_master_enabled',
+    'allow_negative_stock',
+    'pos_autofocus_search',
+    'pos_auto_capture_barcode',
+    'require_pin_for_discount',
+    'hold_sale_require_note',
+    'sticker_show_shop_name',
+    'sticker_show_product_name',
+    'sticker_show_barcode',
+    'sticker_show_price',
+    'sticker_name_bold',
+    'sticker_price_bold',
+    'shelf_show_shop_name',
+    'shelf_show_product_name',
+    'shelf_show_price',
+    'shelf_show_ref',
+    'shelf_name_bold',
+    'shelf_price_bold',
+    'receipt_show_barcode',
+    'receipt_show_shop_name',
+    'receipt_show_address',
+    'receipt_show_phone',
+    'receipt_show_rc_nif',
+    'receipt_show_header_note',
+    'receipt_show_cashier',
+    'receipt_show_date',
+    'receipt_show_tax',
+    'receipt_show_footer',
+    'receipt_show_qr',
+    'receipt_header_bold',
+    'receipt_body_bold',
+    'receipt_total_bold',
+    'receipt_footer_bold',
+  ]);
+
+  interface QuietWindow {
+    start: string;
+    end: string;
+  }
+
+  let quietWindowList: QuietWindow[] = [];
+
+  function parseQuietWindows(raw: string): QuietWindow[] {
+    if (!raw || !raw.trim()) return [];
+    return raw
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [start, end] = part.split('-');
+        return { start: (start || '22:00').trim(), end: (end || '07:00').trim() };
+      });
+  }
+
+  function formatQuietWindows(list: QuietWindow[]): string {
+    return list
+      .filter((w) => w.start && w.end)
+      .map((w) => `${w.start}-${w.end}`)
+      .join(',');
+  }
+
+  function addQuietWindow() {
+    quietWindowList = [...quietWindowList, { start: '22:00', end: '07:00' }];
+    updateQuietWindowsString();
+  }
+
+  function removeQuietWindow(index: number) {
+    quietWindowList = quietWindowList.filter((_, i) => i !== index);
+    updateQuietWindowsString();
+  }
+
+  function updateQuietWindowsString() {
+    settings.telegram_quiet_windows = formatQuietWindows(quietWindowList);
+    autoSaveSettings();
+  }
+
   async function loadSettings() {
     try {
       const fetched = await invoke<Record<string, string>>('get_all_settings');
-      settings = { ...settings, ...fetched };
+      const normalized: Record<string, any> = {};
+      for (const [k, v] of Object.entries(fetched)) {
+        if (BOOLEAN_KEYS.has(k)) {
+          normalized[k] = v === 'true' || v === (true as any);
+        } else {
+          normalized[k] = v;
+        }
+      }
+      settings = { ...settings, ...normalized };
+      quietWindowList = parseQuietWindows(settings.telegram_quiet_windows || '');
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
       await tick();
@@ -2145,6 +2252,13 @@
               <input type="checkbox" bind:checked={settings.notify_opening_cash} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <div>
+                <span>Cash session & opening balance edit / تعديل جلسة ورصيد الصندوق</span>
+                <p class="text-[10px] text-pos-muted font-normal">Alert when a cash session or opening balance is modified</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.notify_cash_edited} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <span>Supplier debt payments (تسديد الموردين)</span>
               <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
@@ -2177,20 +2291,57 @@
               <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
 
-            <!-- Quiet hours: comma-separated OFF windows, notifications
-                 silent inside them (e.g. 08:00-13:00,17:00-21:00). -->
-            <div class="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-pos-border space-y-2">
-              <span class="text-[11px] font-black text-pos-text block">{t('tg_schedule_title')}</span>
-              <input
-                type="text"
-                bind:value={settings.telegram_quiet_windows}
-                on:change={autoSaveSettings}
-                placeholder="08:00-13:00,17:00-21:00"
-                class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
-              />
-              <p class="text-[9px] text-pos-muted font-bold">
-                Format: HH:MM-HH:MM, separated by commas. Outside these windows notifications are ON.
-              </p>
+            <!-- Quiet hours: interactive time pickers + add/remove rows -->
+            <div class="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-pos-border space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-[11px] font-black text-pos-text block">{t('tg_schedule_title') || 'Quiet Hours (ساعات الصمت)'}</span>
+                  <p class="text-[10px] text-pos-muted">Notifications muted during these hours</p>
+                </div>
+                <button
+                  type="button"
+                  on:click={addQuietWindow}
+                  class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                >
+                  <Plus class="w-3 h-3" />
+                  <span>Add Window / إضافة</span>
+                </button>
+              </div>
+
+              {#if quietWindowList.length === 0}
+                <p class="text-xs text-pos-muted italic py-1">No quiet hours configured (notifications active 24/7).</p>
+              {:else}
+                <div class="space-y-2">
+                  {#each quietWindowList as w, idx}
+                    <div class="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-pos-border">
+                      <div class="flex-1 flex items-center gap-2">
+                        <span class="text-[10px] font-bold text-pos-muted">From:</span>
+                        <input
+                          type="time"
+                          bind:value={w.start}
+                          on:change={updateQuietWindowsString}
+                          class="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none cursor-pointer"
+                        />
+                        <span class="text-[10px] font-bold text-pos-muted">To:</span>
+                        <input
+                          type="time"
+                          bind:value={w.end}
+                          on:change={updateQuietWindowsString}
+                          class="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none cursor-pointer"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        on:click={() => removeQuietWindow(idx)}
+                        class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg transition cursor-pointer"
+                        title="Delete Window"
+                      >
+                        <Trash2 class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </div>
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">Recap frequency</label>

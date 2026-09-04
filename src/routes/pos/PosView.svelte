@@ -4,7 +4,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, originSaleId, restoreActiveCart, holdCurrentSale } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, originSaleId, restoreActiveCart, holdCurrentSale, allowNegativeStock } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlSilently, buildReceiptHtml, entityQrDataUrl } from '../../lib/utils/printer';
@@ -589,6 +589,7 @@
       if (s['pos_autofocus_search'] === 'true') {
         autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
       }
+      $allowNegativeStock = s['allow_negative_stock'] === 'true';
     } catch (e) {
       console.warn(e);
     }
@@ -991,9 +992,10 @@
     lastKeyTime = now;
 
     if (e.key === 'Enter') {
-      if (barcodeBuffer.length >= 6) {
+      const normalizedCode = normalizeBarcode(barcodeBuffer);
+      if (normalizedCode.length >= 4 || barcodeBuffer.length >= 4) {
         e.preventDefault();
-        const code = barcodeBuffer;
+        const code = normalizedCode || barcodeBuffer;
         barcodeBuffer = '';
         handleScannedBarcode(code);
         return;

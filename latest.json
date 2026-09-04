@@ -1,11 +1,11 @@
 {
-  "version": "0.5.13",
-  "notes": "Saving a new employee no longer fails with a unique-constraint error. The GEN button guessed the next code from the active employee list only, but deleted employees keep their codes (database uniqueness), so the guess collided with a taken code. The next free code is now computed by the backend against all employees — active and deleted — so every new save gets a genuinely free code.",
-  "pub_date": "2026-09-04T01:37:26.915Z",
+  "version": "0.5.14",
+  "notes": "Comprehensive bug fixes & stability refinements: login password clear button & autofocus, 80x80mm receipt printing with Noto Sans Arabic, settings admin password gate, persistent cart clear, negative stock prevention, inventory stock totals & delete modal fix, label printing tab switcher, register session editing/archiving/deletion with admin auth, Telegram gross profit & cash edit alerts with retry resilience, date quick filter local timezone fix, payroll absence/advance inputs, and localized UI updates.",
+  "pub_date": "2026-09-04T18:30:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTm5IY242allBeDk4STNzdlZsQSsvT0c5YmRLckVJMVFqYTVtMW52VWRnOGw0cTdUMm96REtXb2lXekxrVFlwUjhEcVdsMGpyLzF0TFBiZUQvMXV1NXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDg1Nzg0CWZpbGU6VGl0YW91UE9TXzAuNS4xM194NjQtc2V0dXAuZXhlClRNbnVoQVh1OEZWTitybWhqZWtuTnh2bEZ1alAvenhVRzhUbkVTeXh2TVNVVFJHL01VOGhqNVE2bGRTUGtzL25yL2E2R1RIdWNVanhXSWhqWm1WVUNnPT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.13/TitaouPOS_0.5.13_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnBTRkVqNTFRbllnWGNVQ2o5NUw1ak1PY3dzYktBeGZKaWI0M2QyWWRuVkJHeGJHdGNxRGg3eEo0S1QyZ2FpQURGWG4wUllucWV2ejBiamVIblE3U0FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTQ2NTI0CWZpbGU6VGl0YW91UE9TXzAuNS4xNF94NjQtc2V0dXAuZXhlClhKYlJNVTdsQlliZmtNV0dKYnRnYnAyQ2tKSVJBcS9jM1EraGEvSEEvSmdxV3pYNWlpbTNoRU9OL3RnTVJYeXVPVnk0QlRPVWJxT1N4d05wSFpxT0N3PT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.14/TitaouPOS_0.5.14_x64-setup.exe"
     }
   }
 }

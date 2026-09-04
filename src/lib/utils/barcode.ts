@@ -10,23 +10,23 @@
  * - Common barcode punctuations & alphas
  */
 
-const AZERTY_TO_DIGITS: Record<string, string> = {
+// Full character mapping for barcode scanners running under French (AZERTY) or Arabic Windows keyboard layouts
+const SCANNER_CHAR_MAP: Record<string, string> = {
+  // French AZERTY top row digits
   '&': '1',
   'é': '2',
   '"': '3',
   "'": '4',
   '(': '5',
-  '-': '6',
+  '-': '6', // On AZERTY top row, key 6 is '-'
   'è': '7',
   '_': '8',
   'ç': '9',
   'à': '0',
-  // Caps / alternative layouts
   '§': '6',
   '°': '0',
-};
 
-const ARABIC_INDIC_DIGITS: Record<string, string> = {
+  // Arabic-Indic digits
   '٠': '0',
   '١': '1',
   '٢': '2',
@@ -37,10 +37,24 @@ const ARABIC_INDIC_DIGITS: Record<string, string> = {
   '٧': '7',
   '٨': '8',
   '٩': '9',
+
+  // French AZERTY punctuation to standard barcode punctuation
+  ')': '-',
+  '=': '+',
+  ':': '/',
+  '!': '/',
+  ';': '.',
+  ',': '.',
+
+  // Arabic layout punctuation to standard barcode characters
+  'ظ': '/',
+  'ز': '.',
+  'ـ': '-',
 };
 
 /**
- * Normalizes any scanned or typed string into standard alphanumeric barcode digits.
+ * Normalizes any scanned barcode string into standard alphanumeric barcode digits & symbols.
+ * Handles French AZERTY and Arabic keyboard layout distortions for 0-9, -, /, ., *, +.
  */
 export function normalizeBarcode(input: string): string {
   if (!input) return '';
@@ -48,17 +62,13 @@ export function normalizeBarcode(input: string): string {
   let clean = '';
   for (let i = 0; i < input.length; i++) {
     const char = input[i];
-
-    if (AZERTY_TO_DIGITS[char] !== undefined) {
-      clean += AZERTY_TO_DIGITS[char];
-    } else if (ARABIC_INDIC_DIGITS[char] !== undefined) {
-      clean += ARABIC_INDIC_DIGITS[char];
+    if (SCANNER_CHAR_MAP[char] !== undefined) {
+      clean += SCANNER_CHAR_MAP[char];
     } else {
       clean += char;
     }
   }
 
-  // Trim extraneous whitespace or control codes sent by scanners
   return clean.trim();
 }
 

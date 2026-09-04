@@ -21,11 +21,53 @@ pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
-    client
+
+    for attempt in 0..2 {
+        let resp = client
+            .post(&url)
+            .form(&[("chat_id", chat_id), ("text", text), ("parse_mode", "Markdown")])
+            .send();
+
+        match resp {
+            Ok(r) => {
+                if r.status().is_success() {
+                    return Ok(());
+                }
+                // If markdown parse error (status 400), fall back immediately to plain text without Markdown
+                if r.status().as_u16() == 400 {
+                    let plain_resp = client
+                        .post(&url)
+                        .form(&[("chat_id", chat_id), ("text", text)])
+                        .send();
+                    if let Ok(pr) = plain_resp {
+                        if pr.status().is_success() {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                if attempt == 0 {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    continue;
+                }
+            }
+        }
+    }
+
+    // Final fallback attempt: send plain text without parse_mode
+    let final_resp = client
         .post(&url)
-        .form(&[("chat_id", chat_id), ("text", text), ("parse_mode", "Markdown")])
+        .form(&[("chat_id", chat_id), ("text", text)])
         .send()
         .map_err(|e| format!("Telegram send failed: {}", e))?;
+
+    if !final_resp.status().is_success() {
+        let status = final_resp.status();
+        let body = final_resp.text().unwrap_or_default();
+        return Err(format!("Telegram error HTTP {}: {}", status, body));
+    }
+
     Ok(())
 }
 

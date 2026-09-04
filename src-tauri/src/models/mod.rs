@@ -145,6 +145,8 @@ pub struct CashSession {
     /// True when the session was opened on a previous calendar day.
     #[serde(default)]
     pub is_stale: Option<bool>,
+    #[serde(default)]
+    pub is_archived: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

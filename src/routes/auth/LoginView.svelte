@@ -4,7 +4,7 @@
   import { t } from '../../lib/i18n';
   import { currentUser } from '../../lib/stores/auth';
   import type { User } from '../../lib/types';
-  import { Lock, ChevronDown, Eye, EyeOff } from 'lucide-svelte';
+  import { Lock, ChevronDown, Eye, EyeOff, X } from 'lucide-svelte';
 
   let usersList: User[] = [];
   let selectedUsername = 'admin';
@@ -21,6 +21,7 @@
   let passwordInputEl: HTMLInputElement;
 
   onMount(() => {
+    password = '';
     // Cursor starts in the password box so the user can type straight away.
     setTimeout(() => passwordInputEl?.focus(), 100);
     let missedPings = 0;
@@ -79,6 +80,7 @@
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
       ]);
       if (user) {
+        password = '';
         currentUser.set(user);
         $currentUser = user;
       } else {
@@ -129,6 +131,7 @@
         <div class="relative">
           <select
             bind:value={selectedUsername}
+            on:change={() => { password = ''; passwordInputEl?.focus(); }}
             class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition appearance-none cursor-pointer"
           >
             {#if usersList.length === 0}
@@ -164,15 +167,28 @@
             {/if}
           </button>
         </div>
-        <input
-          type={showPassword ? 'text' : 'password'}
-          bind:value={password}
-          bind:this={passwordInputEl}
-          placeholder="••••••••"
-          autofocus
-          on:keydown={handleKeyDown}
-          class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition font-mono"
-        />
+        <div class="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            bind:value={password}
+            bind:this={passwordInputEl}
+            autocomplete="new-password"
+            placeholder="••••••••"
+            autofocus
+            on:keydown={handleKeyDown}
+            class="w-full px-4 py-3 pe-10 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white outline-none focus:border-sky-500 transition font-mono"
+          />
+          {#if password}
+            <button
+              type="button"
+              on:click={() => { password = ''; passwordInputEl?.focus(); }}
+              class="absolute inset-y-0 end-3 flex items-center text-slate-400 hover:text-white transition cursor-pointer"
+              title="Clear password"
+            >
+              <X class="w-4 h-4" />
+            </button>
+          {/if}
+        </div>
       </div>
 
       {#if ipcDead}

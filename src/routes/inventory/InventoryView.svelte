@@ -141,8 +141,10 @@
   // Real Database Statistics Computed from Product List
   $: totalProductsCount = products.length;
   $: totalStockQuantity = products.reduce((sum, p) => sum + (p.current_stock || 0), 0);
-  $: totalStockValueCost = products.reduce((sum, p) => sum + (p.current_stock * p.purchase_price), 0);
-  $: totalPotentialProfit = products.reduce((sum, p) => sum + (p.current_stock * (p.sale_price - p.purchase_price)), 0);
+  $: positiveStockUnits = products.reduce((sum, p) => sum + (p.current_stock > 0 ? p.current_stock : 0), 0);
+  $: negativeStockUnits = products.reduce((sum, p) => sum + (p.current_stock < 0 ? Math.abs(p.current_stock) : 0), 0);
+  $: totalStockValueCost = products.reduce((sum, p) => sum + (p.current_stock > 0 ? (p.current_stock * p.purchase_price) : 0), 0);
+  $: totalPotentialProfit = products.reduce((sum, p) => sum + (p.current_stock > 0 ? (p.current_stock * (p.sale_price - p.purchase_price)) : 0), 0);
 
   function isProductExpired(expiryDate?: string): boolean {
     if (!expiryDate) return false;
@@ -263,7 +265,7 @@
   </div>
 
   <!-- Real Statistics Cards Bar -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 shrink-0">
     <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
       <div class="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
         <Package class="w-4 h-4" />
@@ -275,22 +277,32 @@
     </div>
 
     <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center font-bold">
+      <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center font-bold">
         <Boxes class="w-4 h-4" />
       </div>
       <div>
-        <p class="text-[10px] font-bold text-pos-muted uppercase">Total Stock Units</p>
-        <p class="text-base font-black font-mono text-pos-text">{totalStockQuantity.toLocaleString()} pcs</p>
+        <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Positive Stock (+)</p>
+        <p class="text-base font-black font-mono text-emerald-600">{positiveStockUnits.toLocaleString()} pcs</p>
+      </div>
+    </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3 {negativeStockUnits > 0 ? 'border-rose-300 dark:border-rose-900 bg-rose-50/20' : ''}">
+      <div class="w-9 h-9 rounded-xl {negativeStockUnits > 0 ? 'bg-rose-100 dark:bg-rose-950 text-rose-600' : 'bg-slate-100 dark:bg-slate-800 text-pos-muted'} flex items-center justify-center font-bold">
+        <AlertTriangle class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold {negativeStockUnits > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-pos-muted'} uppercase">Negative Stock (-)</p>
+        <p class="text-base font-black font-mono {negativeStockUnits > 0 ? 'text-rose-600' : 'text-pos-muted'}">{negativeStockUnits > 0 ? `-${negativeStockUnits.toLocaleString()}` : '0'} pcs</p>
       </div>
     </div>
 
     <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center font-bold">
+      <div class="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 flex items-center justify-center font-bold">
         <DollarSign class="w-4 h-4" />
       </div>
       <div>
         <p class="text-[10px] font-bold text-pos-muted uppercase">Stock Cost Value</p>
-        <p class="text-base font-black font-mono text-emerald-600">{totalStockValueCost.toLocaleString()} DZD</p>
+        <p class="text-base font-black font-mono text-sky-600">{totalStockValueCost.toLocaleString()} DZD</p>
       </div>
     </div>
 
@@ -374,10 +386,10 @@
           {:else}
             {#each sortedProducts as p}
               {@const expired = isProductExpired(p.expiry_date)}
-              {@const nearExp = isProductNearExpiry(p.expiry_date)}
+              {@const isBeingDeleted = isDeleteModalOpen && productToDelete?.id === p.id}
               <tr
                 on:click={() => openEdit(p)}
-                class="transition cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 {expired ? 'bg-rose-50/60 dark:bg-rose-950/20 border-s-4 border-s-rose-500' : nearExp ? 'bg-amber-50/40 dark:bg-amber-950/10 border-s-4 border-s-amber-500' : ''}"
+                class="transition cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 {isBeingDeleted ? 'ring-2 ring-rose-500 bg-rose-50/80 dark:bg-rose-950/50 relative z-10' : expired ? 'bg-rose-50/60 dark:bg-rose-950/20 border-s-4 border-s-rose-500' : nearExp ? 'bg-amber-50/40 dark:bg-amber-950/10 border-s-4 border-s-amber-500' : ''}"
               >
                 <td class="p-3 font-mono font-bold text-sky-600">{p.sku || '—'}</td>
                 <td class="p-3 font-bold text-pos-text">
@@ -476,8 +488,9 @@
           {#each sortedProducts as p}
             {@const expired = isProductExpired(p.expiry_date)}
             {@const nearExp = isProductNearExpiry(p.expiry_date)}
+            {@const isBeingDeleted = isDeleteModalOpen && productToDelete?.id === p.id}
             <div
-              class="bg-pos-card border rounded-2xl p-3.5 flex flex-col justify-between text-start transition relative overflow-hidden group shadow-xs hover:shadow-lg hover:border-sky-500 min-h-[260px] {expired ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20' : nearExp ? 'border-amber-400 bg-amber-50/20 dark:bg-amber-950/10' : 'border-pos-border'}"
+              class="bg-pos-card border rounded-2xl p-3.5 flex flex-col justify-between text-start transition relative overflow-hidden group shadow-xs hover:shadow-lg hover:border-sky-500 min-h-[260px] {isBeingDeleted ? 'ring-2 ring-rose-500 bg-rose-50 dark:bg-rose-950/40' : expired ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/20' : nearExp ? 'border-amber-400 bg-amber-50/20 dark:bg-amber-950/10' : 'border-pos-border'}"
             >
               <!-- Top Badges & Actions -->
               <div class="flex items-center justify-between gap-1 mb-2.5">
@@ -609,7 +622,7 @@
 
 <!-- Delete Confirmation Modal (Requires typing DELETE) -->
 {#if isDeleteModalOpen && productToDelete}
-  <div class="fixed inset-0 z-60 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-in zoom-in-95">
       <div class="flex items-center gap-3 text-rose-600">
         <AlertTriangle class="w-6 h-6 shrink-0" />
