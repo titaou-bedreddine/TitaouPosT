@@ -636,6 +636,12 @@ pub fn find_employee_by_rfid(db: State<'_, DbState>, rfid: String) -> Result<Opt
     employee_service::find_employee_by_rfid(&db, &rfid)
 }
 
+/// Next free employee code (EMP-NN) — accounts for soft-deleted rows.
+#[tauri::command]
+pub fn next_employee_code(db: State<'_, DbState>) -> Result<String, String> {
+    employee_service::next_employee_code(&db)
+}
+
 #[tauri::command]
 pub fn delete_employee(db: State<'_, DbState>, employee_id: i64) -> Result<(), String> {
     employee_service::delete_employee(&db, employee_id)

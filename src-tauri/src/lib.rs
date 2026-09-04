@@ -82,6 +82,7 @@ pub fn run() {
             commands::list_employees,
             commands::save_employee,
             commands::find_employee_by_rfid,
+            commands::next_employee_code,
             commands::delete_employee,
             commands::list_payrolls,
             commands::record_employee_advance,

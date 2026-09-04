@@ -220,3 +220,27 @@ pub fn find_employee_by_rfid(db: &DbState, rfid: &str) -> Result<Option<Employee
         .map_err(|e| e.to_string())?;
     Ok(rows.next().map(|r| r.ok()).flatten())
 }
+
+/// Next free employee code ("EMP-NN"), computed server-side against ALL
+/// rows — soft-deleted employees keep their code (UNIQUE constraint), so
+/// the client-side guess over only the active list collided on save.
+pub fn next_employee_code(db: &DbState) -> Result<String, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut max_num: i64 = 0;
+    let mut stmt = conn
+        .prepare("SELECT employee_code FROM employees WHERE employee_code LIKE 'EMP-%'")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    for code in rows {
+        if let Ok(c) = code {
+            if let Some(n) = c.trim().strip_prefix("EMP-") {
+                if let Ok(num) = n.parse::<i64>() {
+                    max_num = max_num.max(num);
+                }
+            }
+        }
+    }
+    Ok(format!("EMP-{:02}", max_num + 1))
+}

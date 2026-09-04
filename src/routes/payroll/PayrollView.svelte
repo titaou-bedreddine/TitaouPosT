@@ -139,16 +139,16 @@
     }
   }
 
-  // Generate the next free employee code (EMP-01, EMP-02...).
-  function generateEmployeeCode() {
-    let maxNum = 0;
-    for (const e of employees) {
-      const m = /^EMP-(\d+)$/.exec((e.employee_code || '').trim());
-      if (m) {
-        maxNum = Math.max(maxNum, parseInt(m[1], 10));
-      }
+  // Generate the next free employee code (EMP-01, EMP-02...) — computed
+  // server-side against ALL rows: soft-deleted employees keep their codes
+  // (UNIQUE constraint), so a guess over the active list alone collided on
+  // save ("unique constraint failed: employees.employee_code").
+  async function generateEmployeeCode() {
+    try {
+      code = await invoke<string>('next_employee_code');
+    } catch (e) {
+      console.warn('Could not generate code:', e);
     }
-    code = 'EMP-' + String(maxNum + 1).padStart(2, '0');
   }
 
   function openAddEmployee() {
