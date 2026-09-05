@@ -1,71 +1,242 @@
-use axum::{routing::get, Json, Router};
+use axum::{extract::State as AxState, routing::get, routing::post, Json, Router};
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tower_http::cors::CorsLayer;
 
-use std::sync::OnceLock;
-static DIAG_DB: OnceLock<crate::database::DbState> = OnceLock::new();
+use crate::database::DbState;
 
-pub fn set_diag_db(db: crate::database::DbState) {
+// ---------------------------------------------------------------------------
+// Shared server state: port, start time, and the REAL connected-device
+// registry (a device appears here only after a successful /api/handshake).
+// ---------------------------------------------------------------------------
+pub struct ServerState {
+    pub port: u16,
+    pub started_at: Instant,
+    pub devices: Mutex<HashMap<String, ConnectedDevice>>,
+}
+
+pub struct ConnectedDevice {
+    pub device_name: String,
+    pub device_uid: String,
+    pub device_role: String,
+    pub ip: String,
+    pub last_seen: Instant,
+}
+
+static STATE: OnceLock<Arc<ServerState>> = OnceLock::new();
+// A separate open DB handle for diagnostics reads, so API requests never
+// contend on the UI's DbState mutex.
+static DIAG_DB: OnceLock<DbState> = OnceLock::new();
+
+pub fn set_diag_db(db: DbState) {
     let _ = DIAG_DB.set(db);
 }
 
+/// All non-loopback IPv4 addresses of this machine (LAN), powers the QR.
+fn lan_ip_addresses() -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -ExpandProperty IPAddress)",
+            ])
+            .creation_flags(0x08000000)
+            .output();
+        if let Ok(o) = output {
+            for line in String::from_utf8_lossy(&o.stdout).lines() {
+                let l = line.trim().to_string();
+                if !l.is_empty() && !out.contains(&l) {
+                    out.push(l);
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        // Fallback: the address a default route would use.
+        if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if sock.connect("8.8.8.8:80").is_ok() {
+                if let Ok(a) = sock.local_addr() {
+                    out.push(a.ip().to_string());
+                }
+            }
+        }
+    }
+    out
+}
+
+fn configured_port(diag: Option<&DbState>) -> u16 {
+    if let Some(db) = diag {
+        if let Ok(settings) = crate::services::settings_service::get_all_settings(db) {
+            if let Some(p) = settings.get("mobile_server_port") {
+                if let Ok(n) = p.trim().parse::<u16>() {
+                    if n > 0 {
+                        return n;
+                    }
+                }
+            }
+        }
+    }
+    8080
+}
+
+/// Real server status for Settings > Network: port, uptime, LAN IPs for
+/// the QR, and the handshake-verified device list — no demo data.
+pub fn server_status() -> serde_json::Value {
+    let port = STATE.get().map(|s| s.port).unwrap_or_else(|| configured_port(DIAG_DB.get()));
+    let running = STATE.get().is_some();
+    let uptime_secs = STATE
+        .get()
+        .map(|s| s.started_at.elapsed().as_secs())
+        .unwrap_or(0);
+    let devices: Vec<serde_json::Value> = match STATE.get() {
+        Some(s) => {
+            let map = s.devices.lock().unwrap();
+            map.values()
+                .filter(|d| d.last_seen.elapsed() < Duration::from_secs(300))
+                .map(|d| {
+                    serde_json::json!({
+                        "device_name": d.device_name,
+                        "device_uid": d.device_uid,
+                        "device_role": d.device_role,
+                        "ip": d.ip,
+                        "last_seen_secs_ago": d.last_seen.elapsed().as_secs(),
+                    })
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    serde_json::json!({
+        "running": running,
+        "port": port,
+        "uptime_secs": uptime_secs,
+        "lan_ips": lan_ip_addresses(),
+        "devices": devices,
+        "devices_count": devices.len(),
+    })
+}
+
+#[derive(serde::Deserialize)]
+struct HandshakeBody {
+    #[serde(default)]
+    device_name: String,
+    #[serde(default)]
+    device_uid: String,
+    #[serde(default)]
+    device_role: String,
+}
+
+async fn api_handshake(
+    AxState(state): AxState<Arc<ServerState>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<SocketAddr>,
+    body: Option<Json<HandshakeBody>>,
+) -> Json<serde_json::Value> {
+    let (name, uid, role) = match body {
+        Some(Json(b)) => (
+            if b.device_name.trim().is_empty() { "Mobile terminal".to_string() } else { b.device_name },
+            if b.device_uid.trim().is_empty() { format!("dev-{}", addr) } else { b.device_uid },
+            if b.device_role.trim().is_empty() { "pos_terminal".to_string() } else { b.device_role },
+        ),
+        None => (format!("Mobile terminal ({})", addr.ip()), format!("dev-{}", addr), "pos_terminal".to_string()),
+    };
+    let ip = addr.ip().to_string();
+    {
+        let mut devices = state.devices.lock().unwrap();
+        devices.insert(
+            uid.clone(),
+            ConnectedDevice {
+                device_name: name,
+                device_uid: uid,
+                device_role: role,
+                ip,
+                last_seen: Instant::now(),
+            },
+        );
+    }
+    let port = state.port;
+    Json(serde_json::json!({
+        "ok": true,
+        "server": "TitaouPosT Host",
+        "port": port,
+        "paired": true,
+    }))
+}
+
+async fn api_status() -> Json<serde_json::Value> {
+    let port = STATE.get().map(|s| s.port).unwrap_or(8080);
+    Json(serde_json::json!({
+        "status": "online",
+        "server": "TitaouPosT Host",
+        "port": port,
+    }))
+}
+
+/// Same diagnostic surface the original server exposed: runs the login /
+/// users / settings paths in-process and reports latency, so a stuck DB
+/// mutex is visible from outside the app.
+async fn api_diag_login() -> Json<serde_json::Value> {
+    let t0 = Instant::now();
+    let login_result = DIAG_DB.get().map(|db| {
+        crate::auth::authenticate_user(db, "admin", "admin").map(|u| u.map(|x| x.username))
+    });
+    let login_ms = t0.elapsed().as_millis() as u64;
+    let t1 = Instant::now();
+    let users_result = DIAG_DB
+        .get()
+        .map(|db| crate::auth::list_active_users(db).map(|u| u.len()));
+    let users_ms = t1.elapsed().as_millis() as u64;
+    let t2 = Instant::now();
+    let settings_result = DIAG_DB
+        .get()
+        .map(|db| crate::services::settings_service::get_all_settings(db).map(|m| m.len()));
+    let settings_ms = t2.elapsed().as_millis() as u64;
+    Json(serde_json::json!({
+        "login": {"user": login_result, "ms": login_ms},
+        "list_users": {"count": users_result, "ms": users_ms},
+        "get_all_settings": {"keys": settings_result, "ms": settings_ms},
+    }))
+}
+
 pub fn start_local_api_server() {
-    std::thread::spawn(|| {
+    // Port is read BEFORE spawning so STATE gets the real value; when the
+    // setting changes, a restart of the app picks it up.
+    let port = configured_port(DIAG_DB.get());
+    let state = Arc::new(ServerState {
+        port,
+        started_at: Instant::now(),
+        devices: Mutex::new(HashMap::new()),
+    });
+    let _ = STATE.set(Arc::clone(&state));
+
+    std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build();
-
         if let Ok(rt) = rt {
-            rt.block_on(async {
+            rt.block_on(async move {
                 let app = Router::new()
-                    .route(
-                        "/api/diag/login",
-                        get(|| async {
-                            // Runs the login backend path in-process and
-                            // reports latency: if this hangs, the DB mutex is
-                            // stuck inside the app (reproduces the reported
-                            // "keeps saying signing in" from outside).
-                            let t0 = std::time::Instant::now();
-                            let login_result = DIAG_DB.get().map(|db| {
-                                crate::auth::authenticate_user(db, "admin", "admin")
-                                    .map(|u| u.map(|x| x.username))
-                            });
-                            let login_ms = t0.elapsed().as_millis() as u64;
-                            let t1 = std::time::Instant::now();
-                            let users_result = DIAG_DB.get().map(|db| {
-                                crate::auth::list_active_users(db).map(|u| u.len())
-                            });
-                            let users_ms = t1.elapsed().as_millis() as u64;
-                            let t2 = std::time::Instant::now();
-                            let settings_result = DIAG_DB.get().map(|db| {
-                                crate::services::settings_service::get_all_settings(db)
-                                    .map(|m| m.len())
-                            });
-                            let settings_ms = t2.elapsed().as_millis() as u64;
-                            Json(serde_json::json!({
-                                "login": {"user": login_result, "ms": login_ms},
-                                "list_users": {"count": users_result, "ms": users_ms},
-                                "get_all_settings": {"keys": settings_result, "ms": settings_ms},
-                            }))
-                        }),
-                    )
-                    .route(
-                        "/api/status",
-                        get(|| async {
-                            Json(serde_json::json!({
-                                "status": "online",
-                                "server": "TitaouPosT Host",
-                                "version": "0.1.0"
-                            }))
-                        }),
-                    )
+                    .route("/api/handshake", post(api_handshake))
+                    .route("/api/status", get(api_status))
+                    .route("/api/diag/login", get(api_diag_login))
+                    .with_state(state)
                     .layer(CorsLayer::permissive());
 
-                let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+                let addr = SocketAddr::from(([0, 0, 0, 0], port));
                 println!("[Local Server] Listening on http://{}", addr);
-
                 if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
-                    let _ = axum::serve(listener, app).await;
+                    let _ = axum::serve(
+                        listener,
+                        app.into_make_service_with_connect_info::<SocketAddr>(),
+                    )
+                    .await;
+                } else {
+                    eprintln!("[Local Server] FAILED to bind port {} — mobile clients cannot connect", port);
                 }
             });
         }

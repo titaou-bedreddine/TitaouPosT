@@ -14,7 +14,7 @@
   import {
     ShoppingBag, Search, Printer, Calendar, User as UserIcon,
     DollarSign, Eye, Trash2, X, Check, AlertTriangle, Layers,
-    CreditCard, Banknote, ShieldAlert, TrendingUp, Pencil
+    CreditCard, Banknote, ShieldAlert, TrendingUp, Pencil, Package
   } from 'lucide-svelte';
 
   let sales: Sale[] = [];
@@ -103,6 +103,7 @@
   }
   function sortIndicator(key: string): string {
     if (sortKey !== key || !sortDir) return '';
+    // DESC (big→small) first, then ASC — matches the Stock page cycle.
     return sortDir === 'asc' ? '▲' : '▼';
   }
   $: sortedSales = sortRows(filteredSales, sortKey, sortDir, filteredSales);
@@ -110,6 +111,10 @@
   $: totalGrossRevenue = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
   $: totalNetPaid = filteredSales.reduce((sum, s) => sum + s.paid_amount, 0);
   $: totalDueCredit = totalGrossRevenue - totalNetPaid;
+  // Lines sold = number of distinct sale lines; units sold = Σ quantities.
+  // Lines ≠ units: A×2 + B×5 + C×1 → 3 lines, 8 units.
+  $: totalLinesSold = filteredSales.reduce((sum, s) => sum + (s.lines_sold || 0), 0);
+  $: totalUnitsSold = filteredSales.reduce((sum, s) => sum + (s.units_sold || 0), 0);
 
   async function openSaleDetails(s: Sale) {
     selectedSale = s;
@@ -126,33 +131,21 @@
   }
 
   async function printReceipt(s: Sale) {
-    // Same professional 80mm template the POS prints (v0.5.9): vector
-    // icons, two-column info, full item table with PU, big TOTAL, QR,
-    // invoice barcode — not the old bare monospace fallback.
+    // ONE unified receipt preset system: reprint from history uses the same
+    // settings + template choice as POS auto-print (v0.5.16).
     try {
       const settings = await invoke<Record<string, string>>('get_all_settings');
       const items = await invoke<any[]>('get_sale_items', { saleId: s.id });
-      const { buildProfessionalReceiptHtml } = await import('../../lib/printing/professionalReceipt');
+      const { buildUnifiedReceipt } = await import('../../lib/printing/unifiedReceipt');
       const { entityQrDataUrl } = await import('../../lib/utils/printer');
-      const { getLanguage } = await import('../../lib/i18n');
 
       const qr = await entityQrDataUrl(`SALE:${s.sale_number}`, 240).catch(() => undefined);
-      const d = new Date(s.created_at || Date.now());
 
-      const html = buildProfessionalReceiptHtml({
-        shopName: settings['shop_name_fr'] || 'TitaouPOS',
-        shopTagline: settings['receipt_header'] || '',
-        shopAddress: settings['shop_address'] || '',
-        shopPhone: settings['shop_phone'] || '',
-        shopWebsite: settings['shop_website'] || '',
-        shopLogoDataUrl: settings['shop_logo_base64'] || undefined,
-        invoiceNumber: s.sale_number,
-        invoiceBarcode: s.sale_number,
-        dateStr: d.toLocaleDateString('fr-FR'),
-        timeStr: d.toLocaleTimeString('fr-FR'),
+      const built = buildUnifiedReceipt({
+        saleNumber: s.sale_number,
+        saleDate: s.created_at,
         cashierName: s.user_name || 'Admin',
         customerName: s.customer_name || undefined,
-        paymentMethod: (s.payment_method || 'cash').toUpperCase(),
         items: items.map((it: any) => ({
           name: it.name_fr || it.name_ar || it.name,
           quantity: it.quantity,
@@ -166,16 +159,12 @@
         grandTotal: s.total_amount,
         amountPaid: s.paid_amount,
         change: s.change_amount,
-        currency: settings['default_currency'] || 'DA',
+        paymentMethod: (s.payment_method || 'cash').toUpperCase(),
+        settings,
         qrDataUrl: qr,
-        thankYou: settings['receipt_thank_you'] || 'MERCI POUR VOTRE CONFIANCE !',
-        returnPolicy: settings['receipt_footer'] || '',
-        lang: getLanguage(),
-        paperWidthMm: settings['receipt_paper_width'] === '58mm' ? 58 : 80,
+        copyLabel: 'REPRINT / نسخة',
       });
-      printHtmlDirectly(html, 'Receipt #' + s.sale_number, {
-        widthMm: settings['receipt_paper_width'] === '58mm' ? 58 : 80,
-      });
+      printHtmlDirectly(built.html, built.title, { widthMm: built.paperWidthMm });
     } catch (e: any) {
       alert('Error printing receipt: ' + (e.message || e));
     }
@@ -310,6 +299,26 @@
         <p class="text-base font-black font-mono text-amber-600">{totalDueCredit.toLocaleString()} DZD</p>
       </div>
     </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center font-bold">
+        <Layers class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_lines_sold') || 'Lines Sold'}</p>
+        <p class="text-base font-black font-mono text-purple-600">{totalLinesSold.toLocaleString()}</p>
+      </div>
+    </div>
+
+    <div class="bg-pos-card border border-pos-border p-3 rounded-2xl shadow-xs flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center font-bold">
+        <Package class="w-4 h-4" />
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-pos-muted uppercase">{t('sales_units_sold') || 'Units Sold'}</p>
+        <p class="text-base font-black font-mono text-indigo-600">{totalUnitsSold.toLocaleString()}</p>
+      </div>
+    </div>
   </div>
 
   <!-- Quick Date Presets -->
@@ -374,6 +383,8 @@
           <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('customer_name')}>{t('customer')} {sortIndicator('customer_name')}</th>
           <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('total_amount')}>{t('sales_total_amount')} {sortIndicator('total_amount')}</th>
           <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('paid_amount')}>{t('sales_paid_amount')} {sortIndicator('paid_amount')}</th>
+          <th class="p-3 text-center cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('lines_sold')} title="Distinct sale lines">{t('sales_lines_sold') || 'Lines'} {sortIndicator('lines_sold')}</th>
+          <th class="p-3 text-center cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('units_sold')} title="Total quantities (Σ per-line qty)">{t('sales_units_sold') || 'Units'} {sortIndicator('units_sold')}</th>
           <th class="p-3 text-center">{t('sales_payment')}</th>
           <th class="p-3 text-center">{t('status')}</th>
           <th class="p-3 text-end">{t('actions')}</th>
@@ -382,7 +393,7 @@
       <tbody class="divide-y divide-pos-border/40">
         {#if filteredSales.length === 0}
           <tr>
-            <td colspan="9" class="p-8 text-center text-pos-muted">{t('no_data')}</td>
+            <td colspan="11" class="p-8 text-center text-pos-muted">{t('no_data')}</td>
           </tr>
         {:else}
           {#each sortedSales as s}
@@ -396,6 +407,8 @@
               <td class="p-3 text-pos-muted">{s.customer_name || 'Client Comptoir'}</td>
               <td class="p-3 text-end font-mono font-black text-pos-text">{s.total_amount.toLocaleString()} DZD</td>
               <td class="p-3 text-end font-mono font-black text-emerald-600">{s.paid_amount.toLocaleString()} DZD</td>
+              <td class="p-3 text-center font-mono font-bold text-purple-600">{s.lines_sold ?? '—'}</td>
+              <td class="p-3 text-center font-mono font-bold text-indigo-600">{s.units_sold ?? '—'}</td>
               <td class="p-3 text-center">
                 <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase {(s.payment_method || 'cash') === 'cash' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : (s.payment_method || '') === 'tpe' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'}">
                   {s.payment_method || 'cash'}

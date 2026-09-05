@@ -4,6 +4,7 @@ pub mod dashboard_service;
 pub mod employee_service;
 pub mod expense_service;
 pub mod notifier_service;
+pub mod payroll_reminder_service;
 pub mod payroll_service;
 pub mod product_service;
 pub mod purchase_service;

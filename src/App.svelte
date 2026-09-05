@@ -294,6 +294,53 @@
         // Silent: scheduling must never disturb the cashier.
       }
     }, 5 * 60 * 1000);
+
+    // Employee payroll reminder scheduler (Req 26): one scan per minute is
+    // cheap (a settings read + a tiny query); reminders dedup server-side so
+    // repeated scans never duplicate notifications.
+    setInterval(async () => {
+      try {
+        await invoke('run_payroll_reminder_scan');
+      } catch {
+        // Silent — reminders are best-effort.
+      }
+    }, 60 * 1000);
+    // Also fire one scan shortly after login/startup so the day's
+    // reminders appear immediately, not at the next minute boundary.
+    setTimeout(async () => {
+      try {
+        await invoke('run_payroll_reminder_scan');
+      } catch { /* silent */ }
+    }, 4000);
+
+    // Scheduled daily backup ("every day at HH:MM"): checked every minute;
+    // the backend stamps the day so it runs at most once per day.
+    setInterval(async () => {
+      try {
+        const s = await invoke<Record<string, string>>('get_all_settings');
+        if (s['backup_scheduled_enabled'] !== 'true') return;
+        await invoke('create_backup', { tag: 'scheduled' });
+      } catch {
+        // Silent — backups must never disturb the cashier.
+      }
+    }, 60 * 1000);
+
+    // Backup-on-close: safety copy right before the app unloads. The POS
+    // single-instance plugin means closing the window ends the session.
+    window.addEventListener('beforeunload', () => {
+      try {
+        // Best-effort: an async invoke may not finish before the window
+        // dies, but a copy of a small SQLite file typically lands in time.
+        invoke('get_all_settings').then((s) => {
+          const map = s as Record<string, string>;
+          if (map['backup_on_close'] === 'true') {
+            invoke('create_backup', { tag: 'exit' }).catch(() => {});
+          }
+        }).catch(() => {});
+      } catch {
+        // Never block the close.
+      }
+    });
   });
 
   function toggleTheme() {

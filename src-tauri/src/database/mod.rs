@@ -282,6 +282,40 @@ impl DbState {
             CREATE INDEX IF NOT EXISTS idx_customers_code ON customers(code);
         ");
 
+        // Debt-clearing archive: when an admin forgives a customer's or
+        // supplier's outstanding balance, the cleared amount is archived here
+        // (never destroyed) — the balance itself just becomes 0.
+        let _ = conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS debt_clear_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL CHECK(entity_type IN ('customer', 'supplier')),
+                entity_id INTEGER NOT NULL,
+                entity_name TEXT,
+                previous_debt INTEGER NOT NULL,
+                new_debt INTEGER NOT NULL DEFAULT 0,
+                reason TEXT,
+                user_name TEXT,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            );
+        ");
+
+        // Payroll reminder dedup: one row per (employee, payment date,
+        // reminder kind) — restarts/settings reloads never resend a
+        // reminder that already fired for that occurrence.
+        let _ = conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS payroll_reminder_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id INTEGER NOT NULL,
+                payment_date TEXT NOT NULL,
+                reminder_type TEXT NOT NULL CHECK(reminder_type IN ('DAY_BEFORE', 'DUE_TODAY')),
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                UNIQUE(employee_id, payment_date, reminder_type)
+            );
+        ");
+
+        // Backup settings persistence keys live in app_settings; nothing
+        // schema-level needed for them.
+
         let m2 = include_str!("../../migrations/002_seed_data.sql");
         let _ = conn.execute_batch(m2);
 

@@ -4,11 +4,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../../lib/i18n';
   import type { Category, Product, Supplier, Unit } from '../../lib/types';
-  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, originSaleId, restoreActiveCart, holdCurrentSale, allowNegativeStock } from '../../lib/stores/cart';
+  import { cartItems, cartGrandTotal, cartSubtotal, globalDiscountAmount, globalDiscountMode, globalDiscountValue, globalDiscountPercent, isRefundMode, addToCart, clearCart, cartItemOrder, qtyEditTarget, itemKey, stopQtyEdit, posMode, originSaleId, restoreActiveCart, holdCurrentSale, allowNegativeStock, saleTotalRoundingStep } from '../../lib/stores/cart';
   import { currentUser } from '../../lib/stores/auth';
   import { activeSession } from '../../lib/stores/session';
   import { printHtmlSilently, buildReceiptHtml, entityQrDataUrl } from '../../lib/utils/printer';
   import { buildProfessionalReceiptHtml } from '../../lib/printing/professionalReceipt';
+  import { buildUnifiedReceipt } from '../../lib/printing/unifiedReceipt';
   import { normalizeBarcode } from '../../lib/utils/barcode';
   import { getLanguage } from '../../lib/i18n';
 
@@ -37,6 +38,7 @@
   import OtherArticleModal from '../../lib/components/OtherArticleModal.svelte';
   import UnknownBarcodeModal from '../../lib/components/UnknownBarcodeModal.svelte';
   import PurchasePriceModal from '../../lib/components/PurchasePriceModal.svelte';
+  import LastReceiptModal from '../../lib/components/LastReceiptModal.svelte';
 
   import { customers, selectedCustomerId, selectedCustomer, refreshCustomers, DEFAULT_WALKIN_CUSTOMER_ID } from '../../lib/stores/customers';
   import { suppliers, selectedSupplierId, selectedSupplier, refreshSuppliers } from '../../lib/stores/suppliers';
@@ -166,6 +168,8 @@
   let isOtherArticleOpen = false;
 
   let isUnknownBarcodeModalOpen = false;
+  // Last-receipt reopen/reprint modal (top bar button).
+  let isLastReceiptOpen = false;
   // Purchase mode: the product waiting for its new supplier price.
   let purchasePriceTarget: Product | null = null;
   let unknownScannedBarcode = '';
@@ -574,6 +578,36 @@
     if (!el.closest('[data-supplier-selector]')) isSupplierSelectorOpen = false;
   }
 
+  // "Edit in POS" from the last-receipt modal: load the sale's items into
+  // the cart; the existing originSaleId mechanism updates the sale in
+  // place on checkout (no duplicate row, same receipt number).
+  async function handleEditLastSaleInPos(sale: any) {
+    try {
+      const items = await invoke<any[]>('get_sale_items', { saleId: sale.id });
+      const mapped = items.map((i) => ({
+        product_id: i.product_id,
+        sku: i.sku || '',
+        barcode: i.barcode || '',
+        name_ar: i.name_ar || '',
+        name_fr: i.name_fr || '',
+        name_en: i.name_en || '',
+        image_path: i.image_path,
+        unit_price: i.unit_price,
+        quantity: i.quantity,
+        discount_amount: i.discount_amount || 0,
+        tax_amount: i.tax_amount || 0,
+        total_price: i.total_price,
+        is_refund: i.is_refund || false,
+      }));
+      clearCart();
+      $cartItems = mapped;
+      if (sale.customer_id) $selectedCustomerId = sale.customer_id;
+      originSaleId.set(sale.id);
+    } catch (e) {
+      console.error('Failed to load last sale for editing:', e);
+    }
+  }
+
   onMount(async () => {
     try {
       const s = await invoke<Record<string, string>>('get_all_settings');
@@ -590,6 +624,8 @@
         autofocusTimerSeconds = parseInt(s['pos_autofocus_timer_seconds'] || '10', 10) || 10;
       }
       $allowNegativeStock = s['allow_negative_stock'] === 'true';
+      // Checkout total rounding: OFF (default) / nearest 50 / nearest 100 DZD.
+      $saleTotalRoundingStep = s['sale_price_rounding'] === '50' ? 50 : s['sale_price_rounding'] === '100' ? 100 : 0;
     } catch (e) {
       console.warn(e);
     }
@@ -753,12 +789,6 @@
           console.warn('Could not load settings for receipt:', e);
         }
 
-        const shopName = appSettings['shop_name_fr'] || appSettings['shop_name_ar'] || 'TitaouPOS Superette';
-        const shopAddress = appSettings['shop_address'] || 'Rue Principale, Alger';
-        const shopPhone = appSettings['shop_phone'] || '0553444057';
-        const shopRc = appSettings['shop_rc'] || undefined;
-        const shopNif = appSettings['shop_nif'] || undefined;
-
         const receiptItems = $cartItems.map((i) => ({
           name: i.name_fr || i.name_ar,
           quantity: i.quantity,
@@ -768,146 +798,70 @@
           isRefund: i.is_refund || false,
         }));
 
-        // "80 mm – Professional" preset (Settings → Printing & Drawer): graphic
-        // ticket with header, PU column, QR + totals and invoice barcode.
-        const useProfessionalReceipt = (appSettings['receipt_preset'] || 'professional') === 'professional';
-        if (useProfessionalReceipt) {
-          const d = new Date();
-          const proOpts = {
-            shopName,
-            shopAddress,
-            shopPhone,
-            shopWebsite: appSettings['shop_website'] || '',
-            shopLogoDataUrl: appSettings['shop_logo_base64'] || undefined,
-            shopTagline: appSettings['receipt_header'] || '',
-            invoiceNumber: saleNumber,
-            invoiceBarcode: `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')} ${saleNumber.replace(/\D/g, '') || saleNumber}`,
-            dateStr: d.toLocaleDateString('fr-FR'),
-            timeStr: d.toLocaleTimeString('fr-FR'),
-            cashierName: cashier,
+        // ONE unified receipt preset system (v0.5.16): every sale kind and
+        // every print location builds from the same settings + template
+        // choice — no more a hardcoded format per page.
+        const effectiveMethod = mode === 'versement' ? 'VERSEMENT (تسبقة)' : mode === 'credit' ? 'CREDIT (دين)' : selectedPaymentMode.toUpperCase();
+        if (mode === 'credit') {
+          // Store copy + client copy, one page each — break on the FIRST
+          // receipt's own node (an empty separator div printed a blank page).
+          const storeCopy = buildUnifiedReceipt({
+            saleNumber, saleDate, cashierName: cashier,
+            customerName: customerName || 'Client Crédit',
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,
             grandTotal: $cartGrandTotal,
             amountPaid: paid,
             change,
-            currency: appSettings['default_currency'] || 'DA',
+            paymentMethod: effectiveMethod,
+            settings: appSettings,
             qrDataUrl: receiptQrDataUrl,
-            showQr: appSettings['receipt_show_qr'] !== 'false',
-            showBarcode: appSettings['receipt_show_barcode'] !== 'false',
-            thankYou: appSettings['receipt_thank_you'] || 'MERCI POUR VOTRE CONFIANCE !',
-            returnPolicy: appSettings['receipt_footer'] || '',
-            lang: getLanguage(),
-            paperWidthMm: appSettings['receipt_paper_width'] === '58mm' ? 58 : 80,
-          };
-          if (mode === 'credit') {
-            const creditOpts = {
-              ...proOpts,
-              customerName: customerName || 'Client Crédit',
-              paymentMethod: 'CREDIT (دين)',
-              isCredit: true,
-            };
-          printHtmlSilently(
-            // Break via a rule on the FIRST receipt's own node — an empty
-            // separator div here created a phantom blank page between copies.
-            `<div style="page-break-after:always;break-after:page;">${buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' })}</div>` +
-              buildProfessionalReceiptHtml({ ...creditOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
-            'Credit Receipts',
-            { widthMm: proOpts.paperWidthMm }
-          );
-          } else if (mode === 'versement') {
-            printHtmlSilently(
-              buildProfessionalReceiptHtml({
-                ...proOpts,
-                customerName: customerName || 'Client Versement',
-                paymentMethod: 'VERSEMENT (تسبقة)',
-                versementPaid: paid,
-                versementRemaining: reste,
-                copyLabel: 'VERSEMENT / تسبقة',
-              }),
-              'Versement Receipt #' + saleNumber,
-              { widthMm: proOpts.paperWidthMm }
-            );
-          } else {
-            printHtmlSilently(
-              buildProfessionalReceiptHtml({
-                ...proOpts,
-                customerName: customerName || undefined,
-                paymentMethod: effectiveMethod.toUpperCase(),
-              }),
-              'Sale Receipt #' + saleNumber,
-              { widthMm: proOpts.paperWidthMm }
-            );
-          }
-        } else if (mode === 'credit') {
-          // Print 2 Copies: Store Copy + Client Copy
-          const creditReceiptOpts = {
-            qrDataUrl: receiptQrDataUrl,
-            shopName,
-            shopAddress,
-            shopPhone,
-            shopRc,
-            shopNif,
-            saleNumber,
-            saleDate,
-            cashierName: cashier,
+            isCredit: true,
+            copyLabel: 'COPIE MAGASIN / STORE COPY',
+          });
+          const clientCopy = buildUnifiedReceipt({
+            saleNumber, saleDate, cashierName: cashier,
             customerName: customerName || 'Client Crédit',
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,
             grandTotal: $cartGrandTotal,
-            paymentMethod: 'CREDIT (دين)',
+            amountPaid: paid,
+            change,
+            paymentMethod: effectiveMethod,
+            settings: appSettings,
+            qrDataUrl: receiptQrDataUrl,
             isCredit: true,
-          };
+            copyLabel: 'COPIE CLIENT / CUSTOMER COPY',
+          });
           printHtmlSilently(
-            // Break on the first receipt's own node — an empty separator div
-            // here printed a phantom blank page between the two copies.
-            `<div style="page-break-after:always;break-after:page;">${buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE MAGASIN / STORE COPY' })}</div>` +
-              buildReceiptHtml({ ...creditReceiptOpts, copyLabel: 'COPIE CLIENT / CUSTOMER COPY' }),
-            'Credit Receipts'
+            `<div style="page-break-after:always;break-after:page;">${storeCopy.html}</div>` + clientCopy.html,
+            'Credit Receipts',
+            { widthMm: storeCopy.paperWidthMm }
           );
-        } else if (mode === 'versement') {
-          // Layaway ticket: deposit paid now, remainder tracked on the customer.
-          const receipt = buildReceiptHtml({
-            shopName,
-            shopAddress,
-            shopPhone,
-            shopRc,
-            shopNif,
-            saleNumber,
-            saleDate,
-            cashierName: cashier,
-            customerName: customerName || 'Client Versement',
-            qrDataUrl: receiptQrDataUrl,
-            items: receiptItems,
-            subtotal: $cartSubtotal,
-            discount: $globalDiscountAmount,
-            grandTotal: $cartGrandTotal,
-            paymentMethod: 'VERSEMENT (تسبقة)',
-            versementPaid: paid,
-            versementRemaining: reste,
-            copyLabel: 'VERSEMENT / تسبقة',
-          });
-          printHtmlSilently(receipt, 'Versement Receipt #' + saleNumber);
         } else {
-          const receipt = buildReceiptHtml({
-            shopName,
-            shopAddress,
-            shopPhone,
-            shopRc,
-            shopNif,
-            saleNumber,
-            saleDate,
-            cashierName: cashier,
+          const receipt = buildUnifiedReceipt({
+            saleNumber, saleDate, cashierName: cashier,
             customerName: customerName || undefined,
-            qrDataUrl: receiptQrDataUrl,
             items: receiptItems,
             subtotal: $cartSubtotal,
             discount: $globalDiscountAmount,
             grandTotal: $cartGrandTotal,
-            paymentMethod: effectiveMethod.toUpperCase(),
+            amountPaid: mode === 'direct' ? $cartGrandTotal : paid,
+            change,
+            paymentMethod: effectiveMethod,
+            settings: appSettings,
+            qrDataUrl: receiptQrDataUrl,
+            copyLabel: mode === 'versement' ? 'VERSEMENT / تسبقة' : undefined,
+            versementPaid: mode === 'versement' ? paid : undefined,
+            versementRemaining: mode === 'versement' ? reste : undefined,
           });
-          printHtmlSilently(receipt, 'Sale Receipt #' + saleNumber);
+          printHtmlSilently(
+            receipt.html,
+            receipt.title,
+            { widthMm: receipt.paperWidthMm }
+          );
         }
       }
 
@@ -1105,6 +1059,7 @@
     onOpenHeldSales={() => (isHeldSalesOpen = true)}
     onPrintReceipt={() => (isPrintReceiptOpen = true)}
     onOpenOtherArticle={() => (isOtherArticleOpen = true)}
+    onReopenLastReceipt={() => (isLastReceiptOpen = true)}
   />
 
   {#if lastSaleSuccessNumber}
@@ -1688,5 +1643,11 @@
     product={purchasePriceTarget}
     onClose={() => (purchasePriceTarget = null)}
     onConfirm={handlePurchasePriceConfirm}
+  />
+
+  <LastReceiptModal
+    isOpen={isLastReceiptOpen}
+    onClose={() => (isLastReceiptOpen = false)}
+    onEditInPos={handleEditLastSaleInPos}
   />
 </div>

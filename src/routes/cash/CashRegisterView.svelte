@@ -8,6 +8,7 @@
   import { DollarSign, ArrowDownCircle, ArrowUpCircle, Lock, RefreshCw, Plus, CheckCircle, Check, Search, Wallet, TrendingUp, ArrowDownRight, Layers, Banknote, Wallet as WalletIcon, Edit2, Archive, ArchiveRestore, Trash2, AlertTriangle, X } from 'lucide-svelte';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import { printHtmlDirectly } from '../../lib/utils/printer';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
 
   let currentTab: 'current' | 'history' = 'current';
   let movements: CashMovement[] = [];
@@ -128,6 +129,21 @@
       console.error('Error loading history sessions:', e);
     }
   }
+
+  // Three-state column sort on the session history table (DESC → ASC →
+  // default), same cycle as the Stock page.
+  let sessSortKey: string | null = null;
+  let sessSortDir: 'asc' | 'desc' | null = null;
+  function applySessionSort(key: string) {
+    const next = clickSort(key, sessSortKey, sessSortDir);
+    sessSortKey = next.key;
+    sessSortDir = next.dir;
+  }
+  function sessSortIndicator(key: string): string {
+    if (sessSortKey !== key || !sessSortDir) return '';
+    return sessSortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedSessions = sortRows(historySessions, sessSortKey, sessSortDir, historySessions);
 
   function openEditOpeningModal() {
     if (!$activeSession) return;
@@ -611,14 +627,14 @@
       <table class="w-full text-start text-xs border-collapse">
         <thead>
           <tr class="border-b border-pos-border text-pos-muted font-bold bg-slate-50 dark:bg-slate-800/40">
-            <th class="p-3 text-start">#</th>
-            <th class="p-3 text-start">Employee</th>
-            <th class="p-3 text-start">Opened At</th>
-            <th class="p-3 text-start">Closed At</th>
-            <th class="p-3 text-end">Opening</th>
-            <th class="p-3 text-end">Closing</th>
-            <th class="p-3 text-end">Expected</th>
-            <th class="p-3 text-end">Difference</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('id')}># {sessSortIndicator('id')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('user_name')}>Employee {sessSortIndicator('user_name')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opened_at')}>Opened At {sessSortIndicator('opened_at')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('closed_at')}>Closed At {sessSortIndicator('closed_at')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opening_amount')}>Opening {sessSortIndicator('opening_amount')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('actual_cash')}>Closing {sessSortIndicator('actual_cash')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('expected_cash')}>Expected {sessSortIndicator('expected_cash')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('difference')}>Difference {sessSortIndicator('difference')}</th>
             <th class="p-3 text-center">Status</th>
             <th class="p-3 text-center">Actions</th>
           </tr>
@@ -631,7 +647,7 @@
               </td>
             </tr>
           {:else}
-            {#each historySessions as s}
+            {#each sortedSessions as s}
               <tr class="border-b border-pos-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 {s.is_archived ? 'opacity-60 bg-slate-50/50 dark:bg-slate-900/20' : ''}">
                 <td class="p-3 font-mono font-bold text-pos-muted">{s.id}</td>
                 <td class="p-3 font-bold text-pos-text">{s.user_name || 'Admin'}</td>

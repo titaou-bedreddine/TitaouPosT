@@ -1,7 +1,9 @@
 /**
- * Three-state column sorting for list tables: click asc -> desc -> default.
- * `key` maps to a property name on the row objects; `defaultList` is the
- * unsorted source array the view already renders.
+ * Three-state column sorting for list tables, matching the Stock page's
+ * behavior: click 1 → DESC (big→small / natural descending), click 2 → ASC
+ * (small→big), click 3 → DEFAULT (the page's original order). The cycle
+ * repeats. `key` maps to a property on the row objects; `defaultRows` is
+ * the unsorted source array the view already renders.
  */
 export type SortDir = 'asc' | 'desc' | null;
 
@@ -22,6 +24,9 @@ export function sortRows<T extends Record<string, any>>(
     if (typeof av === 'number' && typeof bv === 'number') {
       return dir === 'asc' ? av - bv : bv - av;
     }
+    // Dates-as-strings sort chronologically with a plain string compare
+    // ("YYYY-MM-DD…" is lexicographically ordered); currency strings are
+    // numeric in the data model so they took the numeric branch above.
     const as = String(av).toLowerCase();
     const bs = String(bv).toLowerCase();
     return dir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
@@ -29,10 +34,10 @@ export function sortRows<T extends Record<string, any>>(
   return copy;
 }
 
-/** Next state in the asc -> desc -> null cycle for a column. */
+/** Next state in the DESC → ASC → default cycle for a column. */
 export function nextSortDir(current: SortDir): SortDir {
-  if (current === null || current === undefined) return 'asc';
-  if (current === 'asc') return 'desc';
+  if (current === null || current === undefined) return 'desc';
+  if (current === 'desc') return 'asc';
   return null;
 }
 
@@ -42,6 +47,6 @@ export function clickSort(
   activeKey: string | null,
   activeDir: SortDir
 ): { key: string | null; dir: SortDir } {
-  if (activeKey !== clickedKey) return { key: clickedKey, dir: 'asc' };
+  if (activeKey !== clickedKey) return { key: clickedKey, dir: 'desc' };
   return { key: clickedKey, dir: nextSortDir(activeDir) };
 }

@@ -357,7 +357,19 @@ export const globalDiscountPercent = derived(
   ([$mode, $val]) => ($mode === 'percent' && $val > 0 ? Math.min(100, $val) : 0)
 );
 
+// Checkout sale-total rounding (Settings → POS Rules): 'off' | '50' | '100'.
+// OFF by default; 50/100 round the GRAND TOTAL for quick cash handling.
+// Never applied to negative (refund) totals, purchase prices or history.
+export const saleTotalRoundingStep = writable<number>(0);
+
+export function applySaleRounding(total: number, step: number): number {
+  if (!step || step <= 0 || total <= 0) return total;
+  return Math.round(total / step) * step;
+}
+
+// Rounded total shown in the POS and charged at checkout.
 export const cartGrandTotal = derived(
-  [cartItems, globalDiscountAmount],
-  ([$items, $discount]) => sumCartLines($items) - $discount
+  [cartItems, globalDiscountAmount, saleTotalRoundingStep],
+  ([$items, $discount, $step]) =>
+    applySaleRounding(sumCartLines($items) - $discount, $step)
 );

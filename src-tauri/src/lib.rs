@@ -13,6 +13,9 @@ use tauri::Manager;
 pub fn run() {
     let db_state = DbState::new().expect("Failed to initialize database");
 
+    // Startup backup (only when the setting is ON; once per day).
+    crate::services::settings_service::run_startup_backup(&db_state);
+
     server::set_diag_db(DbState::new().expect("diag db"));
     server::start_local_api_server();
 
@@ -61,6 +64,7 @@ pub fn run() {
             commands::replace_sale,
             commands::list_sales,
             commands::get_sale_items,
+            commands::get_last_sale,
             commands::hold_sale,
             commands::list_held_sales,
             commands::delete_held_sale,
@@ -69,6 +73,9 @@ pub fn run() {
             commands::delete_customer,
             commands::toggle_customer_pin,
             commands::record_customer_debt_payment,
+            commands::clear_customer_debt,
+            commands::clear_supplier_debt,
+            commands::list_debt_clear_log,
             commands::list_suppliers,
             commands::save_supplier,
             commands::delete_supplier,
@@ -120,6 +127,12 @@ pub fn run() {
             commands::save_unit,
             commands::backup_database,
             commands::restore_database,
+            commands::restore_settings_only,
+            commands::create_backup,
+            commands::list_backups,
+            commands::validate_backup_file,
+            commands::pick_backup_folder,
+            commands::pick_backup_file,
             commands::get_app_version,
             commands::get_all_users,
             commands::get_all_roles,
@@ -130,6 +143,10 @@ pub fn run() {
             commands::set_autostart,
             commands::get_autostart,
             commands::list_printers,
+            commands::run_payroll_reminder_scan,
+            commands::list_app_notifications,
+            commands::dismiss_app_notification,
+            commands::get_server_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

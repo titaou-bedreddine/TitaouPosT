@@ -261,6 +261,12 @@ pub struct Sale {
     pub status: String,
     pub created_at: String,
     pub items: Option<Vec<CartItem>>,
+    /// Number of distinct sale LINES (a line = one product row).
+    #[serde(default)]
+    pub lines_sold: i64,
+    /// Total UNITS across all lines (Σ quantity) — lines ≠ units.
+    #[serde(default)]
+    pub units_sold: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

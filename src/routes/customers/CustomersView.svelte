@@ -5,6 +5,7 @@
   import { printHtmlDirectly, entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
   import { refreshCustomers } from '../../lib/stores/customers';
   import { currentUser } from '../../lib/stores/auth';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import CustomerDebtModal from '../../lib/components/CustomerDebtModal.svelte';
   import UniversalSearchBar from '../../lib/components/UniversalSearchBar.svelte';
   import QrImage from '../../lib/components/QrImage.svelte';
@@ -145,6 +146,20 @@
     const qr = ('CUST:' + (x.qr_code || 'CUST-' + x.id)).toLowerCase();
     return qr === q || qr.includes(q);
   });
+
+  // Three-state column sort (DESC → ASC → default), like the Stock page.
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedCustomers = sortRows(filteredCustomers, sortKey, sortDir, filteredCustomers);
 
   function openAddModal() {
     editingId = null;
@@ -287,10 +302,10 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">Customer Name / الاسم</th>
-          <th class="p-3 text-start">Phone</th>
-          <th class="p-3 text-start">RC / NIF</th>
-          <th class="p-3 text-end">Current Debt (الديون)</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('name')}>Customer Name / الاسم {sortIndicator('name')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('phone')}>Phone {sortIndicator('phone')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('rc')}>RC / NIF {sortIndicator('rc')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('balance')}>Current Debt (الديون) {sortIndicator('balance')}</th>
           <th class="p-3 text-center">QR Code</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
@@ -301,7 +316,7 @@
             <td colspan="6" class="p-8 text-center text-pos-muted">No customers found.</td>
           </tr>
         {:else}
-          {#each filteredCustomers as c}
+          {#each sortedCustomers as c}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-bold text-pos-text cursor-pointer" on:click={() => { previewCustomer = c; loadCustomerHistory(c); }}>
                 {c.name}

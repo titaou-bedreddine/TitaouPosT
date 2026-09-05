@@ -154,6 +154,10 @@ export interface Sale {
   payment_status: string;
   status: string;
   created_at: string;
+  /** Distinct sale LINES (A×2 + B×5 = 2 lines). */
+  lines_sold?: number;
+  /** Total UNITS across lines (A×2 + B×5 = 7 units). */
+  units_sold?: number;
 }
 
 export interface Customer {

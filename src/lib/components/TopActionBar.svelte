@@ -11,7 +11,7 @@
     PlusCircle, Trash2, Undo2, Percent, CreditCard,
     PauseCircle, Printer, DollarSign, Languages, Check,
     ShoppingBag, RefreshCw, AlertTriangle, Layers, Banknote, ShieldAlert, Wallet, Coins,
-    ShoppingCart, PackagePlus, PackageX
+    ShoppingCart, PackagePlus, PackageX, RotateCcw
   } from 'lucide-svelte';
 
   export let onOpenPayment: () => void;
@@ -21,6 +21,7 @@
   export let onPrintReceipt: () => void;
   export let onOpenOtherArticle: () => void = () => {};
   export let onCheckout: () => void;
+  export let onReopenLastReceipt: () => void = () => {};
 
   export let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   export let autoPrintEnabled: boolean = true;
@@ -251,8 +252,8 @@
     <!-- Vertical Divider -->
     <div class="h-7 w-px bg-pos-border shrink-0 hidden sm:block"></div>
 
-    <!-- Group 5: Silent Print Toggle Card -->
-    <div class="flex items-center bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-pos-border shadow-xs">
+    <!-- Group 5: Silent Print Toggle Card + Reopen Last Receipt -->
+    <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-pos-border shadow-xs">
       <button
         type="button"
         on:click={() => {
@@ -265,6 +266,18 @@
         <Printer class="w-4 h-4 mb-0.5" />
         <span class="text-[9px] font-black uppercase">Auto-Print</span>
         <span class="text-[8px] font-mono font-bold mt-0.5">{autoPrintEnabled ? 'ON' : 'OFF'}</span>
+      </button>
+
+      <!-- Reopen / Reprint Last Receipt -->
+      <button
+        type="button"
+        on:click={onReopenLastReceipt}
+        class="flex flex-col items-center justify-center w-[74px] h-[52px] rounded-xl text-center transition cursor-pointer shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm active:scale-95"
+        title="Reopen / Reprint Last Receipt — view, edit in POS or reprint the last sale (أخر وصل)"
+      >
+        <RotateCcw class="w-4 h-4 mb-0.5" />
+        <span class="text-[9px] font-black uppercase leading-tight">Last Receipt</span>
+        <span class="text-[8px] font-mono font-bold mt-0.5 opacity-80">Reopen</span>
       </button>
     </div>
   </div>

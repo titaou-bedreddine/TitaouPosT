@@ -536,5 +536,12 @@
   "tg_master_password": "Mot de passe admin",
   "tg_schedule_title": "Heures silencieuses (notifications désactivées)",
   "tg_add_window": "Ajouter une période OFF",
-  "sale_modified_tag": "MODIFIÉE"
+  "sale_modified_tag": "MODIFIÉE",
+  "sales_lines_sold": "Lignes vendues",
+  "sales_units_sold": "Unités vendues",
+  "notif_payroll_alerts": "Rappels de paie",
+  "reopen_last_receipt": "Rouvrir le dernier reçu",
+  "reprint_last_receipt": "Réimprimer le dernier reçu",
+  "clear_debt": "Effacer la dette",
+  "backup_now": "Sauvegarder maintenant"
 }

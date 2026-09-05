@@ -159,3 +159,70 @@ pub fn toggle_customer_pin(db: &DbState, customer_id: i64, pinned: bool) -> Resu
     }
     Ok(())
 }
+
+/// Clear (forgive) a customer's outstanding debt — admin-only.
+///
+/// Accounting rule: this is debt FORGIVENESS, not a payment. It must NOT
+/// create any cash movement, IN/OUT entry or fake payment row: no money
+/// entered the drawer. The balance becomes 0 and the cleared amount is
+/// archived in debt_clear_log (entity, previous debt, user, reason, time).
+pub fn clear_customer_debt(
+    db: &DbState,
+    customer_id: i64,
+    reason: Option<String>,
+    admin_password: &str,
+    user_id: Option<i64>,
+) -> Result<i64, String> {
+    if !crate::auth::verify_admin_password(db, admin_password)? {
+        return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+    }
+
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let (name, previous_debt): (String, i64) = tx
+        .query_row(
+            "SELECT name, balance FROM customers WHERE id = ?1 AND is_active = 1",
+            [customer_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| format!("Client introuvable: {}", e))?;
+
+    if previous_debt <= 0 {
+        return Err("This customer has no outstanding debt / لا يوجد دين مستحق".to_string());
+    }
+
+    tx.execute(
+        "UPDATE customers SET balance = 0 WHERE id = ?1",
+        [customer_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let actor = crate::services::notifier_service::actor_label_from_conn(&tx, user_id);
+    tx.execute(
+        "INSERT INTO debt_clear_log (entity_type, entity_id, entity_name, previous_debt, new_debt, reason, user_name)
+         VALUES ('customer', ?1, ?2, ?3, 0, ?4, ?5)",
+        rusqlite::params![customer_id, name, previous_debt, reason, actor],
+    )
+    .map_err(|e| e.to_string())?;
+    let log_id = tx.last_insert_rowid();
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    // Audit-style Telegram alert (gated by the debt-clear switch).
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🧹 *Customer Debt Cleared*\n👤 Customer: *{}* (#{})\n💰 Previous debt: *{} DZD* ➔ 0\n📝 Reason: {}\n🛡 By: {}", name, customer_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+                format!("🧹 *تمت مصالحة دين الزبون*\n👤 الزبون: *{}* (#{})\n💰 الدين السابق: *{} دج* ➔ 0\n📝 السبب: {}\n🛡 بواسطة: {}", name, customer_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+                format!("🧹 *Dette client effacée*\n👤 Client : *{}* (#{})\n💰 Dette précédente : *{} DZD* ➔ 0\n📝 Motif : {}\n🛡 Par : {}", name, customer_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_debt_cleared", text);
+    }
+
+    Ok(log_id)
+}

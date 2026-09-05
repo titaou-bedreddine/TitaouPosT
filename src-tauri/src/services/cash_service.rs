@@ -530,6 +530,21 @@ pub fn archive_cash_session(
         rusqlite::params![if archived { 1 } else { 0 }, session_id],
     )
     .map_err(|e| e.to_string())?;
+    drop(conn);
+
+    // Audit/notify: archive hides the session but never destroys records.
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("📦 *Cash Session #{} Archived*\nHidden from the active history list (records kept).", session_id),
+                format!("📦 *أُرشفت جلسة الصندوق #{}*\nأُخفيت من قائمة السجل النشطة (البيانات محفوظة).", session_id),
+                format!("📦 *Session de caisse #{} archivée*\nMasquée de l'historique actif (données conservées).", session_id),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_session_archived", text);
+    }
 
     Ok(())
 }
@@ -544,16 +559,56 @@ pub fn delete_cash_session(
             return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
         }
     }
+    // Admin password is REQUIRED for permanent session deletion (the modal
+    // always collects it; a missing password means a direct API bypass).
+    if admin_password.as_deref().map(|p| p.trim().is_empty()).unwrap_or(true) {
+        return Err("Admin password required / كلمة مرور المسؤول مطلوبة".to_string());
+    }
 
     let mut conn = db.conn.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
+    // Sessions are referenced by sales, expenses, purchases' debt payments
+    // and payrolls. Deleting only the cash_movements used to abort with
+    // "FOREIGN KEY constraint failed" as soon as any of those rows existed.
+    // The session's own movements are removed; every OTHER dependent row
+    // keeps its financial record but is detached (session_id = NULL), so
+    // the ledger totals survive the deletion. No PRAGMA foreign_keys=OFF.
     tx.execute("DELETE FROM cash_movements WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE sales SET session_id = NULL WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE expenses SET session_id = NULL WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE customer_debt_payments SET session_id = NULL WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE supplier_debt_payments SET session_id = NULL WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE salary_advances SET session_id = NULL WHERE session_id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE payrolls SET session_id = NULL WHERE session_id = ?1", [session_id])
         .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM cash_sessions WHERE id = ?1", [session_id])
         .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    // Audit + Telegram alert for the destructive admin action (gated by the
+    // session-edit switch, consistent with archive/edit notifications).
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🗑 *Cash Session #{} Deleted*\nAll its cash movements were removed; linked sales/expenses keep their records (session detached).", session_id),
+                format!("🗑 *حُذفت جلسة الصندوق #{}*\nأُزيلت حركاتها النقدية؛ بقيت المبيعات والمصاريف المرتبطة في السجل (فُصلت عن الجلسة).", session_id),
+                format!("🗑 *Session de caisse #{} supprimée*\nSes mouvements ont été supprimés ; les ventes/dépenses liées conservent leur historique (détachées).", session_id),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_session_deleted", text);
+    }
+
     Ok(())
 }
 

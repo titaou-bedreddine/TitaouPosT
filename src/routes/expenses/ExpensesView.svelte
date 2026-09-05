@@ -9,6 +9,7 @@
   import { printHtmlDirectly } from '../../lib/utils/printer';
   import DateQuickFilters from '../../lib/components/DateQuickFilters.svelte';
   import { entityQrPayload, entityQrUrl } from '../../lib/utils/printer';
+  import { sortRows, clickSort } from '../../lib/utils/tableSort';
   import {
     Plus, DollarSign, Trash2, Eye, Printer, X, Check, Pencil,
     TrendingDown, Calendar, User, Receipt, AlertTriangle,
@@ -39,6 +40,20 @@
     }
     return true;
   });
+
+  // Three-state column sort (DESC → ASC → default), like the Stock page.
+  let sortKey: string | null = null;
+  let sortDir: 'asc' | 'desc' | null = null;
+  function applySort(key: string) {
+    const next = clickSort(key, sortKey, sortDir);
+    sortKey = next.key;
+    sortDir = next.dir;
+  }
+  function sortIndicator(key: string): string {
+    if (sortKey !== key || !sortDir) return '';
+    return sortDir === 'asc' ? '▲' : '▼';
+  }
+  $: sortedExpenses = sortRows(filteredExpenses, sortKey, sortDir, filteredExpenses);
 
   let amount = 0;
   let categoryId = 1;
@@ -292,12 +307,12 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start">{t('exp_voucher_num')}</th>
-          <th class="p-3 text-start">{t('date')}</th>
-          <th class="p-3 text-start">{t('exp_category')}</th>
-          <th class="p-3 text-start">{t('exp_beneficiary')}</th>
-          <th class="p-3 text-start">{t('exp_user_col')}</th>
-          <th class="p-3 text-end">{t('exp_amount_col')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('expense_number')}>{t('exp_voucher_num')} {sortIndicator('expense_number')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('date')}>{t('date')} {sortIndicator('date')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('category_name')}>{t('exp_category')} {sortIndicator('category_name')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('recipient')}>{t('exp_beneficiary')} {sortIndicator('recipient')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('user_name')}>{t('exp_user_col')} {sortIndicator('user_name')}</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('amount')}>{t('exp_amount_col')} {sortIndicator('amount')}</th>
           <th class="p-3 text-center">Payment</th>
           <th class="p-3 text-end">Actions</th>
         </tr>
@@ -305,10 +320,10 @@
       <tbody class="divide-y divide-pos-border/40">
         {#if filteredExpenses.length === 0}
           <tr>
-            <td colspan="7" class="p-8 text-center text-pos-muted">No expense records recorded yet.</td>
+            <td colspan="8" class="p-8 text-center text-pos-muted">No expense records recorded yet.</td>
           </tr>
         {:else}
-          {#each filteredExpenses as exp}
+          {#each sortedExpenses as exp}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
               <td class="p-3 font-mono font-bold text-rose-600">#{exp.expense_number}</td>
               <td class="p-3 font-mono text-pos-muted">{exp.date}</td>

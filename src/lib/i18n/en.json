@@ -536,5 +536,12 @@
   "tg_master_password": "Admin password",
   "tg_schedule_title": "Quiet hours (notifications OFF)",
   "tg_add_window": "Add OFF window",
-  "sale_modified_tag": "MODIFIED"
+  "sale_modified_tag": "MODIFIED",
+  "sales_lines_sold": "Lines Sold",
+  "sales_units_sold": "Units Sold",
+  "notif_payroll_alerts": "Payroll Reminders",
+  "reopen_last_receipt": "Reopen Last Receipt",
+  "reprint_last_receipt": "Reprint Last Receipt",
+  "clear_debt": "Clear Debt",
+  "backup_now": "Backup Now"
 }

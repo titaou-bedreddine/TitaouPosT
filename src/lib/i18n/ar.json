@@ -536,5 +536,12 @@
   "tg_master_password": "كلمة مرور المدير",
   "tg_schedule_title": "ساعات الصمت (إيقاف التنبيهات)",
   "tg_add_window": "إضافة فترة إيقاف",
-  "sale_modified_tag": "معدلة"
+  "sale_modified_tag": "معدلة",
+  "sales_lines_sold": "خطوط مبيعة",
+  "sales_units_sold": "وحدات مبيعة",
+  "notif_payroll_alerts": "تذكيرات الرواتب",
+  "reopen_last_receipt": "فتح آخر وصل",
+  "reprint_last_receipt": "إعادة طباعة آخر وصل",
+  "clear_debt": "مصالحة الدين",
+  "backup_now": "نسخ احتياطي الآن"
 }

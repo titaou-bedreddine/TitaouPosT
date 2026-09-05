@@ -222,3 +222,68 @@ pub fn toggle_supplier_pin(db: &DbState, supplier_id: i64, pinned: bool) -> Resu
     }
     Ok(())
 }
+
+/// Clear (forgive) a supplier's outstanding balance — admin-only.
+///
+/// Accounting rule: debt forgiveness, NOT a payment. No OUT cash movement,
+/// no drawer/expected_cash change, no fake payment row. Balance becomes 0
+/// and the cleared amount is archived in debt_clear_log.
+pub fn clear_supplier_debt(
+    db: &DbState,
+    supplier_id: i64,
+    reason: Option<String>,
+    admin_password: &str,
+    user_id: Option<i64>,
+) -> Result<i64, String> {
+    if !crate::auth::verify_admin_password(db, admin_password)? {
+        return Err("Mot de passe administrateur incorrect / Invalid admin password".to_string());
+    }
+
+    let mut conn = db.conn.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let (name, previous_debt): (String, i64) = tx
+        .query_row(
+            "SELECT name, balance FROM suppliers WHERE id = ?1 AND is_active = 1",
+            [supplier_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| format!("Fournisseur introuvable: {}", e))?;
+
+    if previous_debt <= 0 {
+        return Err("This supplier has no outstanding balance / لا يوجد دين مستحق".to_string());
+    }
+
+    tx.execute(
+        "UPDATE suppliers SET balance = 0 WHERE id = ?1",
+        [supplier_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let actor = crate::services::notifier_service::actor_label_from_conn(&tx, user_id);
+    tx.execute(
+        "INSERT INTO debt_clear_log (entity_type, entity_id, entity_name, previous_debt, new_debt, reason, user_name)
+         VALUES ('supplier', ?1, ?2, ?3, 0, ?4, ?5)",
+        rusqlite::params![supplier_id, name, previous_debt, reason, actor],
+    )
+    .map_err(|e| e.to_string())?;
+    let log_id = tx.last_insert_rowid();
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    {
+        let lang = crate::services::notifier_service::ui_language(db);
+        let text = crate::services::notifier_service::tr(
+            &lang,
+            (
+                format!("🧹 *Supplier Debt Cleared*\n🚚 Supplier: *{}* (#{})\n💰 Previous debt: *{} DZD* ➔ 0\n📝 Reason: {}\n🛡 By: {}", name, supplier_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+                format!("🧹 *تمت مصالحة دين المورد*\n🚚 المورد: *{}* (#{})\n💰 الدين السابق: *{} دج* ➔ 0\n📝 السبب: {}\n🛡 بواسطة: {}", name, supplier_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+                format!("🧹 *Dette fournisseur effacée*\n🚚 Fournisseur : *{}* (#{})\n💰 Dette précédente : *{} DZD* ➔ 0\n📝 Motif : {}\n🛡 Par : {}", name, supplier_id, previous_debt, reason.as_deref().unwrap_or("-"), actor),
+            ),
+        );
+        crate::services::notifier_service::notify_if_enabled(db, "notify_debt_cleared", text);
+    }
+
+    Ok(log_id)
+}

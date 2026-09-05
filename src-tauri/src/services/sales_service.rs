@@ -42,9 +42,12 @@ pub fn process_sale(db: &DbState, input: CreateSaleInput) -> Result<String, Stri
     // decremented when the sale is fully paid and released.
     let skip_stock = input.skip_stock || is_versement;
 
+    // NOTE: the live table is app_settings (key/value). Querying a wrong
+    // "settings" table made this ALWAYS read false — turning ON the
+    // negative-stock toggle then failed every over-stock checkout.
     let allow_negative_stock: bool = tx
         .query_row(
-            "SELECT value FROM settings WHERE key = 'allow_negative_stock'",
+            "SELECT value FROM app_settings WHERE key = 'allow_negative_stock'",
             [],
             |row| row.get::<_, String>(0),
         )
@@ -233,7 +236,9 @@ pub fn list_sales(
         "SELECT s.id, s.sale_number, s.session_id, s.user_id, u.display_name,
                 s.customer_id, c.name, s.subtotal, s.discount_amount, s.tax_amount,
                 s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at,
-                (SELECT sp.payment_method FROM sale_payments sp WHERE sp.sale_id = s.id ORDER BY sp.amount DESC LIMIT 1) as payment_method
+                (SELECT sp.payment_method FROM sale_payments sp WHERE sp.sale_id = s.id ORDER BY sp.amount DESC LIMIT 1) as payment_method,
+                (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as lines_sold,
+                (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) as units_sold
          FROM sales s
          LEFT JOIN users u ON s.user_id = u.id
          LEFT JOIN customers c ON s.customer_id = c.id
@@ -281,12 +286,108 @@ pub fn list_sales(
                 created_at: row.get(15)?,
                 payment_method: row.get(16)?,
                 items: None,
+                lines_sold: row.get(17)?,
+                units_sold: row.get(18)?,
             })
         })
         .map_err(|e| e.to_string())?;
 
     let list: Vec<Sale> = rows.filter_map(|r| r.ok()).collect();
     Ok(list)
+}
+
+/// The most recent completed sale, with its items — powers "Reopen/Reprint
+/// Last Receipt" straight from the POS. None until the first sale exists.
+pub fn get_last_sale(db: &DbState) -> Result<Option<(Sale, Vec<CartItem>)>, String> {
+    let conn = db.conn.lock().unwrap();
+    let sale: Option<Sale> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT s.id, s.sale_number, s.session_id, s.user_id, u.display_name,
+                        s.customer_id, c.name, s.subtotal, s.discount_amount, s.tax_amount,
+                        s.total_amount, s.paid_amount, s.change_amount, s.payment_status, s.status, s.created_at,
+                        (SELECT sp.payment_method FROM sale_payments sp WHERE sp.sale_id = s.id ORDER BY sp.amount DESC LIMIT 1),
+                        0, 0
+                 FROM sales s
+                 LEFT JOIN users u ON s.user_id = u.id
+                 LEFT JOIN customers c ON s.customer_id = c.id
+                 ORDER BY s.id DESC LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([], |row| {
+                Ok(Sale {
+                    id: row.get(0)?,
+                    sale_number: row.get(1)?,
+                    session_id: row.get(2)?,
+                    user_id: row.get(3)?,
+                    user_name: row.get(4)?,
+                    customer_id: row.get(5)?,
+                    customer_name: row.get(6)?,
+                    subtotal: row.get(7)?,
+                    discount_amount: row.get(8)?,
+                    tax_amount: row.get(9)?,
+                    total_amount: row.get(10)?,
+                    paid_amount: row.get(11)?,
+                    change_amount: row.get(12)?,
+                    payment_status: row.get(13)?,
+                    status: row.get(14)?,
+                    created_at: row.get(15)?,
+                    payment_method: row.get(16)?,
+                    items: None,
+                    lines_sold: 0,
+                    units_sold: 0.0,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(Ok(s)) => Some(s),
+            Some(Err(e)) => return Err(e.to_string()),
+            None => None,
+        }
+    };
+
+    let Some(mut sale) = sale else {
+        return Ok(None);
+    };
+
+    let items: Vec<CartItem> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT si.product_id, p.sku, '', p.name_ar, p.name_fr, p.name_en, p.image_path,
+                        si.unit_price, si.quantity, si.discount_amount, si.tax_amount, si.total_price, si.is_refunded
+                 FROM sale_items si
+                 JOIN products p ON si.product_id = p.id
+                 WHERE si.sale_id = ?1",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([sale.id], |row| {
+                Ok(CartItem {
+                    product_id: row.get(0)?,
+                    sku: row.get(1)?,
+                    barcode: None,
+                    name_ar: row.get(3)?,
+                    name_fr: row.get(4)?,
+                    name_en: row.get(5)?,
+                    image_path: row.get(6)?,
+                    unit_price: row.get(7)?,
+                    quantity: row.get(8)?,
+                    discount_amount: row.get(9)?,
+                    tax_amount: row.get(10)?,
+                    total_price: row.get(11)?,
+                    is_refund: row.get(12)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    sale.lines_sold = items.len() as i64;
+    sale.units_sold = items.iter().map(|i| i.quantity).sum();
+    sale.items = Some(items.clone());
+
+    Ok(Some((sale, items)))
 }
 
 pub fn get_sale_items(db: &DbState, sale_id: i64) -> Result<Vec<CartItem>, String> {
@@ -604,9 +705,12 @@ pub fn replace_sale(
     )
     .map_err(|e| e.to_string())?;
 
+    // NOTE: the live table is app_settings (key/value). Querying a wrong
+    // "settings" table made this ALWAYS read false — turning ON the
+    // negative-stock toggle then failed every over-stock checkout.
     let allow_negative_stock: bool = tx
         .query_row(
-            "SELECT value FROM settings WHERE key = 'allow_negative_stock'",
+            "SELECT value FROM app_settings WHERE key = 'allow_negative_stock'",
             [],
             |row| row.get::<_, String>(0),
         )

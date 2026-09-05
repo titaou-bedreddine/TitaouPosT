@@ -115,6 +115,9 @@
     // Barcode Labels & Presets
     barcode_label_width: '50',
     label_presets: '',
+    // Currently selected built-in label preset — every label print location
+    // (product modal, batch printing, shelf etiquette) defaults to it.
+    label_preset_id: 'vprice40x20',
     sticker_content_position: 'top', // top | middle | bottom
     shelf_content_position: 'top',
     barcode_label_height: '30',
@@ -155,6 +158,8 @@
     // Pricing defaults for new products
     default_margin_percent: '20',
     price_round_step: '5',
+    // Sale-price rounding at checkout: OFF / nearest 50 / nearest 100 DZD.
+    sale_price_rounding: 'off',
     receipt_show_shop_name: 'true',
     receipt_show_address: 'true',
     receipt_show_phone: 'true',
@@ -173,6 +178,25 @@
     receipt_total_bold: 'true',
     receipt_footer_font_size: '8',
     receipt_footer_bold: 'false',
+
+    // Backup system (v0.5.16): startup/close/scheduled/retention/location.
+    backup_on_startup: 'false',
+    backup_on_close: 'false',
+    backup_scheduled_enabled: 'false',
+    backup_scheduled_time: '22:00',
+    backup_dir: '',
+    backup_keep_count: '10',
+    backup_include_settings: 'true',
+
+    // Payroll reminder notification switches.
+    notify_payroll_enabled: 'true',
+    notify_payroll_inapp: 'true',
+    notify_payroll_telegram: 'false',
+
+    // Session admin-action alert switches.
+    notify_session_deleted: 'true',
+    notify_session_archived: 'true',
+    notify_debt_cleared: 'true',
   };
 
   let hwid = '...';
@@ -570,6 +594,16 @@
     'receipt_body_bold',
     'receipt_total_bold',
     'receipt_footer_bold',
+    'backup_on_startup',
+    'backup_on_close',
+    'backup_scheduled_enabled',
+    'backup_include_settings',
+    'notify_payroll_enabled',
+    'notify_payroll_inapp',
+    'notify_payroll_telegram',
+    'notify_session_deleted',
+    'notify_session_archived',
+    'notify_debt_cleared',
   ]);
 
   interface QuietWindow {
@@ -727,12 +761,20 @@
 
   // Toggles must take effect IMMEDIATELY: a cashier flipping "notify on
   // every sale" and never clicking Save would silently get no alerts.
+  // DEBOUNCED (v0.5.16): typing in a text field no longer fires a
+  // set_multiple_settings invoke per keystroke — that serialize-everything
+  // call was the other half of the slow-Settings bug. Toggles still save
+  // within ~400ms, immediately after the change.
+  let autoSaveTimer: any = null;
   function autoSaveSettings() {
-    invoke('set_multiple_settings', {
-      settings: Object.fromEntries(
-        Object.entries(settings).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
-      ),
-    }).catch((e) => console.warn('Auto-save settings failed:', e));
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      invoke('set_multiple_settings', {
+        settings: Object.fromEntries(
+          Object.entries(settings).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+        ),
+      }).catch((e) => console.warn('Auto-save settings failed:', e));
+    }, 400);
   }
 
   async function saveAllSettings() {
@@ -823,26 +865,128 @@
     }
   }
 
-  async function handleBackupDatabase() {
+  // ----- Backup & Restore (v0.5.16): native pickers, app-styled modals -----
+  let backupsList: Array<{ file_name: string; path: string; size_bytes: number; modified: string }> = [];
+  let isCreatingBackup = false;
+  let backupMsg = '';
+  // Restore workflow: Browse → validate → confirm → restore.
+  let showRestoreModal = false;
+  let restoreFilePath = '';
+  let restoreValidateMsg = '';
+  let restoreError = '';
+  let isRestoring = false;
+  let restoreDone = false;
+  let restoreSettingsToo = false;
+
+  async function refreshBackups() {
     try {
-      const defaultName = `TitaouPOS_Backup_${new Date().toISOString().slice(0, 10)}.sqlite`;
-      const targetPath = `C:\\Users\\Public\\Downloads\\${defaultName}`;
-      const msg = await invoke<string>('backup_database', { destinationPath: targetPath });
-      triggerSaveNotification(msg);
-    } catch (e: any) {
-      alert('Backup Error: ' + (e.message || e));
+      backupsList = await invoke<any[]>('list_backups');
+    } catch {
+      backupsList = [];
     }
   }
 
-  async function handleRestoreDatabase() {
-    const backupPath = prompt('Enter the absolute path of the backup file to restore (e.g. C:\\Users\\Public\\Downloads\\backup.sqlite):');
-    if (!backupPath) return;
+  async function handleBackupNow() {
     try {
-      const msg = await invoke<string>('restore_database', { sourceBackupPath: backupPath });
-      alert(msg);
+      isCreatingBackup = true;
+      backupMsg = '';
+      const path = await invoke<string>('create_backup', { tag: 'manual' });
+      backupMsg = '✅ Backup created: ' + path;
+      await refreshBackups();
     } catch (e: any) {
-      alert('Restore Error: ' + (e.message || e));
+      backupMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || 'Backup failed');
+    } finally {
+      isCreatingBackup = false;
     }
+  }
+
+  async function handlePickBackupFolder() {
+    try {
+      const folder = await invoke<string | null>('pick_backup_folder');
+      if (folder) {
+        settings.backup_dir = folder;
+        autoSaveSettings();
+        triggerSaveNotification('Backup location set to ' + folder);
+        await refreshBackups();
+      }
+    } catch (e: any) {
+      triggerSaveNotification('Folder picker failed: ' + (e?.message || e));
+    }
+  }
+
+  async function openRestoreModal() {
+    // Native Windows file picker — never a browser prompt().
+    try {
+      const file = await invoke<string | null>('pick_backup_file');
+      if (!file) return;
+      restoreFilePath = file;
+      restoreValidateMsg = '';
+      restoreError = '';
+      restoreDone = false;
+      restoreSettingsToo = false;
+      showRestoreModal = true;
+      // Validate immediately: SQLite magic header + size.
+      try {
+        restoreValidateMsg = await invoke<string>('validate_backup_file', { path: file });
+      } catch (e: any) {
+        restoreError = typeof e === 'string' ? e : e?.message || 'Validation failed';
+      }
+    } catch (e: any) {
+      triggerSaveNotification('File picker failed: ' + (e?.message || e));
+    }
+  }
+
+  async function handleConfirmRestore() {
+    try {
+      isRestoring = true;
+      restoreError = '';
+      if (restoreSettingsToo) {
+        await invoke('restore_settings_only', { sourceBackupPath: restoreFilePath });
+      }
+      const msg = await invoke<string>('restore_database', { sourceBackupPath: restoreFilePath });
+      restoreDone = true;
+      backupMsg = '✅ ' + msg;
+    } catch (e: any) {
+      restoreError = typeof e === 'string' ? e : e?.message || 'Restore failed';
+    } finally {
+      isRestoring = false;
+    }
+  }
+
+  function closeRestoreModal() {
+    showRestoreModal = false;
+    if (restoreDone) {
+      // Stale frontend state must die with the old database: full reload.
+      window.location.reload();
+    }
+  }
+
+  // ----- Embedded server (real status, LAN QR, live devices) -----
+  let serverStatus: any = null;
+  let serverQrDataUrl = '';
+
+  async function refreshServerStatus() {
+    try {
+      serverStatus = await invoke<any>('get_server_status');
+      // QR carries the real LAN address (never localhost/127.0.0.1) for
+      // another-device pairing; empty when the server has no LAN IP.
+      const ip = serverStatus?.lan_ips?.[0];
+      if (ip) {
+        const { entityQrDataUrl } = await import('../../lib/utils/printer');
+        const payload = `TITAOUPOS|${ip}|${serverStatus.port}`;
+        serverQrDataUrl = await entityQrDataUrl(payload, 240).catch(() => '');
+      } else {
+        serverQrDataUrl = '';
+      }
+    } catch {
+      serverStatus = null;
+    }
+  }
+  $: if (currentTab === 'network') {
+    refreshServerStatus();
+  }
+  $: if (currentTab === 'import_export') {
+    refreshBackups();
   }
 
   async function sendTelegramTest() {
@@ -1308,16 +1452,25 @@
   }
 
   // ----- Built-in 40×20 mm thermal presets (Vertical Price / Shelf Price) -----
-  $: builtinLabelData = {
-    shopName: String(settings.shop_name_fr || 'TITAOU POS'),
-    productName: previewProductName,
-    barcode: previewBarcodeNumber,
-    price: previewPrice,
-    currency: 'DA',
-  };
-  $: builtinLabelPreviews = Object.fromEntries(
-    LABEL_PRESET_IDS.map((id) => [id, buildLabelPresetHtml(id, builtinLabelData)])
-  ) as Record<LabelPresetId, string>;
+  // PERF: only compute label previews while the barcodes tab is VISIBLE.
+  // Before, every keystroke in ANY settings input re-rasterized both label
+  // previews (barcode SVG + canvas text measurement) — the main reason tab
+  // interaction and typing felt slow after the printers fix.
+  const EMPTY_LABEL_DATA = { shopName: '', productName: '', barcode: '', price: 0, currency: 'DA' };
+  $: builtinLabelData = currentTab === 'barcodes'
+    ? {
+        shopName: String(settings.shop_name_fr || 'TITAOU POS'),
+        productName: previewProductName,
+        barcode: previewBarcodeNumber,
+        price: previewPrice,
+        currency: 'DA',
+      }
+    : EMPTY_LABEL_DATA;
+  $: builtinLabelPreviews = currentTab === 'barcodes'
+    ? (Object.fromEntries(
+        LABEL_PRESET_IDS.map((id) => [id, buildLabelPresetHtml(id, builtinLabelData)])
+      ) as Record<LabelPresetId, string>)
+    : ({} as Record<LabelPresetId, string>);
 
   let builtinTestMsg = '';
 
@@ -2285,6 +2438,38 @@
               <span>{t('notify_history_change_label')}</span>
               <input type="checkbox" bind:checked={settings.notify_history_change} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
+
+            <!-- Employee payroll payment reminders (Req 26) -->
+            <div class="p-3 bg-sky-50 dark:bg-sky-950/30 rounded-xl border border-sky-200 dark:border-sky-800/60 space-y-2">
+              <span class="text-[11px] font-black text-sky-800 dark:text-sky-200 block">Employee Payroll Reminders (تذكير رواتب الموظفين)</span>
+              <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+                <span>Notify for employee payroll (master)</span>
+                <input type="checkbox" bind:checked={settings.notify_payroll_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
+              </label>
+              <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+                <span>In-app payroll reminder (1 day before + due day)</span>
+                <input type="checkbox" bind:checked={settings.notify_payroll_inapp} class="rounded text-sky-600" on:change={autoSaveSettings} />
+              </label>
+              <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+                <span>Telegram payroll reminder</span>
+                <input type="checkbox" bind:checked={settings.notify_payroll_telegram} class="rounded text-sky-600" on:change={autoSaveSettings} />
+              </label>
+              <p class="text-[10px] text-pos-muted">Reminders fire once per employee per occurrence (restart-safe), and never for an already-paid period.</p>
+            </div>
+
+            <!-- Admin-action alerts (session delete/archive, debt clear) -->
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Session deleted (admin action) / حذف جلسة</span>
+              <input type="checkbox" bind:checked={settings.notify_session_deleted} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Session archived / أرشفة جلسة</span>
+              <input type="checkbox" bind:checked={settings.notify_session_archived} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
+              <span>Customer/supplier debt cleared / مصالحة ديون</span>
+              <input type="checkbox" bind:checked={settings.notify_debt_cleared} class="rounded text-sky-600" on:change={autoSaveSettings} />
+            </label>
           </div>
 
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
@@ -2719,6 +2904,48 @@
             </p>
           </div>
 
+          <!-- Preset quick-select: every printing location respects the chosen preset -->
+          <div class="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+            <div class="md:col-span-2">
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">Current Label Preset (القالب الحالي) — used by every label print</label>
+              <div class="flex gap-2">
+                <select
+                  bind:value={settings.label_preset_id}
+                  on:change={autoSaveSettings}
+                  class="flex-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-bold text-pos-text outline-none cursor-pointer"
+                >
+                  <option value="vprice40x20">Vertical Price — 40×20 mm (barcode + rotated price)</option>
+                  <option value="shelf40x20">Shelf Price — 40×20 mm (name + big price, no barcode)</option>
+                </select>
+                <button
+                  type="button"
+                  on:click={() => { settings.label_preset_id = 'vprice40x20'; autoSaveSettings(); triggerSaveNotification('Preset reset to Vertical Price 40×20'); }}
+                  class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text text-[10px] font-black rounded-lg cursor-pointer shrink-0"
+                  title="Reset to the built-in default preset"
+                >
+                  Reset to Preset
+                </button>
+              </div>
+              <p class="text-[9px] text-pos-muted mt-1">The chosen preset is the default everywhere labels print (product modal, batch printing, shelf etiquette).</p>
+            </div>
+            <div class="text-center">
+              <span class="text-[9px] font-bold text-pos-muted block">Live preview</span>
+              {#if settings.label_preset_id === 'shelf40x20' && builtinLabelPreviews['shelf40x20']}
+                <div style="width: calc(40mm * 1.4); height: calc(20mm * 1.4); margin: 0 auto; position: relative; overflow: hidden;">
+                  <div style="width: 40mm; height: 20mm; transform: scale(1.4); transform-origin: top left;">
+                    {@html builtinLabelPreviews['shelf40x20']}
+                  </div>
+                </div>
+              {:else if builtinLabelPreviews['vprice40x20']}
+                <div style="width: calc(40mm * 1.4); height: calc(20mm * 1.4); margin: 0 auto; position: relative; overflow: hidden;">
+                  <div style="width: 40mm; height: 20mm; transform: scale(1.4); transform-origin: top left;">
+                    {@html builtinLabelPreviews['vprice40x20']}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          </div>
+
           <!-- Label printer hardware (exact-media silent pipeline) -->
           <div class="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-pos-border grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
@@ -2750,7 +2977,7 @@
             </div>
             <div class="flex items-end">
               <p class="text-[10px] text-pos-muted bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-2 w-full">
-                Multi-copy jobs print consecutively — Label 2 feeds right after Label 1. No A4 pages, no blank gaps.
+                Multi-copy jobs print consecutively — Label 2 feeds right after Label 1. No A4 pages, no blank gaps, no print dialog.
               </p>
             </div>
           </div>
@@ -2857,6 +3084,23 @@
                 </select>
               </div>
             </div>
+
+            <!-- Checkout total rounding (Req 7): applies to the cart grand
+                 total only — never purchase/cost prices nor historical
+                 transactions. -->
+            <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">Sale Total Rounding at Checkout (تقريب مجموع البيع)</label>
+              <select
+                bind:value={settings.sale_price_rounding}
+                on:change={autoSaveSettings}
+                class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
+              >
+                <option value="off">OFF — exact total (بدون تقريب)</option>
+                <option value="50">Nearest 50 DZD (e.g. 4,480 → 4,500)</option>
+                <option value="100">Nearest 100 DZD (e.g. 4,480 → 4,500)</option>
+              </select>
+              <p class="text-[9px] text-pos-muted mt-1">Rounds the cart grand total at checkout for quick cash handling. Purchase prices, cost prices and saved history are never modified.</p>
+            </div>
           </div>
 
           <!-- Scanner & Hardware Automation Rules -->
@@ -2942,66 +3186,104 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Server Status & QR Connection -->
+          <!-- Server Status & QR Connection (REAL data from the embedded server) -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span class="text-xs font-black text-pos-text">Embedded Server Online</span>
+                <span class="w-3 h-3 rounded-full {serverStatus?.running ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                <span class="text-xs font-black text-pos-text">
+                  {serverStatus?.running ? 'Embedded Server Online' : 'Embedded Server Offline'}
+                </span>
               </div>
-              <span class="text-xs font-mono font-bold text-sky-600">Port {settings.mobile_server_port || '8080'}</span>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-mono font-bold text-sky-600">Port {settings.mobile_server_port || serverStatus?.port || '8080'}</span>
+                <button
+                  type="button"
+                  on:click={refreshServerStatus}
+                  class="p-1 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer"
+                  title="Refresh status"
+                >
+                  <RefreshCw class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-pos-muted mb-1">Server Port (requires app restart to apply)</label>
+              <input
+                type="number"
+                min="1024"
+                max="65535"
+                bind:value={settings.mobile_server_port}
+                on:change={autoSaveSettings}
+                class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none"
+              />
             </div>
 
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1 font-mono text-xs">
-              <p class="text-pos-muted text-[11px]">Server Address URL:</p>
-              <p class="font-bold text-sky-600">http://192.168.1.105:8080</p>
-              <p class="text-pos-muted text-[11px] mt-2">Pairing PIN Code:</p>
-              <p class="font-black text-lg text-emerald-600 tracking-widest">4829</p>
+              <p class="text-pos-muted text-[11px]">Server Address URL (LAN):</p>
+              {#if serverStatus?.lan_ips?.length}
+                {#each serverStatus.lan_ips as ip}
+                  <p class="font-bold text-sky-600">http://{ip}:{serverStatus.port}</p>
+                {/each}
+              {:else}
+                <p class="text-pos-muted italic">No LAN address detected — connect the PC to the shop Wi-Fi/router.</p>
+              {/if}
+              <p class="text-pos-muted text-[11px] mt-2">Uptime: {Math.floor((serverStatus?.uptime_secs || 0) / 60)} min • Endpoints: /api/status, /api/handshake</p>
             </div>
 
+            <!-- REAL QR: the actual LAN IP + port for device pairing -->
             <div class="flex items-center justify-center p-4 bg-white rounded-xl border border-pos-border">
-              <!-- QR Code Representation -->
-              <div class="text-center space-y-1">
-                <div class="w-32 h-32 bg-slate-900 text-white rounded-lg flex items-center justify-center font-mono font-black text-xs p-2 text-center">
-                  [ SCAN QR CODE ON ANDROID APP ]
+              {#if serverQrDataUrl}
+                <div class="text-center space-y-1">
+                  <img src={serverQrDataUrl} alt="Pairing QR" class="w-40 h-40 mx-auto rounded-lg border border-pos-border" />
+                  <span class="text-[10px] text-slate-500 font-bold">Scan to pair a device on this network</span>
                 </div>
-                <span class="text-[10px] text-slate-500 font-bold">Scan to Auto-Pair Device</span>
-              </div>
+              {:else}
+                <div class="text-center space-y-1 p-4">
+                  <QrCode class="w-10 h-10 mx-auto text-pos-muted opacity-40" />
+                  <p class="text-[11px] text-pos-muted font-bold">QR unavailable (no LAN address)</p>
+                </div>
+              {/if}
             </div>
           </div>
 
-          <!-- Connected Devices List -->
+          <!-- Connected Devices: ONLY real, handshake-verified terminals -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4 flex flex-col justify-between">
             <div>
-              <h3 class="text-sm font-black text-pos-text mb-3">Connected Mobile Terminals (2 Active)</h3>
+              <h3 class="text-sm font-black text-pos-text mb-3">
+                Connected Mobile Terminals ({serverStatus?.devices_count || 0} Active)
+              </h3>
               <div class="space-y-2">
-                <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <Smartphone class="w-5 h-5 text-sky-500" />
-                    <div>
-                      <p class="text-xs font-black text-pos-text">Samsung Galaxy A15 (Scanner #1)</p>
-                      <p class="text-[10px] text-pos-muted">IP: 192.168.1.112 • Ping: 12ms</p>
-                    </div>
+                {#if !serverStatus?.devices?.length}
+                  <!-- Proper empty state — no demo devices, no fake QR -->
+                  <div class="p-6 text-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-pos-border">
+                    <Smartphone class="w-8 h-8 mx-auto text-pos-muted opacity-40 mb-2" />
+                    <p class="text-xs font-bold text-pos-muted">No devices connected yet</p>
+                    <p class="text-[10px] text-pos-muted mt-1">
+                      Scan the pairing QR from the TitaouPOS mobile app — devices appear here the moment they connect.
+                    </p>
                   </div>
-                  <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">ACTIVE</span>
-                </div>
-
-                <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <Laptop class="w-5 h-5 text-purple-500" />
-                    <div>
-                      <p class="text-xs font-black text-pos-text">Lenovo Tablet Tab M10 (Cashier #2)</p>
-                      <p class="text-[10px] text-pos-muted">IP: 192.168.1.115 • Ping: 18ms</p>
+                {:else}
+                  {#each serverStatus.devices as dev}
+                    <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <Smartphone class="w-5 h-5 text-sky-500" />
+                        <div>
+                          <p class="text-xs font-black text-pos-text">{dev.device_name}</p>
+                          <p class="text-[10px] text-pos-muted">IP: {dev.ip} • Role: {dev.device_role} • Seen {dev.last_seen_secs_ago}s ago</p>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">ACTIVE</span>
                     </div>
-                  </div>
-                  <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">ACTIVE</span>
-                </div>
+                  {/each}
+                {/if}
               </div>
             </div>
 
             <div class="pt-3 border-t border-pos-border flex justify-between items-center">
-              <span class="text-xs font-bold text-pos-muted">Real-time WebSocket Sync</span>
-              <span class="text-xs font-bold text-emerald-600">Enabled (مفعل)</span>
+              <span class="text-xs font-bold text-pos-muted">Real-time device registry</span>
+              <span class="text-xs font-bold text-emerald-600">Handshake-verified / موثوق</span>
             </div>
           </div>
         </div>
@@ -3057,34 +3339,149 @@
           <!-- Full Database Backup & Restore -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4 flex flex-col justify-between">
             <div class="space-y-3">
-              <h3 class="text-sm font-black text-pos-text">2. Database Backup & Restore</h3>
-              <p class="text-xs text-pos-muted">Creates an encrypted, self-contained snapshot of all sales, products, debts, and ledger data.</p>
+              <h3 class="text-sm font-black text-pos-text">2. Automatic Database Backups (نسخ احتياطي)</h3>
+              <p class="text-xs text-pos-muted">Full snapshot of sales, products, debts, and ledger data.</p>
 
+              <!-- Automatic backup toggles -->
+              <div class="space-y-2">
+                <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <div>
+                    <span>Backup on startup</span>
+                    <p class="text-[10px] text-pos-muted font-normal">Once per day when the app launches</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    bind:checked={settings.backup_on_startup}
+                    on:change={autoSaveSettings}
+                    class="rounded text-emerald-600 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+
+                <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <div>
+                    <span>Backup on close</span>
+                    <p class="text-[10px] text-pos-muted font-normal">Safety copy when the app exits</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    bind:checked={settings.backup_on_close}
+                    on:change={autoSaveSettings}
+                    class="rounded text-emerald-600 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+
+                <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <div>
+                    <span>Scheduled backup</span>
+                    <p class="text-[10px] text-pos-muted font-normal">Every day at the configured time</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    bind:checked={settings.backup_scheduled_enabled}
+                    on:change={autoSaveSettings}
+                    class="rounded text-emerald-600 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+                {#if settings.backup_scheduled_enabled}
+                  <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
+                    <span class="text-[11px] font-bold text-pos-muted">Backup every day at</span>
+                    <input
+                      type="time"
+                      bind:value={settings.backup_scheduled_time}
+                      on:change={autoSaveSettings}
+                      class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none cursor-pointer"
+                    />
+                  </div>
+                {/if}
+
+                <!-- Location + retention + settings inclusion -->
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <span class="text-[11px] font-bold text-pos-muted block">Backup location</span>
+                    <p class="text-[10px] text-pos-text font-mono truncate">{settings.backup_dir || '%APPDATA%\\TitaouPosT\\backups (default)'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    on:click={handlePickBackupFolder}
+                    class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer shrink-0"
+                  >
+                    Browse…
+                  </button>
+                </div>
+
+                <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
+                  <span class="text-[11px] font-bold text-pos-muted">Keep last [X] backups (retention)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="200"
+                    bind:value={settings.backup_keep_count}
+                    on:change={autoSaveSettings}
+                    class="w-16 px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text text-center outline-none"
+                  />
+                </div>
+
+                <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+                  <div>
+                    <span>Include application settings in backup</span>
+                    <p class="text-[10px] text-pos-muted font-normal">POS config, printers, receipt & label presets, notifications, Telegram (as stored)</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    bind:checked={settings.backup_include_settings}
+                    on:change={autoSaveSettings}
+                    class="rounded text-emerald-600 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              <!-- Last/Backup Now row -->
               <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1 text-xs">
                 <div class="flex justify-between font-bold">
                   <span class="text-pos-muted">Last Backup:</span>
-                  <span class="text-pos-text">Today, 22:30</span>
+                  <span class="text-pos-text">{settings.last_backup_at || 'Never'}</span>
                 </div>
-                <div class="flex justify-between font-bold">
-                  <span class="text-pos-muted">Backup Size:</span>
-                  <span class="text-pos-text">2.4 MB (.sqlite)</span>
-                </div>
+                {#if backupMsg}
+                  <p class="text-[10px] font-bold {backupMsg.startsWith('✅') ? 'text-emerald-600' : 'text-rose-600'} break-all">{backupMsg}</p>
+                {/if}
               </div>
+
+              <!-- Existing backups list -->
+              {#if backupsList.length > 0}
+                <div class="max-h-40 overflow-y-auto rounded-xl border border-pos-border divide-y divide-pos-border">
+                  {#each backupsList as b}
+                    <div class="p-2 bg-white dark:bg-slate-900 flex items-center justify-between gap-2 text-[11px]">
+                      <div class="min-w-0">
+                        <p class="font-bold text-pos-text truncate">{b.file_name}</p>
+                        <p class="text-pos-muted font-mono">{b.modified} • {Math.round(b.size_bytes / 1024)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        on:click={() => { restoreFilePath = b.path; showRestoreModal = true; }}
+                        class="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-pos-text font-bold rounded-lg cursor-pointer shrink-0"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </div>
 
             <div class="space-y-2">
               <button
                 type="button"
-                on:click={handleBackupDatabase}
-                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                on:click={handleBackupNow}
+                disabled={isCreatingBackup}
+                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
               >
                 <HardDrive class="w-4 h-4" />
-                <span>Backup Now (نسخ احتياطي للبيانات)</span>
+                <span>{isCreatingBackup ? 'Backing up…' : 'Backup Now (نسخ احتياطي للبيانات)'}</span>
               </button>
 
               <button
                 type="button"
-                on:click={handleRestoreDatabase}
+                on:click={openRestoreModal}
                 class="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text text-xs font-bold rounded-xl cursor-pointer transition active:scale-95"
               >
                 Restore from Backup File (.sqlite)
@@ -3759,6 +4156,84 @@
     <div class="absolute bottom-6 end-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black animate-in slide-in-from-bottom-3 duration-200">
       <Check class="w-5 h-5 bg-white/20 rounded-full p-0.5 shrink-0" />
       <span>{saveSuccessMsg}</span>
+    </div>
+  {/if}
+
+  <!-- Restore From Backup Modal (app-styled, native-picked file) -->
+  {#if showRestoreModal}
+    <div class="fixed inset-0 z-[80] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4 animate-in zoom-in-95">
+        <div class="flex items-center gap-3 text-amber-600">
+          <div class="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center shrink-0">
+            <HardDrive class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-pos-text">Restore from Backup</h3>
+            <p class="text-[11px] text-pos-muted">Restore / استرجاع النسخة الاحتياطية</p>
+          </div>
+        </div>
+
+        {#if restoreDone}
+          <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 space-y-2">
+            <p>✅ Database restored successfully. The app will reload with the restored data.</p>
+            <p class="text-[10px] text-pos-muted">A safety backup of the PREVIOUS data was saved before the restore (presafety file).</p>
+          </div>
+          <div class="flex justify-end pt-1 border-t border-pos-border">
+            <button
+              type="button"
+              on:click={closeRestoreModal}
+              class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+            >
+              Reload App Now (تحديث التطبيق)
+            </button>
+          </div>
+        {:else}
+          <!-- Selected file + validation result -->
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-pos-border space-y-1.5 text-xs">
+            <p class="text-pos-muted font-bold">Selected backup:</p>
+            <p class="font-mono text-pos-text break-all">{restoreFilePath}</p>
+            {#if restoreValidateMsg}
+              <p class="text-[11px] font-bold text-emerald-600">✅ {restoreValidateMsg}</p>
+            {:else if restoreError}
+              <p class="text-[11px] font-bold text-rose-600">❌ {restoreError}</p>
+            {:else}
+              <p class="text-[11px] font-bold text-pos-muted">Validating…</p>
+            {/if}
+          </div>
+
+          <p class="text-[11px] text-pos-muted font-bold">
+            ⚠️ This replaces the ENTIRE current database (sales, products, debts, sessions). A safety backup of the current
+            data is created first, but the action is significant. Confirm to proceed.
+          </p>
+
+          <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+            <input type="checkbox" bind:checked={restoreSettingsToo} class="rounded text-sky-600" />
+            <span>Also restore application settings from this backup's snapshot</span>
+          </label>
+
+          {#if restoreError && !restoreValidateMsg}
+            <p class="text-[11px] font-bold text-rose-600">{restoreError}</p>
+          {/if}
+
+          <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
+            <button
+              type="button"
+              on:click={() => (showRestoreModal = false)}
+              class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+            >
+              Cancel / إلغاء
+            </button>
+            <button
+              type="button"
+              on:click={handleConfirmRestore}
+              disabled={isRestoring || (!restoreValidateMsg && !backupsList.some(b => b.path === restoreFilePath))}
+              class="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+            >
+              {isRestoring ? 'Restoring…' : 'Confirm Restore (تأكيد)'}
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
 </div>

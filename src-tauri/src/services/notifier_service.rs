@@ -14,6 +14,9 @@ pub fn get_telegram_config(db: &DbState) -> Option<(String, String, HashMap<Stri
 
 /// Fire-and-forget Telegram send. Blocking on the POS UI is unacceptable, so
 /// callers spawn this on a background thread and ignore failures.
+/// Retries transient (network/5xx) failures once; parse errors fall back to
+/// plain text; every failure is logged so drops are diagnosable, and a
+/// failure here never affects the caller.
 pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<(), String> {
     let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
     let client = reqwest::blocking::Client::builder()
@@ -21,6 +24,21 @@ pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
+
+    let send_plain = |c: &reqwest::blocking::Client, txt: &str| -> Result<bool, String> {
+        let resp = c
+            .post(&url)
+            .form(&[("chat_id", chat_id), ("text", txt)])
+            .send()
+            .map_err(|e| format!("network: {}", e))?;
+        let ok = resp.status().is_success();
+        if !ok {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            eprintln!("[telegram] plain send failed: HTTP {} — {}", status, body);
+        }
+        Ok(ok)
+    };
 
     for attempt in 0..2 {
         let resp = client
@@ -33,20 +51,23 @@ pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<
                 if r.status().is_success() {
                     return Ok(());
                 }
-                // If markdown parse error (status 400), fall back immediately to plain text without Markdown
-                if r.status().as_u16() == 400 {
-                    let plain_resp = client
-                        .post(&url)
-                        .form(&[("chat_id", chat_id), ("text", text)])
-                        .send();
-                    if let Ok(pr) = plain_resp {
-                        if pr.status().is_success() {
-                            return Ok(());
-                        }
+                let status = r.status();
+                let body = r.text().unwrap_or_default();
+                eprintln!("[telegram] send attempt {} failed: HTTP {} — {}", attempt + 1, status, body);
+                // Markdown parse error → immediate plain-text fallback.
+                if status.as_u16() == 400 {
+                    if send_plain(&client, text).unwrap_or(false) {
+                        return Ok(());
                     }
                 }
+                // 5xx/transient → retry once after a short pause.
+                if status.is_server_error() && attempt == 0 {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    continue;
+                }
             }
-            Err(_) => {
+            Err(e) => {
+                eprintln!("[telegram] network error (attempt {}): {}", attempt + 1, e);
                 if attempt == 0 {
                     std::thread::sleep(std::time::Duration::from_millis(500));
                     continue;
@@ -55,20 +76,11 @@ pub fn send_telegram_blocking(token: &str, chat_id: &str, text: &str) -> Result<
         }
     }
 
-    // Final fallback attempt: send plain text without parse_mode
-    let final_resp = client
-        .post(&url)
-        .form(&[("chat_id", chat_id), ("text", text)])
-        .send()
-        .map_err(|e| format!("Telegram send failed: {}", e))?;
-
-    if !final_resp.status().is_success() {
-        let status = final_resp.status();
-        let body = final_resp.text().unwrap_or_default();
-        return Err(format!("Telegram error HTTP {}: {}", status, body));
+    // Final fallback attempt: send plain text without parse_mode.
+    if send_plain(&client, text).unwrap_or(false) {
+        return Ok(());
     }
-
-    Ok(())
+    Err("Telegram send failed after retries (see log)".to_string())
 }
 
 /// True when the current LOCAL time falls inside one of the configured
@@ -134,7 +146,9 @@ pub fn notify_if_enabled(db: &DbState, switch_key: &str, text: String) {
         return;
     }
     std::thread::spawn(move || {
-        let _ = send_telegram_blocking(&token, &chat_id, &text);
+        if let Err(e) = send_telegram_blocking(&token, &chat_id, &text) {
+            eprintln!("[telegram] notification dropped: {}", e);
+        }
     });
 }
 
@@ -267,4 +281,62 @@ pub fn actor_label(db: &DbState, user_id: Option<i64>) -> String {
         |r| r.get::<_, String>(0),
     )
     .unwrap_or_else(|_| format!("User #{}", uid))
+}
+
+/// Same lookup, but usable INSIDE an open transaction: takes any executor
+/// that derefs to a rusqlite connection (the caller's &Transaction) so it
+/// never re-locks the shared DbState mutex.
+pub fn actor_label_from_conn<T: std::ops::Deref<Target = rusqlite::Connection>>(
+    conn: &T,
+    user_id: Option<i64>,
+) -> String {
+    let Some(uid) = user_id else {
+        return "System".to_string();
+    };
+    conn.query_row(
+        "SELECT COALESCE(display_name, username) FROM users WHERE id = ?1",
+        [uid],
+        |r| r.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| format!("User #{}", uid))
+}
+
+// ---------------------------------------------------------------------------
+// In-app notification feed (payroll reminders and future admin-action
+// alerts). Rows persist in app_notification_log so reminders survive
+// restarts and are listed on the Notifications page.
+// ---------------------------------------------------------------------------
+
+/// Append one row to the persistent in-app notification feed.
+/// Failures are logged and swallowed: alerting must never break the POS.
+pub fn push_inapp_notification(
+    db: &DbState,
+    ntype: &str,
+    title: &str,
+    message: &str,
+    related_id: Option<i64>,
+) {
+    let conn = db.conn.lock().unwrap();
+    let res = conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_notification_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            related_id INTEGER,
+            is_dismissed INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )",
+        [],
+    );
+    if let Err(e) = res {
+        eprintln!("[inapp-notify] could not ensure table: {}", e);
+        return;
+    }
+    if let Err(e) = conn.execute(
+        "INSERT INTO app_notification_log (type, title, message, related_id) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![ntype, title, message, related_id],
+    ) {
+        eprintln!("[inapp-notify] insert failed: {}", e);
+    }
 }

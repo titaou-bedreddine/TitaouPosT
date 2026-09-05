@@ -111,12 +111,21 @@
     tick().then(renderBarcode);
   }
 
+  // Default preset resolved WITHOUT a reactive statement (the old $:if
+  // created a widthMm → labelType → settings → labelType cycle): computed
+  // when the modal opens, from the settings already loaded on mount.
+  function resolveDefaultPreset(): 'custom' | LabelPresetId {
+    const configured = settings.label_preset_id;
+    if (configured === 'shelf40x20') return 'shelf40x20';
+    return 'vprice40x20';
+  }
+
   $: if (isOpen) {
     labelType = initialType;
     copies = initialQty;
-    // Default to the built-in preset matching how the modal was opened:
-    // barcode sticker → Vertical Price, shelf etiquette → Shelf Price.
-    presetId = initialType === 'etiquette' ? 'shelf40x20' : 'vprice40x20';
+    // Shelf etiquette opened as such prefers the shelf preset; otherwise
+    // the configured default from Settings wins.
+    presetId = initialType === 'etiquette' ? 'shelf40x20' : resolveDefaultPreset();
     zoom = 1;
   }
 

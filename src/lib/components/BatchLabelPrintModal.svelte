@@ -27,6 +27,11 @@
 
   $: shopName = settings.shop_name_fr || 'TITAOU POS';
 
+  // Respect the configured default preset (Settings → Barcode Labels).
+  $: if (isOpen && settings.label_preset_id === 'shelf40x20') {
+    presetId = 'shelf40x20';
+  }
+
   async function handleScan(e: KeyboardEvent) {
     if (e.key !== 'Enter') return;
     const code = scanInput.trim();

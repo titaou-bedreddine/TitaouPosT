@@ -61,8 +61,7 @@ pub struct LabelPrintResult {
 }
 
 /// Print `copies` × (width × height) mm labels silently with exact media.
-pub fn print_label_job(req: &LabelPrintRequest) -> LabelPrintResult {
-    let copies = req.copies.max(1);
+pub fn print_label_job(req: &LabelPrintRequest) -> LabelPrintResult {    let copies = req.copies.max(1);
     let dpi = req.dpi.unwrap_or(203).clamp(96, 600);
 
     let px_w = ((req.width_mm * dpi as f64) / 25.4).round() as i32;
@@ -115,6 +114,95 @@ pub fn print_label_job(req: &LabelPrintRequest) -> LabelPrintResult {
                 "Printed {} label(s) of exactly {}×{}mm ({} page(s), {} DPI)",
                 copies, req.width_mm, req.height_mm, copies, dpi
             ),
+        ),
+        Err(e) => finish(false, "gdi-failed", format!("GDI print failed: {}", e)),
+    }
+}
+
+/// Silent thermal-RECEIPT printing with a DYNAMIC page height.
+///
+/// Receipts are continuous-roll: the page must be exactly as tall as the
+/// rendered ticket, not a fixed A4/80mm form (which either clips long
+/// tickets or pads short ones and feeds blank paper). This variant:
+///   1. Rasterizes the full HTML at a low reference height first to MEASURE
+///      the ticket's natural content height in CSS px,
+///   2. re-rasterizes at the exact page height that content needs,
+///   3. GDI-prints it on a DEVMODE locked to width × measured-height mm —
+///      silent (direct DC), no Windows print dialog.
+pub fn print_receipt_job(
+    html: &str,
+    width_mm: f64,
+    printer: Option<&str>,
+    dpi: u32,
+    job_title: &str,
+) -> LabelPrintResult {
+    let dpi = dpi.clamp(96, 600);
+    let scale = dpi as f64 / 96.0;
+
+    // Pass 1: measure natural content height at the CSS-px scale.
+    let css_w = ((width_mm * 96.0) / 25.4).round() as i32;
+    let measured_css_h = match rasterize_html_measure(html, css_w) {
+        Ok(h) => h,
+        Err(e) => {
+            return LabelPrintResult {
+                ok: false,
+                message: format!("Receipt measurement failed: {}", e),
+                diagnostics: LabelPrintDiagnostics {
+                    printer: printer.unwrap_or("Default printer").to_string(),
+                    media_width_mm: width_mm,
+                    media_height_mm: 0.0,
+                    copies: 1,
+                    print_width_mm: width_mm,
+                    print_height_mm: 0.0,
+                    page_count: 0,
+                    dpi,
+                    raster_width_px: 0,
+                    raster_height_px: 0,
+                    mode: "measure-failed".to_string(),
+                },
+            }
+        }
+    };
+
+    // Pass 2: rasterize at the exact measured height (device px).
+    let css_h = measured_css_h.max(1);
+    let px_w = ((width_mm * dpi as f64) / 25.4).round() as i32;
+    let px_h = (css_h as f64 * scale).round() as i32;
+    let height_mm = (css_h as f64 * 25.4 / 96.0).round().max(10.0);
+
+    let diag = LabelPrintDiagnostics {
+        printer: printer.unwrap_or("Default printer").to_string(),
+        media_width_mm: width_mm,
+        media_height_mm: height_mm,
+        copies: 1,
+        print_width_mm: width_mm,
+        print_height_mm: height_mm,
+        page_count: 1,
+        dpi,
+        raster_width_px: px_w as u32,
+        raster_height_px: px_h as u32,
+        mode: String::new(),
+    };
+    let finish = |ok: bool, mode: &str, message: String| LabelPrintResult {
+        ok,
+        message,
+        diagnostics: LabelPrintDiagnostics { mode: mode.to_string(), ..diag.clone() },
+    };
+
+    if px_w <= 0 || px_h <= 0 {
+        return finish(false, "invalid-media", "Receipt content produced an empty page".into());
+    }
+
+    let png = match rasterize_html(html, px_w, px_h, dpi) {
+        Ok(p) => p,
+        Err(e) => return finish(false, "raster-failed", format!("Rasterization failed: {}", e)),
+    };
+
+    match gdi_print_pages(&png, width_mm, height_mm, 1, printer, job_title) {
+        Ok(()) => finish(
+            true,
+            "gdi-dynamic-receipt",
+            format!("Receipt printed silently: {}×{}mm ({} DPI)", width_mm, height_mm, dpi),
         ),
         Err(e) => finish(false, "gdi-failed", format!("GDI print failed: {}", e)),
     }
@@ -181,6 +269,71 @@ fn find_browser() -> Result<std::path::PathBuf, String> {
         .map(std::path::PathBuf::from)
         .find(|p| p.exists())
         .ok_or_else(|| "No Edge/Chrome found for label rasterization".to_string())
+}
+
+/// Measure the natural (dynamic) content height of an HTML document in CSS
+/// pixels, at a viewport of `css_w` CSS px wide. Uses headless Chromium's
+/// PDF engine with `@page { size: Wmm auto }`: the produced PDF's page
+/// height IS the laid-out ticket height, which maps 1:1 back to CSS px.
+fn rasterize_html_measure(html: &str, _css_w: i32) -> Result<i32, String> {
+    let tmp = std::env::temp_dir();
+    let stamp = chrono::Local::now().timestamp_subsec_nanos();
+    let html_path = tmp.join(format!("titaou_measure_{}.html", stamp));
+    let pdf_path = tmp.join(format!("titaou_measure_{}.pdf", stamp));
+    std::fs::write(&html_path, html).map_err(|e| e.to_string())?;
+
+    let browser = find_browser()?;
+    let url = format!("file:///{}", html_path.to_string_lossy().replace('\\', "/"));
+    let pdf_arg = format!("--print-to-pdf={}", pdf_path.to_string_lossy());
+
+    let output = std::process::Command::new(&browser)
+        .args([
+            "--headless",
+            "--disable-gpu",
+            "--no-first-run",
+            "--print-to-pdf-no-header",
+            &pdf_arg,
+            &url,
+        ])
+        .output()
+        .map_err(|e| format!("failed to launch browser: {}", e))?;
+    let _ = std::fs::remove_file(&html_path);
+    if !output.status.success() || !pdf_path.exists() {
+        let _ = std::fs::remove_file(&pdf_path);
+        return Err("measurement render failed".into());
+    }
+
+    // PDF pages: width in points at index 3..5, height at 5..7 of each
+    // /MediaBox [x0 y0 x1 y1]. One page is expected (auto height, no breaks).
+    let pdf = std::fs::read(&pdf_path).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&pdf_path);
+
+    let text = String::from_utf8_lossy(&pdf).to_string();
+    // Find the LAST /MediaBox — trailer pages reuse the same object; the
+    // final one carries the page actually laid out. Values are like
+    // "226.77 0 226.77 1417.32".
+    let mut height_pt: f64 = 0.0;
+    if let Some(pos) = text.rfind("/MediaBox") {
+        let raw_slice: String = text[pos..(pos + 120).min(text.len())].to_string();
+        let slice: String = raw_slice
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == ' ' || *c == '.' || *c == '-' || *c == '[' || *c == ']')
+            .collect();
+        let nums: Vec<f64> = slice
+            .split(|c: char| c == '[' || c == ']' || c.is_whitespace())
+            .filter_map(|t| t.parse::<f64>().ok())
+            .collect();
+        if nums.len() >= 4 {
+            height_pt = nums[3] - nums[1];
+        }
+    }
+    if height_pt <= 0.0 {
+        return Err("could not read page height from PDF".into());
+    }
+
+    // PDF points (1/72 inch) → CSS px (1/96 inch).
+    let css_h = (height_pt * 96.0 / 72.0).ceil() as i32;
+    Ok(css_h.max(1))
 }
 
 // ---------------------------------------------------------------------------

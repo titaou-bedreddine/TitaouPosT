@@ -17,10 +17,52 @@ use tauri::State;
 /// then send the PDF to the DEFAULT printer with the "print" shell verb —
 /// no Windows print dialog ever appears.
 #[tauri::command]
-pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) -> Result<(), String> {
+pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String, paper: Option<PrintPaperSpec>) -> Result<(), String> {
     let settings = settings_service::get_all_settings(&db).unwrap_or_default();
-    let _ = settings;
 
+    // NATIVE path first (v0.5.16): rasterize + GDI print with a custom
+    // DEVMODE sized to the ticket — genuinely silent, no PDF handler, no
+    // shell verb, no viewer window. Receipts measure their own height.
+    let width_mm = paper.as_ref().map(|p| p.width_mm).unwrap_or(80.0);
+    let fixed_height_mm = paper.as_ref().and_then(|p| p.height_mm);
+    let printer = settings.get("receipt_printer_name").cloned().unwrap_or_default();
+    let printer_opt = if printer.trim().is_empty() { None } else { Some(printer.as_str()) };
+    let dpi: u32 = settings
+        .get("receipt_printer_dpi")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(203);
+
+    let outcome = match fixed_height_mm {
+        Some(h) => {
+            // Fixed-size page (labels): reuse the exact-media label pipeline.
+            let req = crate::printing::label_gdi::LabelPrintRequest {
+                html: html.clone(),
+                printer: printer_opt.map(|s| s.to_string()),
+                width_mm,
+                height_mm: h,
+                copies: 1,
+                dpi: Some(dpi),
+                label: title.clone(),
+            };
+            crate::printing::label_gdi::print_label_job(&req)
+        }
+        None => crate::printing::label_gdi::print_receipt_job(
+            &html, width_mm, printer_opt, dpi, &title,
+        ),
+    };
+    if outcome.ok {
+        println!(
+            "[silent-print] ok: mode={} {}",
+            outcome.diagnostics.mode, outcome.message
+        );
+        return Ok(());
+    }
+    eprintln!(
+        "[silent-print] native path failed ({}): {} — falling back to PDF handler",
+        outcome.diagnostics.mode, outcome.message
+    );
+
+    // Legacy fallback chain for machines where GDI is refused.
     let tmp = std::env::temp_dir();
     let stamp = chrono::Local::now().timestamp_subsec_nanos();
     let html_path = tmp.join(format!("titaou_print_{}.html", stamp));
@@ -60,38 +102,23 @@ pub fn print_html_direct(db: State<'_, DbState>, html: String, title: String) ->
 
     // ShellExecute "print" verb on the PDF: default handler prints silently.
     // Settings can override the target printer (invoice printer).
-    let printer = settings
-        .get("invoice_printer_name")
-        .cloned()
-        .unwrap_or_default();
     let printed = print_pdf_windows(&pdf_path, &printer);
     let _ = std::fs::remove_file(&pdf_path);
     if !printed {
-        // Win10 fallback: with Edge as the default PDF app the "print" verb
-        // is not registered and no Sumatra/Adobe exists — the old code gave
-        // up here ("backend not available") or, worse, opened the Edge PDF
-        // window. Instead, rasterize the same HTML to a PNG with the SAME
-        // headless browser and GDI-print it directly to the default printer
-        // — no PDF, no viewer window, still fully silent.
-        let gdi_req = crate::printing::label_gdi::LabelPrintRequest {
-            html: html.clone(),
-            printer: if printer.is_empty() { None } else { Some(printer.clone()) },
-            width_mm: 80.0,
-            height_mm: 80.0,
-            copies: 1,
-            dpi: Some(203),
-            label: title.clone(),
-        };
-        let outcome = crate::printing::label_gdi::print_label_job(&gdi_req);
-        if outcome.ok {
-            return Ok(());
-        }
         return Err(format!(
-            "Silent print unavailable: {} / fallback: {}",
-            "no PDF print handler", outcome.message
+            "Silent print unavailable: {}",
+            outcome.message
         ));
     }
     Ok(())
+}
+
+/// Paper geometry for a silent print job (frontend `paper` parameter).
+#[derive(Debug, serde::Deserialize)]
+pub struct PrintPaperSpec {
+    pub width_mm: f64,
+    #[serde(default)]
+    pub height_mm: Option<f64>,
 }
 
 #[cfg(windows)]
@@ -208,7 +235,7 @@ fn adobe_print(path: &std::path::Path) -> bool {
 }
 
 #[cfg(not(windows))]
-fn print_pdf_windows(_path: &std::path::Path) -> bool {
+fn print_pdf_windows(_path: &std::path::Path, _printer_name: &str) -> bool {
     false
 }
 
@@ -937,9 +964,251 @@ pub fn backup_database(destination_path: String) -> Result<String, String> {
     settings_service::backup_database(&destination_path)
 }
 
+/// Native Windows FOLDER picker (System.Windows.Forms.FolderBrowserDialog
+/// via PowerShell) — no browser dialog, no webview input.
+#[tauri::command]
+pub fn pick_backup_folder() -> Result<Option<String>, String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let script = r#"
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$f = New-Object System.Windows.Forms.FolderBrowserDialog
+$f.Description = 'Select backup folder'
+$f.ShowNewFolderButton = $true
+if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output $f.SelectedPath
+}
+"#;
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-STA", "-Command", script])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW for the shell host
+            .output()
+            .map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if text.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(text))
+        }
+    }
+    #[cfg(not(windows))]
+    Ok(None)
+}
+
+/// Native Windows FILE picker for the backup to restore (.sqlite).
+#[tauri::command]
+pub fn pick_backup_file() -> Result<Option<String>, String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let script = r#"
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$o = New-Object System.Windows.Forms.OpenFileDialog
+$o.Filter = 'SQLite backup (*.sqlite)|*.sqlite|All files (*.*)|*.*'
+$o.Title = 'Select the backup file to restore'
+if ($o.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output $o.FileName
+}
+"#;
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-STA", "-Command", script])
+            .creation_flags(0x08000000)
+            .output()
+            .map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if text.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(text))
+        }
+    }
+    #[cfg(not(windows))]
+    Ok(None)
+}
+
+/// Backup Now — timestamped copy into the configured folder + retention.
+#[tauri::command]
+pub fn create_backup(db: State<'_, DbState>, tag: Option<String>) -> Result<String, String> {
+    settings_service::create_backup(&db, tag.as_deref().unwrap_or("manual"))
+}
+
+/// List existing backups (newest first) for the Settings UI.
+#[tauri::command]
+pub fn list_backups(db: State<'_, DbState>) -> Result<Vec<settings_service::BackupInfo>, String> {
+    settings_service::list_backups(&db)
+}
+
+/// Pre-restore validation: is the picked file a real SQLite backup?
+#[tauri::command]
+pub fn validate_backup_file(path: String) -> Result<String, String> {
+    settings_service::validate_backup_file(&path)
+}
+
 #[tauri::command]
 pub fn restore_database(source_backup_path: String) -> Result<String, String> {
     settings_service::restore_database(&source_backup_path)
+}
+
+/// Restore ONLY application settings from a backup's settings snapshot —
+/// business data stays untouched.
+#[tauri::command]
+pub fn restore_settings_only(source_backup_path: String) -> Result<usize, String> {
+    settings_service::restore_settings_only(&source_backup_path)
+}
+
+// ---------------------------------------------------------------------------
+// Debt clearing (admin-gated forgiveness, no cash movement)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn clear_customer_debt(
+    db: State<'_, DbState>,
+    customer_id: i64,
+    reason: Option<String>,
+    admin_password: String,
+    user_id: Option<i64>,
+) -> Result<i64, String> {
+    customer_service::clear_customer_debt(&db, customer_id, reason, &admin_password, user_id)
+}
+
+#[tauri::command]
+pub fn clear_supplier_debt(
+    db: State<'_, DbState>,
+    supplier_id: i64,
+    reason: Option<String>,
+    admin_password: String,
+    user_id: Option<i64>,
+) -> Result<i64, String> {
+    supplier_service::clear_supplier_debt(&db, supplier_id, reason, &admin_password, user_id)
+}
+
+/// Cleared-debt archive (both customers and suppliers), newest first.
+#[tauri::command]
+pub fn list_debt_clear_log(db: State<'_, DbState>) -> Result<Vec<DebtClearEntry>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, entity_type, entity_id, entity_name, previous_debt, new_debt, reason, user_name, created_at
+             FROM debt_clear_log ORDER BY id DESC LIMIT 200",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(DebtClearEntry {
+                id: row.get(0)?,
+                entity_type: row.get(1)?,
+                entity_id: row.get(2)?,
+                entity_name: row.get(3)?,
+                previous_debt: row.get(4)?,
+                new_debt: row.get(5)?,
+                reason: row.get(6)?,
+                user_name: row.get(7)?,
+                created_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DebtClearEntry {
+    pub id: i64,
+    pub entity_type: String,
+    pub entity_id: i64,
+    pub entity_name: Option<String>,
+    pub previous_debt: i64,
+    pub new_debt: i64,
+    pub reason: Option<String>,
+    pub user_name: Option<String>,
+    pub created_at: String,
+}
+
+/// The most recent sale + its items — "Reopen/Reprint Last Receipt".
+#[tauri::command]
+pub fn get_last_sale(db: State<'_, DbState>) -> Result<Option<LastSalePayload>, String> {
+    let Some((sale, items)) = sales_service::get_last_sale(&db)? else {
+        return Ok(None);
+    };
+    Ok(Some(LastSalePayload { sale, items }))
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct LastSalePayload {
+    pub sale: crate::models::Sale,
+    pub items: Vec<crate::models::CartItem>,
+}
+
+/// One payroll-reminder scheduler tick (called periodically by the UI).
+#[tauri::command]
+pub fn run_payroll_reminder_scan(db: State<'_, DbState>) -> Result<i64, String> {
+    Ok(crate::services::payroll_reminder_service::run_payroll_reminder_scan(&db))
+}
+
+/// Persistent in-app notification feed (payroll reminders etc.), newest
+/// first; dismissed rows are filtered out.
+#[tauri::command]
+pub fn list_app_notifications(db: State<'_, DbState>, limit: Option<i64>) -> Result<Vec<AppNotification>, String> {
+    let conn = db.conn.lock().unwrap();
+    let _ = conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_notification_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            related_id INTEGER,
+            is_dismissed INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )",
+        [],
+    );
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, type, title, message, related_id, created_at
+             FROM app_notification_log WHERE is_dismissed = 0
+             ORDER BY id DESC LIMIT ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([limit.unwrap_or(100)], |row| {
+            Ok(AppNotification {
+                id: row.get(0)?,
+                ntype: row.get(1)?,
+                title: row.get(2)?,
+                message: row.get(3)?,
+                related_id: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct AppNotification {
+    pub id: i64,
+    #[serde(rename = "type")]
+    pub ntype: String,
+    pub title: String,
+    pub message: String,
+    pub related_id: Option<i64>,
+    pub created_at: String,
+}
+
+/// Dismiss one in-app notification.
+#[tauri::command]
+pub fn dismiss_app_notification(db: State<'_, DbState>, id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute("UPDATE app_notification_log SET is_dismissed = 1 WHERE id = ?1", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Real embedded-server status (port, LAN IPs, uptime, live devices) for
+/// the Network settings tab + mobile pairing QR.
+#[tauri::command]
+pub fn get_server_status() -> Result<serde_json::Value, String> {
+    Ok(crate::server::server_status())
 }
 
 #[tauri::command]

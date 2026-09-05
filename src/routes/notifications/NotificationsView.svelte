@@ -5,7 +5,7 @@
   import {
     Bell, CheckCircle2, AlertTriangle, AlertOctagon,
     Shield, RefreshCw, ShoppingCart, Undo2, DollarSign,
-    Package, Trash2, X, Check, Filter
+    Package, Trash2, X, Check, Filter, UserCheck
   } from 'lucide-svelte';
 
   // Clicking a notification jumps to the page where it can be acted on.
@@ -15,7 +15,7 @@
 
   interface NotificationLog {
     id: number;
-    type: 'sale' | 'refund' | 'expiry' | 'stock' | 'system';
+    type: 'sale' | 'refund' | 'expiry' | 'stock' | 'system' | 'payroll';
     title: string;
     message: string;
     timestamp: string;
@@ -63,6 +63,24 @@
         }
       }
 
+      // Persistent in-app feed (payroll reminders etc.) — real rows saved
+      // by the backend, dismissed state included.
+      try {
+        const persisted = await invoke<any[]>('list_app_notifications', { limit: 100 });
+        for (const n of persisted) {
+          dynamicList.push({
+            id: n.id,
+            type: (n.type === 'payroll' ? 'payroll' : 'system') as any,
+            title: n.title,
+            message: n.message,
+            timestamp: n.created_at,
+            related_id: n.related_id ?? undefined,
+          });
+        }
+      } catch {
+        // Older binary without the command — the dynamic list still works.
+      }
+
       // Add recent sales & system events
       dynamicList.push({
         id: idCounter++,
@@ -88,13 +106,24 @@
 
   function dismissNotification(id: number) {
     notifications = notifications.map(n => n.id === id ? { ...n, is_dismissed: true } : n);
+    // Persisted feed rows dismiss server-side too (small numeric ids ≥ 1000
+    // are the dynamic in-memory ones; persisted rows start fresh per page
+    // load — dismiss both is safe because in-memory ids never collide with
+    // persisted ids below 100000).
+    const row = notifications.find(n => n.id === id);
+    if (row && row.timestamp !== t('notif_immediate') && row.timestamp !== t('notif_replenish') && row.timestamp !== 'Active Session') {
+      invoke('dismiss_app_notification', { id }).catch(() => {});
+    }
   }
 
   // Deep-link: product alerts (expiry/stock) open that product's editor in
-  // the POS; the session card jumps to the register.
+  // the POS; payroll reminders jump to the payroll page; the session card
+  // jumps to the register.
   function handleCardClick(log: NotificationLog) {
     if ((log.type === 'expiry' || log.type === 'stock') && log.related_id) {
       onOpenProduct(log.related_id);
+    } else if (log.type === 'payroll') {
+      onRequestRoute('payroll');
     } else {
       onRequestRoute('cash');
     }
@@ -172,6 +201,13 @@
     >
       Sales & Sessions ({notifications.filter(n => !n.is_dismissed && n.type === 'sale').length})
     </button>
+    <button
+      type="button"
+      on:click={() => (filterType = 'payroll')}
+      class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer {filterType === 'payroll' ? 'bg-indigo-600 text-white shadow-xs' : 'text-pos-muted hover:text-pos-text'}"
+    >
+      {t('notif_payroll_alerts') || 'Payroll'} ({notifications.filter(n => !n.is_dismissed && n.type === 'payroll').length})
+    </button>
   </div>
 
   <!-- Notifications List Feed -->
@@ -185,16 +221,18 @@
     {:else}
       {#each filteredNotifications as log}
         <div
-          class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md cursor-pointer {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : 'border-pos-border'}"
+          class="p-4 bg-pos-card border rounded-2xl shadow-xs flex items-start justify-between gap-4 transition hover:shadow-md cursor-pointer {log.type === 'expiry' ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10' : log.type === 'stock' ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' : log.type === 'payroll' ? 'border-indigo-300 bg-indigo-50/30 dark:bg-indigo-950/10' : 'border-pos-border'}"
           on:click={() => handleCardClick(log)}
           title={t('notif_open_relevant')}
         >
           <div class="flex items-start gap-3 min-w-0">
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 {log.type === 'expiry' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950' : log.type === 'stock' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950' : 'bg-sky-100 text-sky-600 dark:bg-sky-950'}">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 {log.type === 'expiry' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950' : log.type === 'stock' ? 'bg-amber-100 text-amber-600 dark:bg-amber-950' : log.type === 'payroll' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950' : 'bg-sky-100 text-sky-600 dark:bg-sky-950'}">
               {#if log.type === 'expiry'}
                 <AlertOctagon class="w-5 h-5" />
               {:else if log.type === 'stock'}
                 <AlertTriangle class="w-5 h-5" />
+              {:else if log.type === 'payroll'}
+                <UserCheck class="w-5 h-5" />
               {:else}
                 <CheckCircle2 class="w-5 h-5" />
               {/if}
@@ -203,11 +241,11 @@
             <div class="space-y-1 min-w-0">
               <div class="flex items-center gap-2">
                 <h4 class="font-black text-xs text-pos-text truncate">{log.title}</h4>
-                <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase {log.type === 'expiry' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : log.type === 'stock' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800'}">
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase {log.type === 'expiry' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : log.type === 'stock' ? 'bg-amber-100 text-amber-800' : log.type === 'payroll' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-sky-100 text-sky-800'}">
                   {log.type}
                 </span>
               </div>
-              <p class="text-xs text-pos-muted">{log.message}</p>
+              <p class="text-xs text-pos-muted whitespace-pre-line">{log.message}</p>
               <p class="text-[10px] text-pos-muted font-mono">{log.timestamp}</p>
             </div>
           </div>
