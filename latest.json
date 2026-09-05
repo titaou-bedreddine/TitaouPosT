@@ -1,11 +1,11 @@
 {
-  "version": "0.5.14",
-  "notes": "Comprehensive bug fixes & stability refinements: login password clear button & autofocus, 80x80mm receipt printing with Noto Sans Arabic, settings admin password gate, persistent cart clear, negative stock prevention, inventory stock totals & delete modal fix, label printing tab switcher, register session editing/archiving/deletion with admin auth, Telegram gross profit & cash edit alerts with retry resilience, date quick filter local timezone fix, payroll absence/advance inputs, and localized UI updates.",
-  "pub_date": "2026-09-04T18:30:00.000Z",
+  "version": "0.5.15",
+  "notes": "Instantaneous Settings tabs switching, styled in-app stock warning modal for zero and negative stock, session history action buttons visibility with admin password authorization, employee Start Date input with persistent storage and month period cycle calculation (handling February, leap years, and edge cases), and products inventory rendering fix.",
+  "pub_date": "2026-09-04T23:30:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnBTRkVqNTFRbllnWGNVQ2o5NUw1ak1PY3dzYktBeGZKaWI0M2QyWWRuVkJHeGJHdGNxRGg3eEo0S1QyZ2FpQURGWG4wUllucWV2ejBiamVIblE3U0FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTQ2NTI0CWZpbGU6VGl0YW91UE9TXzAuNS4xNF94NjQtc2V0dXAuZXhlClhKYlJNVTdsQlliZmtNV0dKYnRnYnAyQ2tKSVJBcS9jM1EraGEvSEEvSmdxV3pYNWlpbTNoRU9OL3RnTVJYeXVPVnk0QlRPVWJxT1N4d05wSFpxT0N3PT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.14/TitaouPOS_0.5.14_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTmdLV0xNWTNVQ3Q5RHRYR0pXWkl1V0I2Z05QRlBCeG1qRHRaZWVoem1zSXJLMUh1Q1Ryb2UyTkdNT0RRQUdwZDVFMHZJaGZvL040ZGlwanNCMlNEckFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTY3MTAyCWZpbGU6VGl0YW91UE9TXzAuNS4xNV94NjQtc2V0dXAuZXhlCnhWSUxWaCtaZXVrallYVHg2Z2RrS05YbkM0WmpxSk5lWGx1a1FpZlhWOUsvcG1zWVZVaDZBSnpSMXVJdHhBc1BEWHNmT2Vsc0RKcTZncUpGdmJXZ0NBPT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.15/TitaouPOS_0.5.15_x64-setup.exe"
     }
   }
 }
