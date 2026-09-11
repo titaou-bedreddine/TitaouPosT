@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { t, currentLocale } from '../i18n';
   import { printHtmlSilently, entityQrDataUrl } from '../utils/printer';
   import { buildUnifiedReceipt } from '../printing/unifiedReceipt';
   import type { Sale } from '../types';
@@ -103,7 +104,7 @@
       <div class="flex items-center justify-between px-5 py-3.5 border-b border-pos-border bg-slate-50 dark:bg-slate-800/50">
         <h3 class="font-black text-sm text-pos-text flex items-center gap-2">
           <RotateCcw class="w-4 h-4 text-sky-500" />
-          <span>Reopen Last Receipt / آخر وصل</span>
+          <span>{t('pos_reopen_last_receipt', $currentLocale)}</span>
         </h3>
         <button on:click={onClose} class="text-pos-muted hover:text-pos-text p-1 rounded-lg cursor-pointer">
           <X class="w-4 h-4" />

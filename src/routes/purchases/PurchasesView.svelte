@@ -1,7 +1,7 @@
 <script lang="ts">
   import QrImage from '../../lib/components/QrImage.svelte';
   import { onMount, tick } from 'svelte';
-  import { t } from '../../lib/i18n';
+  import { t, currentLocale } from '../../lib/i18n';
   import { localTodayISO } from '../../lib/utils/date';
   import { invoke } from '@tauri-apps/api/core';
   import { normalizeBarcode } from '../../lib/utils/barcode';
@@ -90,7 +90,7 @@
       editingPurchase = pur;
       isCreateOpen = true;
       items = mapped;
-      invoiceNumber = pur.invoice_number + '-C';
+      invoiceNumber = pur.invoice_number;
       invoiceDate = pur.date;
       selectedSupplierId = pur.supplier_id;
       paidManuallyEdited = true;
@@ -205,6 +205,7 @@
   let isLoadingPreview = false;
   let isDeletePurchaseOpen = false;
   let deletePassword = '';
+  let deleteConfirmText = '';
   let deleteErrorMsg = '';
   let isDeletingPurchase = false;
 
@@ -418,6 +419,46 @@
       isSaving = true;
       errorMsg = '';
       const invNum = invoiceNumber || `PUR-${Date.now().toString().slice(-6)}`;
+      if (editingPurchase) {
+        // EDIT IN PLACE (expenses/sales principle): same invoice number and
+        // ORIGINAL date — never a duplicate, never today; backend reverses
+        // and rebooks stock + supplier balance and stamps MODIFIED.
+        await invoke('update_purchase', {
+          purchaseId: editingPurchase.id,
+          input: {
+            invoice_number: editingPurchase.invoice_number,
+            supplier_id: selectedSupplierId,
+            user_id: $currentUser?.id || 1,
+            date: editingPurchase.date,
+            subtotal: subtotal,
+            discount: 0,
+            tax: 0,
+            total: total,
+            paid_amount: paidAmount,
+            payment_method: paymentMethod,
+            notes: notes || 'Facture Achat',
+            items: items.map(i => ({
+              product_id: i.product_id,
+              quantity: i.quantity,
+              unit_cost: i.unit_cost,
+              discount: 0,
+              tax: 0,
+              total: i.total,
+              expiry_date: null,
+              batch_number: null,
+            })),
+          },
+          userId: $currentUser?.id || 1,
+        });
+        isCreateOpen = false;
+        editingPurchase = null;
+        items = [];
+        invoiceNumber = '';
+        paidAmount = 0;
+        paidManuallyEdited = false;
+        await loadData();
+        return;
+      }
       await invoke('create_purchase', {
         input: {
           invoice_number: invNum,
@@ -485,6 +526,7 @@
   function promptDeletePurchase() {
     deleteErrorMsg = '';
     deletePassword = '';
+    deleteConfirmText = '';
     isDeletePurchaseOpen = true;
   }
 
@@ -494,6 +536,10 @@
       isDeletingPurchase = true;
       deleteErrorMsg = '';
       // Deleting an invoice reverses stock — admin authorization required.
+      if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+        deleteErrorMsg = 'Type DELETE to confirm / اكتب DELETE للتأكيد';
+        return;
+      }
       const ok = await invoke<boolean>('verify_admin_password', { password: deletePassword });
       if (!ok) {
         deleteErrorMsg = 'Invalid password / كلمة المرور غير صحيحة';
@@ -610,7 +656,12 @@
         {:else}
           {#each sortedPurchases as pur}
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-              <td class="p-3 font-mono font-bold text-sky-600">#{pur.invoice_number}</td>
+              <td class="p-3 font-mono font-bold text-sky-600">
+                #{pur.invoice_number}
+                {#if pur.notes && pur.notes.includes('MODIFIED')}
+                  <span class="ms-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">Modified</span>
+                {/if}
+              </td>
               <td class="p-3 font-mono text-pos-muted">{pur.date}</td>
               <td class="p-3 font-bold text-pos-text">{pur.supplier_name || 'Fournisseur Inconnu'}</td>
               <td class="p-3">
@@ -663,8 +714,8 @@
             <FileSpreadsheet class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-base text-pos-text">New Purchase Invoice / فاتورة مشتريات جديدة</h3>
-            <p class="text-xs text-pos-muted">Scan products, edit quantities, and auto-print shelf barcode tags</p>
+            <h3 class="font-black text-base text-pos-text">{editingPurchase ? t('pur_edit_invoice', $currentLocale) : t('pur_new_invoice', $currentLocale)}</h3>
+            <p class="text-xs text-pos-muted">{t('pur_scan_hint', $currentLocale)}</p>
           </div>
         </div>
         <button on:click={() => (isCreateOpen = false)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
@@ -683,7 +734,7 @@
         <!-- Supplier, Invoice # & Date Row -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Supplier / المورد *</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{t('pur_supplier', $currentLocale)} *</label>
             <select bind:value={selectedSupplierId} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none">
               {#each suppliers as s}
                 <option value={s.id}>{s.name} ({s.phone || 'No phone'})</option>
@@ -692,12 +743,12 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Invoice / Bon Number</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{t('pur_invoice_number', $currentLocale)}</label>
             <input data-no-autoselect type="text" bind:value={invoiceNumber} placeholder="Ex: ACH-2026-001" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Date</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{t('pur_col_date', $currentLocale)}</label>
             <input type="date" bind:value={invoiceDate} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
           </div>
         </div>
@@ -725,7 +776,7 @@
               title="Create a new product (إضافة منتج جديد)"
             >
               <Plus class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">New Product</span>
+              <span class="hidden sm:inline">{t('pur_new_product', $currentLocale)}</span>
             </button>
           </div>
 
@@ -757,18 +808,18 @@
           <table class="w-full text-start text-xs border-collapse">
             <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
               <tr>
-                <th class="p-2.5 text-start">Product</th>
-                <th class="p-2.5 text-center w-24">Qty (Qté)</th>
-                <th class="p-2.5 text-center w-28">Purchase Cost</th>
-                <th class="p-2.5 text-center w-28">Sale Price</th>
-                <th class="p-2.5 text-end w-28">Total Cost</th>
+                <th class="p-2.5 text-start">{t('pur_col_product', $currentLocale)}</th>
+                <th class="p-2.5 text-center w-24">{t('pur_col_qty', $currentLocale)} (قطعة)</th>
+                <th class="p-2.5 text-center w-28">{t('pur_col_cost', $currentLocale)}</th>
+                <th class="p-2.5 text-center w-28">{t('pur_col_sale_price', $currentLocale)}</th>
+                <th class="p-2.5 text-end w-28">{t('pur_col_total_cost', $currentLocale)}</th>
                 <th class="p-2.5 text-center w-12"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-pos-border/40">
               {#if items.length === 0}
                 <tr>
-                  <td colspan="6" class="p-6 text-center text-pos-muted">Scan or type in the search bar above to add products.</td>
+                  <td colspan="6" class="p-6 text-center text-pos-muted">{t('pur_scan_search_hint', $currentLocale)}</td>
                 </tr>
               {:else}
                 {#each items as item, idx}
@@ -854,7 +905,7 @@
           </div>
 
           <div class="text-end">
-            <p class="text-xs text-pos-muted font-bold">Total Invoice:</p>
+            <p class="text-xs text-pos-muted font-bold">{t('pur_total_invoice', $currentLocale)}:</p>
             <p class="text-2xl font-black font-mono text-sky-600">{total.toLocaleString()} DZD</p>
             {#if estSaleValue > 0}
               <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
@@ -880,7 +931,7 @@
         </button>
 
         <div class="flex items-center gap-2">
-          <button on:click={() => (isCreateOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
+          <button on:click={() => { isCreateOpen = false; editingPurchase = null; }} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">
             Cancel
           </button>
           <button
@@ -1007,6 +1058,13 @@
         Its stock is returned and the supplier balance is reversed.
       </p>
       <div>
+        <label class="block text-xs font-bold text-pos-muted mb-1">Type DELETE to confirm *</label>
+        <input
+          type="text"
+          bind:value={deleteConfirmText}
+          placeholder="Type DELETE here / اكتب DELETE هنا"
+          class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono font-bold outline-none mb-2"
+        />
         <label class="block text-xs font-bold text-pos-muted mb-1">Enter Admin Authorization Password *</label>
         <input
           type="password"
@@ -1022,7 +1080,7 @@
         <button on:click={() => (isDeletePurchaseOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">
           Cancel
         </button>
-        <button on:click={executeDeletePurchase} disabled={isDeletingPurchase} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
+        <button on:click={executeDeletePurchase} disabled={isDeletingPurchase || deleteConfirmText.trim().toUpperCase() !== 'DELETE' || !deletePassword} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md disabled:opacity-40">
           {isDeletingPurchase ? 'Deleting...' : 'Confirm Delete'}
         </button>
       </div>

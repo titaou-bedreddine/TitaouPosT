@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '../../lib/i18n';
+  import { t, currentLocale } from '../../lib/i18n';
   import { localTodayISO } from '../../lib/utils/date';
   import { invoke } from '@tauri-apps/api/core';
   import type { CashMovement, CashSession, Customer } from '../../lib/types';
@@ -20,7 +20,7 @@
   let isCloseOpen = false;
   let isStartupOpen = false;
   let startupAmount = 0;
-  let startupReason = 'Startup Cash / رصيد افتتاحي';
+  let startupReason = '';
 
   let amount = 0;
   let reason = '';
@@ -425,10 +425,10 @@
           </div>
           <div>
             <h3 class="font-extrabold text-sm text-emerald-900 dark:text-emerald-200">
-              Active Session #{$activeSession.id} — {$activeSession.user_name || 'Cashier'}{$activeSession.terminal_name ? ` @ ${$activeSession.terminal_name}` : ''}
+              {t('reg_active_session')} #{$activeSession.id} — {$activeSession.user_name || 'Cashier'}{$activeSession.terminal_name ? ` @ ${$activeSession.terminal_name}` : ''}
             </h3>
             <p class="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5 font-medium">
-              Opened Since {$activeSession.opened_at}
+              {t('reg_opened_since')} {$activeSession.opened_at}
             </p>
           </div>
         </div>
@@ -501,7 +501,7 @@
         <div class="bg-pos-card border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <Layers class="w-4 h-4 text-rose-500" />
-            <span>Unpaid Customer Debt (دين غير مسدد)</span>
+            <span>{t('reg_unpaid_customer_debt')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-rose-600">
             {totalUnpaidDebt.toLocaleString()} DZD
@@ -511,7 +511,7 @@
         <div class="bg-pos-card border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <CheckCircle class="w-4 h-4 text-emerald-500" />
-            <span>Debt Paid This Session (تسديدات)</span>
+            <span>{t('reg_debt_paid_session')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-emerald-600">
             {totalPaidDebt.toLocaleString()} DZD
@@ -521,7 +521,7 @@
         <div class="bg-pos-card border border-violet-200 dark:border-violet-800/60 rounded-2xl p-4 shadow-xs">
           <span class="text-xs font-bold text-pos-muted flex items-center gap-1.5 mb-2">
             <WalletIcon class="w-4 h-4 text-violet-500" />
-            <span>Versement Remaining (تسبقة متبقية)</span>
+            <span>{t('reg_versement_remaining')}</span>
           </span>
           <div class="text-2xl font-black font-mono text-violet-600">
             {totalVersement.toLocaleString()} DZD
@@ -611,7 +611,7 @@
         <p class="text-xs font-bold text-pos-muted mb-5">{t('reg_open_hint')}</p>
         <button
           type="button"
-          on:click={() => { startupAmount = 0; startupReason = 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
+          on:click={() => { startupAmount = 0; startupReason = t('reg_startup_cash', $currentLocale) || 'Startup Cash / رصيد افتتاحي'; isStartupOpen = true; }}
           class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2 mx-auto"
         >
           <Plus class="w-4 h-4" />
@@ -657,16 +657,16 @@
         <thead>
           <tr class="border-b border-pos-border text-pos-muted font-bold bg-slate-50 dark:bg-slate-800/40">
             <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('id')}># {sessSortIndicator('id')}</th>
-            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('user_name')}>Employee {sessSortIndicator('user_name')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('user_name')}>{t('reg_col_employee')} {sessSortIndicator('user_name')}</th>
             <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('terminal_name')} title="PC / terminal that opened this session">{t('terminal')} {sessSortIndicator('terminal_name')}</th>
-            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opened_at')}>Opened At {sessSortIndicator('opened_at')}</th>
-            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('closed_at')}>Closed At {sessSortIndicator('closed_at')}</th>
-            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opening_amount')}>Opening {sessSortIndicator('opening_amount')}</th>
-            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('actual_cash')}>Closing {sessSortIndicator('actual_cash')}</th>
-            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('expected_cash')}>Expected {sessSortIndicator('expected_cash')}</th>
-            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('difference')}>Difference {sessSortIndicator('difference')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opened_at')}>{t('reg_col_opened_at')} {sessSortIndicator('opened_at')}</th>
+            <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('closed_at')}>{t('reg_col_closed_at')} {sessSortIndicator('closed_at')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('opening_amount')}>{t('reg_col_opening')} {sessSortIndicator('opening_amount')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('actual_cash')}>{t('reg_col_closing')} {sessSortIndicator('actual_cash')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('expected_cash')}>{t('reg_col_expected')} {sessSortIndicator('expected_cash')}</th>
+            <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySessionSort('difference')}>{t('reg_col_difference')} {sessSortIndicator('difference')}</th>
             <th class="p-3 text-center">Status</th>
-            <th class="p-3 text-center">Actions</th>
+            <th class="p-3 text-center">{t('actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -809,13 +809,13 @@
             <DollarSign class="w-6 h-6" />
           </div>
           <div>
-            <h3 class="font-black text-sm text-pos-text">Open New Cash Session</h3>
+            <h3 class="font-black text-sm text-pos-text">{t('reg_open_new_session')}</h3>
             <p class="text-[11px] text-pos-muted">افتتاح صندوق جديد</p>
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Opening Cash Amount (DZD) *</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('reg_opening_cash_amount')} *</label>
           <input
             use:autoFocus
             type="number"
@@ -828,7 +828,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-pos-muted mb-1">Notes / Reason (ملاحظات)</label>
+          <label class="block text-xs font-bold text-pos-muted mb-1">{t('reg_notes_reason')}</label>
           <input
             type="text"
             bind:value={startupReason}
@@ -850,7 +850,7 @@
             class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
           >
             <Check class="w-4 h-4" />
-            <span>Open Session (فتح الصندوق)</span>
+            <span>{t('reg_open_session_btn')}</span>
           </button>
         </div>
       </div>

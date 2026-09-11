@@ -1468,7 +1468,7 @@
             </span>
             <div class="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span>Live</span>
+              <span>{t('pos_live', $currentLocale)}</span>
             </div>
           </div>
         </div>

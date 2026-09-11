@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { t, currentLocale } from '../../lib/i18n';
   import { normalizeBarcode } from '../../lib/utils/barcode';
   import type { Customer } from '../../lib/types';
   import { printHtmlSilently, entityQrPayload, entityQrDataUrl } from '../../lib/utils/printer';
@@ -273,7 +274,7 @@
       </div>
       <div>
         <h1 class="text-xl font-black text-pos-text tracking-tight">Customers & Debts / العملاء والديون</h1>
-        <p class="text-xs text-pos-muted">Manage customer records, credit balances, and debt payment receipts</p>
+        <p class="text-xs text-pos-muted">{t('cust_subtitle', $currentLocale)}</p>
       </div>
     </div>
 
@@ -315,12 +316,12 @@
     <table class="w-full text-start text-xs border-collapse">
       <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold sticky top-0 z-10">
         <tr>
-          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('name')}>Customer Name / الاسم {sortIndicator('name')}</th>
-          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('phone')}>Phone {sortIndicator('phone')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('name')}>{t('cust_col_name', $currentLocale)} {sortIndicator('name')}</th>
+          <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('phone')}>{t('cust_col_phone', $currentLocale)} {sortIndicator('phone')}</th>
           <th class="p-3 text-start cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('rc')}>RC / NIF {sortIndicator('rc')}</th>
-          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('balance')}>Current Debt (الديون) {sortIndicator('balance')}</th>
-          <th class="p-3 text-center">QR Code</th>
-          <th class="p-3 text-end">Actions</th>
+          <th class="p-3 text-end cursor-pointer select-none hover:text-pos-text" on:click={() => applySort('balance')}>{t('cust_col_debt', $currentLocale)} {sortIndicator('balance')}</th>
+          <th class="p-3 text-center">{t('cust_col_qr', $currentLocale)}</th>
+          <th class="p-3 text-end">{t('actions')}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-pos-border/40">
@@ -421,7 +422,7 @@
             <h3 class="font-black text-base text-pos-text">
               {editingId ? 'Edit Customer / تعديل عميل' : 'New Customer / إضافة عميل جديد'}
             </h3>
-            <p class="text-xs text-pos-muted">Enter personal, business & legal details</p>
+            <p class="text-xs text-pos-muted">{t('cust_edit_subtitle', $currentLocale)}</p>
           </div>
         </div>
         <button on:click={() => (isModalOpen = false)} class="text-pos-muted hover:text-pos-text p-1.5 rounded-xl cursor-pointer">
@@ -484,7 +485,7 @@
       </div>
 
       <div class="px-6 py-4 border-t border-pos-border bg-slate-50 dark:bg-slate-800/60 flex items-center justify-end gap-2">
-        <button on:click={() => (isModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={() => (isModalOpen = false)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl cursor-pointer">{t('btn_cancel', $currentLocale)}</button>
         <button on:click={handleSave} disabled={isSaving} class="px-6 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
           <Check class="w-4 h-4" />
           <span>{isSaving ? 'Saving...' : 'Save Customer (حفظ)'}</span>
@@ -614,22 +615,22 @@
     <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
       <div class="flex items-center gap-3 text-rose-600">
         <ShieldAlert class="w-6 h-6 shrink-0" />
-        <h3 class="font-black text-sm text-pos-text">Delete Customer</h3>
+        <h3 class="font-black text-sm text-pos-text">{t('cust_delete_title', $currentLocale)}</h3>
       </div>
-      <p class="text-xs text-pos-muted">Delete <strong class="text-pos-text">{customerToDelete.name}</strong>? Admin password required.</p>
+      <p class="text-xs text-pos-muted">{t('cust_delete_title', $currentLocale)} {customerToDelete.name} — {t('cust_delete_admin_required', $currentLocale)}</p>
       {#if deleteErrorMsg}
         <div class="p-2 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">{deleteErrorMsg}</div>
       {/if}
       <input
         type="password"
         bind:value={deletePassword}
-        placeholder="Admin password"
+        placeholder={t('cust_admin_password', $currentLocale)}
         class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-mono outline-none"
       />
       <div class="flex justify-end gap-2 pt-2 border-t border-pos-border">
-        <button on:click={() => (customerToDelete = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+        <button on:click={() => (customerToDelete = null)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">{t('btn_cancel', $currentLocale)}</button>
         <button on:click={confirmDeleteCustomer} disabled={isDeletingCustomer} class="px-4 py-2 bg-rose-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-md">
-          {isDeletingCustomer ? 'Deleting...' : 'Confirm Delete'}
+          {isDeletingCustomer ? '...' : t('cust_confirm_delete', $currentLocale)}
         </button>
       </div>
     </div>

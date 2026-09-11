@@ -232,7 +232,7 @@
         title="F9 - Cash Register (صندوق Caisse)"
       >
         <DollarSign class="w-4 h-4 text-emerald-500 mb-0.5" />
-        <span class="text-xs font-black leading-tight">Register</span>
+        <span class="text-xs font-black leading-tight">{t('pos_register', $currentLocale)}</span>
         <span class="text-[9px] bg-black/10 dark:bg-white/10 px-1 rounded font-mono font-normal mt-0.5">F9</span>
       </button>
 
@@ -263,7 +263,7 @@
         title="Toggle Auto Print Receipt on Checkout"
       >
         <Printer class="w-4 h-4 mb-0.5" />
-        <span class="text-[9px] font-black uppercase">Auto-Print</span>
+        <span class="text-[9px] font-black uppercase">{t('pos_auto_print', $currentLocale)}</span>
         <span class="text-[8px] font-mono font-bold mt-0.5">{autoPrintEnabled ? 'ON' : 'OFF'}</span>
       </button>
 
@@ -275,8 +275,7 @@
         title="Reopen / Reprint Last Receipt — view, edit in POS or reprint the last sale (أخر وصل)"
       >
         <RotateCcw class="w-4 h-4 mb-0.5" />
-        <span class="text-[9px] font-black uppercase leading-tight">Last Receipt</span>
-        <span class="text-[8px] font-mono font-bold mt-0.5 opacity-80">Reopen</span>
+        <span class="text-[9px] font-black uppercase leading-tight">{t('pos_reopen_last_receipt', $currentLocale)}</span>
       </button>
     </div>
   </div>
