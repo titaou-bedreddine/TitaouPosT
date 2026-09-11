@@ -24,6 +24,7 @@
   import FirstSetupWizard from './lib/components/FirstSetupWizard.svelte';
   import NetworkStatusIndicator from './lib/components/NetworkStatusIndicator.svelte';
   import { networkEvents, networkStatus } from './lib/stores/network';
+  import { applyThemeSettings } from './lib/utils/theme';
 
     import { stockWarningModal } from './lib/stores/cart';
 
@@ -265,6 +266,13 @@
 
   let sidebarVersion = '';
   onMount(async () => {
+    // Style & Theme: apply the saved palette + skin before first paint of content.
+    try {
+      const st = await invoke<Record<string, string>>('get_all_settings');
+      applyThemeSettings(st['app_theme'], st['app_skin']);
+    } catch {
+      // defaults already applied
+    }
     loadTelegramMaster();
     try {
       sidebarVersion = await invoke<string>('get_app_version');

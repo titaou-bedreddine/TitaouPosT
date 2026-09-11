@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { t, currentLocale } from '../../lib/i18n';
+  import { THEMES, SKINS, applyTheme, applySkin } from '../../lib/utils/theme';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
   import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
@@ -19,7 +20,7 @@
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
     Scale, Bell, Send, CreditCard, Keyboard, Eye,
-    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus
+    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus, Palette
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -36,7 +37,8 @@
     | 'updates'
     | 'account'
     | 'about'
-    | 'danger';
+    | 'danger'
+    | 'style';
 
   let currentTab: SettingsTab = 'general';
   let settings: Record<string, any> = {
@@ -486,11 +488,26 @@
       }
       settings = { ...settings, ...normalized };
       quietWindowList = parseQuietWindows(settings.telegram_quiet_windows || '');
+      // Apply the saved style & theme live (also on first open).
+      applyTheme(settings.app_theme);
+      applySkin(settings.app_skin);
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
     } catch (e) {
       console.error(e);
     }
+  }
+
+  function pickTheme(id: string) {
+    settings.app_theme = id;
+    applyTheme(id);
+    invoke('set_setting', { key: 'app_theme', value: id }).catch((e) => console.warn('theme save:', e));
+  }
+
+  function pickSkin(id: string) {
+    settings.app_skin = id;
+    applySkin(id);
+    invoke('set_setting', { key: 'app_skin', value: id }).catch((e) => console.warn('skin save:', e));
   }
 
   async function loadScaleLogs() {
@@ -1382,6 +1399,14 @@
         <Sliders class="w-4 h-4 mb-1" />
         <span class="truncate">{t('set_pos_rules')}</span>
       </button>
+      <button
+        type="button"
+        on:click={() => (currentTab = 'style')}
+        class="flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold transition cursor-pointer {currentTab === 'style' ? 'bg-sky-600 text-white shadow-xs' : 'text-pos-muted hover:bg-slate-100 dark:hover:bg-slate-800'}"
+      >
+        <Palette class="w-4 h-4 mb-1" />
+        <span class="truncate">{ t('set_style_theme', $currentLocale) }</span>
+      </button>
 
       <button
         type="button"
@@ -1458,6 +1483,62 @@
 
   <!-- Content Container -->
   <div class="flex-1 bg-pos-card border border-pos-border rounded-2xl p-6 overflow-y-auto shadow-xs">
+    <!-- STYLE & THEME TAB -->
+    <div class:hidden={currentTab !== 'style'}>
+      <div class="max-w-4xl space-y-6">
+        <div>
+          <h2 class="text-base font-black text-pos-text">{ t('set_style_theme', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_style_theme_desc', $currentLocale) }</p>
+        </div>
+
+        <!-- Color themes -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+          <h3 class="font-black text-sm text-pos-text">{ t('st_themes_title', $currentLocale) }</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {#each THEMES as th}
+              <button
+                type="button"
+                on:click={() => pickTheme(th.id)}
+                class="p-3 rounded-xl border-2 text-start transition cursor-pointer {settings.app_theme === th.id ? 'border-sky-500 ring-2 ring-sky-500/40 bg-white dark:bg-slate-900' : 'border-pos-border hover:border-sky-400 bg-white dark:bg-slate-900'}"
+              >
+                <div class="flex items-center gap-1.5 mb-2">
+                  <span class="w-6 h-6 rounded-full border border-black/10" style="background:{th.swatch[0]}"></span>
+                  <span class="w-6 h-6 rounded-full border border-black/10" style="background:{th.swatch[1]}"></span>
+                  {#if settings.app_theme === th.id}
+                    <Check class="w-4 h-4 text-emerald-600 ms-auto" />
+                  {/if}
+                </div>
+                <span class="text-[11px] font-black text-pos-text">{ t(th.nameKey, $currentLocale) }</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Shape skins -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+          <h3 class="font-black text-sm text-pos-text">{ t('st_skins_title', $currentLocale) }</h3>
+          <p class="text-[11px] text-pos-muted font-bold">{ t('sk_desc', $currentLocale) }</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {#each SKINS as sk}
+              <button
+                type="button"
+                on:click={() => pickSkin(sk.id)}
+                class="p-3 rounded-xl border-2 text-start transition cursor-pointer {settings.app_skin === sk.id ? 'border-sky-500 ring-2 ring-sky-500/40 bg-white dark:bg-slate-900' : 'border-pos-border hover:border-sky-400 bg-white dark:bg-slate-900'}"
+              >
+                <div class="flex items-center gap-1.5 mb-2">
+                  <span class="w-8 h-8 bg-sky-600 border border-black/10" style="border-radius:{sk.previewRadius}px"></span>
+                  {#if settings.app_skin === sk.id}
+                    <Check class="w-4 h-4 text-emerald-600 ms-auto" />
+                  {/if}
+                </div>
+                <span class="text-[11px] font-black text-pos-text">{ t(sk.nameKey, $currentLocale) }</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 1. GENERAL TAB -->
     <div class:hidden={currentTab !== 'general'}>
       <div class="max-w-4xl space-y-6">

@@ -6,8 +6,17 @@
 
   let inputValue = '';
 
+  // Barcodes are numeric-only: normalize AZERTY scanner output then strip
+  // anything that is not a digit, live as the user types or scans.
+  function handleInput() {
+    const clean = normalizeBarcode(inputValue).replace(/[^0-9]/g, '');
+    if (clean !== inputValue) {
+      inputValue = clean;
+    }
+  }
+
   function addBarcode() {
-    const val = normalizeBarcode(inputValue).trim();
+    const val = normalizeBarcode(inputValue).replace(/[^0-9]/g, '').trim();
     if (val && !barcodes.includes(val)) {
       barcodes = [...barcodes, val];
       inputValue = '';
@@ -42,6 +51,8 @@
     <input
       type="text"
       bind:value={inputValue}
+      on:input={handleInput}
+      inputmode="numeric"
       on:keydown={handleKeyDown}
       placeholder="Type or scan barcode and press Enter..."
       class="flex-1 min-w-[180px] bg-transparent border-0 outline-none text-xs text-pos-text font-mono"

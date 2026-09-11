@@ -945,5 +945,22 @@
   "st_restore_replaces_db_warning": "⚠️ Ceci remplace TOUTE la base actuelle (ventes, produits, dettes, sessions). Une sauvegarde de sécurité est créée d'abord, mais l'action est lourde. Confirmez pour continuer.",
   "pem_product_name": "Nom du produit",
   "st_hide_arabic_name_field": "Masquer le champ nom (arabe) du produit",
-  "st_hide_arabic_name_desc": "La fiche produit affiche un seul champ long « Nom du produit » ; le nom arabe se remplit automatiquement"
+  "st_hide_arabic_name_desc": "La fiche produit affiche un seul champ long « Nom du produit » ; le nom arabe se remplit automatiquement",
+  "set_style_theme": "Style & thème",
+  "st_style_theme_desc": "Choisissez la palette d'accentuation et l'habillage des formes de toute l'application. Application instantanée et sauvegarde automatique.",
+  "st_themes_title": "Thème de couleur",
+  "st_skins_title": "Habillage des formes",
+  "sk_desc": "Les habillages changent coins, formes et ombres sur toutes les pages.",
+  "th_default": "Ciel par défaut",
+  "th_indigo": "Indigo moderne",
+  "th_emerald": "Émeraude",
+  "th_mustard": "Moutarde dorée",
+  "th_rose": "Rose moderne",
+  "th_teal": "Bleu océan",
+  "th_orange": "Orange couchant",
+  "th_violet": "Violet royal",
+  "sk_classic": "Classique",
+  "sk_sharp": "Anguleux pro",
+  "sk_soft": "Arrondi doux",
+  "sk_bubble": "Bulle"
 }

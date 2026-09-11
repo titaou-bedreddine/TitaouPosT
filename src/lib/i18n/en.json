@@ -945,5 +945,22 @@
   "st_restore_replaces_db_warning": "⚠️ This replaces the ENTIRE current database (sales, products, debts, sessions). A safety backup of the current data is created first, but the action is significant. Confirm to proceed.",
   "pem_product_name": "Product Name",
   "st_hide_arabic_name_field": "Hide Arabic Product Name Field",
-  "st_hide_arabic_name_desc": "Product modal shows one long 'Product Name' field; the Arabic name auto-fills from it"
+  "st_hide_arabic_name_desc": "Product modal shows one long 'Product Name' field; the Arabic name auto-fills from it",
+  "set_style_theme": "Style & Theme",
+  "st_style_theme_desc": "Choose the accent color palette and the shape skin of the whole app. Changes apply instantly and are saved automatically.",
+  "st_themes_title": "Color Theme",
+  "st_skins_title": "Shape Skin",
+  "sk_desc": "Skins change corners, shapes and shadows across every page and modal.",
+  "th_default": "Default Sky",
+  "th_indigo": "Modern Indigo",
+  "th_emerald": "Emerald Fresh",
+  "th_mustard": "Mustard Gold",
+  "th_rose": "Rose Modern",
+  "th_teal": "Ocean Teal",
+  "th_orange": "Sunset Orange",
+  "th_violet": "Royal Purple",
+  "sk_classic": "Classic",
+  "sk_sharp": "Sharp Pro",
+  "sk_soft": "Soft Rounded",
+  "sk_bubble": "Bubble"
 }

@@ -122,7 +122,10 @@
 
   function checkBarcodeDuplicate() {
     clearTimeout(barcodeCheckTimer);
-    const code = normalizeBarcode(currentBarcodeTyped).replace(/,/g, '');
+    // Numeric-only: strip anything that is not a digit (barcodes are EAN/
+    // numeric; AZERTY scanner output is normalized first).
+    currentBarcodeTyped = normalizeBarcode(currentBarcodeTyped).replace(/[^0-9]/g, '');
+    const code = currentBarcodeTyped.replace(/,/g, '');
     if (!code) {
       duplicateBarcodeWarning = '';
       return;
@@ -1046,6 +1049,7 @@
                 bind:value={currentBarcodeTyped}
                 bind:this={barcodeTypedEl}
                 on:keydown={handleBarcodeKeyDown}
+                inputmode="numeric"
                 on:input={checkBarcodeDuplicate}
                 placeholder={barcodeTokens.length === 0 ? "Scan or type barcode & Enter..." : "+ Add barcode..."}
                 class="flex-1 min-w-[140px] bg-transparent border-0 text-xs font-mono font-bold text-pos-text outline-none px-2"
