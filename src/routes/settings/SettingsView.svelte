@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { t, currentLocale } from '../../lib/i18n';
   import { THEMES, SKINS, applyTheme, applySkin } from '../../lib/utils/theme';
+  import { runSilentUpdate } from '../../lib/utils/autoUpdater';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
   import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
@@ -1009,6 +1010,22 @@
     release_url: string;
     download_url: string;
     published_at: string;
+  }
+
+  // In-app silent update (Settings → Updates): same path as the top
+  // banner — signed download, install, relaunch. The OS browser is never
+  // opened for the update itself.
+  let installProgress = -1;
+  let installError = '';
+  async function installUpdateNow() {
+    installError = '';
+    installProgress = 0;
+    const r = await runSilentUpdate((_d, _t, pct) => (installProgress = pct));
+    if (!r.ok) {
+      installError = r.error || 'Update failed';
+      installProgress = -1;
+    }
+    // ok → the app relaunches itself.
   }
 
   async function openUrlInBrowser(url: string) {
@@ -3128,23 +3145,34 @@
               <span>{isCheckingUpdate ? 'Checking GitHub...' : 'Check for Updates Now (فحص التحديثات)'}</span>
             </button>
 
-            {#if updateAvailable && latestDownloadUrl}
+            {#if updateAvailable}
               <button
                 type="button"
-                on:click={() => openUrlInBrowser(latestDownloadUrl)}
-                class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition animate-pulse"
+                on:click={installUpdateNow}
+                disabled={installProgress >= 0}
+                class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition"
               >
                 <Download class="w-4 h-4" />
-                <span>Download {latestReleaseInfo?.tag_name || 'Update'} (تحميل التحديث)</span>
+                <span>{installProgress >= 0 ? `Installing… ${installProgress}%` : `Install {latestReleaseInfo?.tag_name || 'Update'} Now (تثبيت التحديث)`}</span>
               </button>
               <button
                 type="button"
                 on:click={() => openUrlInBrowser(latestReleaseUrl)}
                 class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                title="Informational only — the update itself installs in-app"
               >
                 <span>{ t('st_view_release_notes', $currentLocale) }</span>
               </button>
             {/if}
+            {#if installProgress >= 0}
+            <div class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 transition-all" style="width:{installProgress}%"></div>
+            </div>
+            <p class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Downloading & installing silently — the app restarts automatically… / جارٍ التنزيل والتثبيت — سيعاد تشغيل التطبيق تلقائياً</p>
+          {/if}
+          {#if installError}
+            <p class="text-[11px] font-bold text-rose-600">❌ {installError}</p>
+          {/if}
 
             <button
               on:click={openRollbackModal}
@@ -3154,6 +3182,15 @@
               <span>{ t('st_rollback_to_previous_version', $currentLocale) }</span>
             </button>
           </div>
+          {#if installProgress >= 0}
+            <div class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 transition-all" style="width:{installProgress}%"></div>
+            </div>
+            <p class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Downloading & installing silently — the app restarts automatically… / جارٍ التنزيل والتثبيت — سيعاد تشغيل التطبيق تلقائياً</p>
+          {/if}
+          {#if installError}
+            <p class="text-[11px] font-bold text-rose-600">❌ {installError}</p>
+          {/if}
 
           <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer pt-2">
             <input type="checkbox" bind:checked={settings.auto_update_enabled} class="rounded text-sky-600" />

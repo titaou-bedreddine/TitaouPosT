@@ -25,6 +25,7 @@
   import NetworkStatusIndicator from './lib/components/NetworkStatusIndicator.svelte';
   import { networkEvents, networkStatus } from './lib/stores/network';
   import { applyThemeSettings } from './lib/utils/theme';
+  import { runSilentUpdate } from './lib/utils/autoUpdater';
 
     import { stockWarningModal } from './lib/stores/cart';
 
@@ -164,33 +165,10 @@
       updateStatus = 'downloading';
       updateError = '';
       updateProgress = 0;
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const { relaunch } = await import('@tauri-apps/plugin-process');
-      const update = await check();
-      if (!update) {
-        updateStatus = '';
-        newUpdateAvailable = false;
-        return;
-      }
-      updateTag = update.version;
-      let downloaded = 0;
-      let total = 0;
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            total = event.data.contentLength ?? 0;
-            break;
-          case 'Progress':
-            downloaded += event.data.chunkLength;
-            updateProgress = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
-            break;
-          case 'Finished':
-            updateProgress = 100;
-            break;
-        }
-      });
+      // Shared silent installer (never opens the OS browser).
+      const r = await runSilentUpdate((_d, _t, pct) => (updateProgress = pct));
+      if (!r.ok) throw new Error(r.error || 'Update failed');
       updateStatus = 'restarting';
-      await relaunch();
     } catch (e: any) {
       console.error('Auto-update failed:', e);
       updateStatus = 'error';
