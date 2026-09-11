@@ -1,11 +1,11 @@
 {
-  "version": "0.5.24",
-  "notes": "Settings fully translated (Arabic / Français / English) — every tab, label, option and modal across the 14 settings sections.",
-  "pub_date": "2026-09-11T11:30:00.000Z",
+  "version": "0.5.26",
+  "notes": "Style & Theme system: 8 color themes (incl. Mustard Gold) + 4 shape skins, applied instantly from the new Settings tab. Barcode fields are now numeric-only.",
+  "pub_date": "2026-09-11T15:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTm9qNjRRSEFQaXQzME5lK3VPelJUeHBNUC9heVdvMUxUMEtxNFEyTTl5MWk4Z3R0dGdBVFJqbWZCSGdvN2tyamt2b3UycFh5MTRqQ1IrMGh1eUZURVFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTMwNjU4CWZpbGU6VGl0YW91UE9TXzAuNS4yNF94NjQtc2V0dXAuZXhlCnJkUXFVbThyb1BqazRiUVcvd3ROR0w0SFQ3WGZLWExDdGsvTktmcjZRbjh5a2RnM2RnckpUZnl3VW9tYk9jM2JsWkJlUG1XMVdjZ3RhdWZFaUhFSUFnPT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.24/TitaouPOS_0.5.24_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnFWUW1IMlE1RXZ2dHhrU1pZWXNqdWlWNGRINTJPa25URENBT0doM2VMMHo5WHUzaXpGZkJocnFOa2ExNjRJMjRxaGV5V3NOSmZtdXRIaXg0dXlONGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTM1OTYzCWZpbGU6VGl0YW91UE9TXzAuNS4yNl94NjQtc2V0dXAuZXhlCnQ0Rm9WZDVlR1A2UWVMeFJtcFM4QkJKSldlK0xVZHQrUXAxcDV2bFppUEc0NURIeTVxYUJ1TDcxTHhiZ3A2M08yTG8vRW1NdmlNQ1F5U2s5clB1Q0RRPT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.26/TitaouPOS_0.5.26_x64-setup.exe"
     }
   }
 }
