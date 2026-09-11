@@ -1,11 +1,11 @@
 {
-  "version": "0.5.28",
-  "notes": "Four full-look theme skins: Soft Neumorphic, Frosted Glass (macOS), Bold High-Contrast, and Coral Mobile — colors, surfaces and shapes in one pick.",
-  "pub_date": "2026-09-11T19:00:00.000Z",
+  "version": "0.5.29",
+  "notes": "Mustard theme inverted (yellow-dominant), Restore Original Look button, and one-click RustDesk remote support with Telegram alerts.",
+  "pub_date": "2026-09-11T21:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTmhNeFR0ZjBFTzFtVXFOc3p0dGRMTFVtVktTSHlnSkRDRTdIaUFFSlBnMXVIWlFzRHh4bVFXY3dqSkxRNUd2TkhJaGxBR1dNWnpuK3N6ekJ2d25mcEE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTU5MTU4CWZpbGU6VGl0YW91UE9TXzAuNS4yOF94NjQtc2V0dXAuZXhlCjFYZ3U4Z3E5VXI2RTgrWVZtZldlck9xN3pXNFJpZitudXdCdFg0N1VRdmpEamxXemVxOHN0ZzhWMjZlNkNqNWV3RU00b3hIMklQZEdsa20wcm1PMkJ3PT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.28/TitaouPOS_0.5.28_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTmt5TnhwdDNGMXkrb1lrTUt2dDBSeGIrTHd0VVEvcS9zSVpKdzVzZzA3bVdhQldFNTk4cXZ4UEx0SGNrR0x4a3kxK3V1dHc1dTBEUTYvZkNkS1pXWkFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTY0NDExCWZpbGU6VGl0YW91UE9TXzAuNS4yOV94NjQtc2V0dXAuZXhlCm1JWHNZVEFNazNKcnByT3VNaENlOUNZRjNpb3Y3SXBJK0dWYWtxdUpTU053RTVHbVZ3RG5JeFVjMHdwdFIrNkFzS3dYM3lGem9ZdENmc2Y5V2FhWkF3PT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.29/TitaouPOS_0.5.29_x64-setup.exe"
     }
   }
 }
