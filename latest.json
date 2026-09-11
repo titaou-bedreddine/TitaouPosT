@@ -1,11 +1,11 @@
 {
-  "version": "0.5.26",
-  "notes": "Style & Theme system: 8 color themes (incl. Mustard Gold) + 4 shape skins, applied instantly from the new Settings tab. Barcode fields are now numeric-only.",
-  "pub_date": "2026-09-11T15:00:00.000Z",
+  "version": "0.5.27",
+  "notes": "The update never opens the OS browser anymore — banner AND Settings→Updates both install silently in-app with progress.",
+  "pub_date": "2026-09-11T17:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTnFWUW1IMlE1RXZ2dHhrU1pZWXNqdWlWNGRINTJPa25URENBT0doM2VMMHo5WHUzaXpGZkJocnFOa2ExNjRJMjRxaGV5V3NOSmZtdXRIaXg0dXlONGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTM1OTYzCWZpbGU6VGl0YW91UE9TXzAuNS4yNl94NjQtc2V0dXAuZXhlCnQ0Rm9WZDVlR1A2UWVMeFJtcFM4QkJKSldlK0xVZHQrUXAxcDV2bFppUEc0NURIeTVxYUJ1TDcxTHhiZ3A2M08yTG8vRW1NdmlNQ1F5U2s5clB1Q0RRPT0K",
-      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.26/TitaouPOS_0.5.26_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURFk5NkxzY2xKTmc0Z1VHRk8yRk1xdHd5TGZEQThHNVBYYXVJZzFDd29NdDZESmFCY01WUUphbGRMZHhuV0FlbHBMSjRnYXVlck8wZFVKbHFxU0daVlZtMVFLc0NJWVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTU3NjI1CWZpbGU6VGl0YW91UE9TXzAuNS4yN194NjQtc2V0dXAuZXhlCnJweHVjNFNHSXFoeHRqV2dmQlA0alBNeENuZWVuSVZkb3d3Nk1zWkJHd2NnSmFCNTJoNGtBWWRuVWFjK1lnNkwzc3BNbUV3SFkxazQrbDEvajFpV0NRPT0K",
+      "url": "https://github.com/titaou-bedreddine/TitaouPosT/releases/download/v0.5.27/TitaouPOS_0.5.27_x64-setup.exe"
     }
   }
 }
