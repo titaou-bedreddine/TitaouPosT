@@ -89,6 +89,7 @@
     recap_interval_minutes: '60',
     app_license_status: 'activated',
     allow_negative_stock: 'false',
+    pos_hide_arabic_name: 'false',
     pos_autofocus_search: 'true',
     pos_autofocus_timer_seconds: '10',
     pos_auto_capture_barcode: 'true',
@@ -405,6 +406,7 @@
     'notify_recap_enabled',
     'telegram_master_enabled',
     'allow_negative_stock',
+    'pos_hide_arabic_name',
     'pos_autofocus_search',
     'pos_auto_capture_barcode',
     'require_pin_for_discount',
@@ -2337,6 +2339,14 @@
                 <p class="text-[10px] text-pos-muted font-normal">{ t('st_prompt_cashiers_to_enter', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.hold_sale_require_note} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
+            </label>
+
+            <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
+              <div>
+                <span>{ t('st_hide_arabic_name_field', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_hide_arabic_name_desc', $currentLocale) }</p>
+              </div>
+              <input type="checkbox" bind:checked={settings.pos_hide_arabic_name} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
             <div>

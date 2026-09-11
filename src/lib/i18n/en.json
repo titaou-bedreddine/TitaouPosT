@@ -942,5 +942,8 @@
   "st_automatic_synchronization_on_pos": "• Automatic synchronization on POS price changes",
   "st_test_print": "Test Print (",
   "st_layout_typography_note": "Layout, typography and barcode geometry are built into each mm-true preset — what you see in the preview is exactly what prints, at 203/300/600 DPI, with zero gaps and no print dialog.",
-  "st_restore_replaces_db_warning": "⚠️ This replaces the ENTIRE current database (sales, products, debts, sessions). A safety backup of the current data is created first, but the action is significant. Confirm to proceed."
+  "st_restore_replaces_db_warning": "⚠️ This replaces the ENTIRE current database (sales, products, debts, sessions). A safety backup of the current data is created first, but the action is significant. Confirm to proceed.",
+  "pem_product_name": "Product Name",
+  "st_hide_arabic_name_field": "Hide Arabic Product Name Field",
+  "st_hide_arabic_name_desc": "Product modal shows one long 'Product Name' field; the Arabic name auto-fills from it"
 }

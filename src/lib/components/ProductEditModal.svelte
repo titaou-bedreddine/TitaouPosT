@@ -163,11 +163,19 @@
   let newStockQty = 0;
   let baselineStock = 0;
 
+  // POS rule: single long "Product Name" field (Arabic field hidden).
+  let hideArabicName = false;
+  let barcodeTypedEl: HTMLInputElement | undefined = undefined;
+
   async function loadPricingDefaults() {
     try {
       const s = await invoke<Record<string, string>>('get_all_settings');
       priceRoundStep = parseInt(s['price_round_step'] ?? '5', 10) || 0;
       defaultMarginPercent = parseFloat(s['default_margin_percent'] ?? '20') || 0;
+      // POS rule: hide the Arabic product-name field — a single long
+      // "Product Name" field; the Arabic name auto-fills from it on save
+      // (name_ar: nameAr.trim() || nameFr.trim()).
+      hideArabicName = s['pos_hide_arabic_name'] === 'true';
     } catch (e) {
       console.warn('Could not load pricing defaults:', e);
     }
@@ -233,6 +241,14 @@
       acceptNameSuggestion(nameSuggestions[0]);
     } else if (e.key === 'Escape') {
       showNameSuggestions = false;
+    } else if (e.key === 'Enter') {
+      // Product name done → straight to the barcode field.
+      e.preventDefault();
+      if (showNameSuggestions && nameSuggestions.length > 0) {
+        acceptNameSuggestion(nameSuggestions[0]);
+      }
+      showNameSuggestions = false;
+      barcodeTypedEl?.focus();
     }
   }
 
@@ -910,9 +926,9 @@
 
             <!-- Names (with live DB autosuggest: Tab or click accepts) -->
             <div class="md:col-span-3 space-y-2.5">
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid gap-3 {hideArabicName ? 'grid-cols-1' : 'grid-cols-2'}">
                 <div class="relative">
-                  <label class="block text-xs font-bold text-pos-muted mb-1">Product Name (Français) *</label>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">{hideArabicName ? `${t('pem_product_name', $currentLocale)} *` : 'Product Name (Français) *'}</label>
                   <input
                     type="text"
                     bind:value={nameFr}
@@ -938,6 +954,7 @@
                     </div>
                   {/if}
                 </div>
+                {#if !hideArabicName}
                 <div>
                   <label class="block text-xs font-bold text-pos-muted mb-1">Product Name (العربية)</label>
                   <input
@@ -949,6 +966,7 @@
                     class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
+                {/if}
               </div>
 
               <div class="grid grid-cols-3 gap-3">
@@ -1026,6 +1044,7 @@
               <input
                 type="text"
                 bind:value={currentBarcodeTyped}
+                bind:this={barcodeTypedEl}
                 on:keydown={handleBarcodeKeyDown}
                 on:input={checkBarcodeDuplicate}
                 placeholder={barcodeTokens.length === 0 ? "Scan or type barcode & Enter..." : "+ Add barcode..."}

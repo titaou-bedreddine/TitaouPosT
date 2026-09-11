@@ -942,5 +942,8 @@
   "st_automatic_synchronization_on_pos": "• Synchronisation automatique sur changement de prix au POS",
   "st_test_print": "Test d'impression (",
   "st_layout_typography_note": "Mise en page, typographie et géométrie du code-barres sont intégrées à chaque préréglage mm-exact — l'aperçu est exactement ce qui s'imprime, à 203/300/600 DPI, sans espaces ni boîte de dialogue.",
-  "st_restore_replaces_db_warning": "⚠️ Ceci remplace TOUTE la base actuelle (ventes, produits, dettes, sessions). Une sauvegarde de sécurité est créée d'abord, mais l'action est lourde. Confirmez pour continuer."
+  "st_restore_replaces_db_warning": "⚠️ Ceci remplace TOUTE la base actuelle (ventes, produits, dettes, sessions). Une sauvegarde de sécurité est créée d'abord, mais l'action est lourde. Confirmez pour continuer.",
+  "pem_product_name": "Nom du produit",
+  "st_hide_arabic_name_field": "Masquer le champ nom (arabe) du produit",
+  "st_hide_arabic_name_desc": "La fiche produit affiche un seul champ long « Nom du produit » ; le nom arabe se remplit automatiquement"
 }
