@@ -962,5 +962,16 @@
   "sk_classic": "Classic",
   "sk_sharp": "Sharp Pro",
   "sk_soft": "Soft Rounded",
-  "sk_bubble": "Bubble"
+  "sk_bubble": "Bubble",
+  "st_presets_title": "Theme Skins — Full Looks",
+  "st_presets_desc": "Each skin restyles colors, surfaces, shapes and effects together. Picking a color theme or shape skin switches back to the classic system.",
+  "st_preset_overrides": "A full theme skin is active — it overrides the palette and shapes below.",
+  "preset_neu": "Soft Neumorphic",
+  "preset_neu_sub": "Fintech dashboard",
+  "preset_glass": "Frosted Glass",
+  "preset_glass_sub": "macOS style",
+  "preset_bold": "Bold Contrast",
+  "preset_bold_sub": "Marketing showcase",
+  "preset_coral": "Coral Mobile",
+  "preset_coral_sub": "Mobile duotone"
 }

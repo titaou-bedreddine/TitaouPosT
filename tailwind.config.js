@@ -13,9 +13,9 @@ export default {
           accent: 'var(--pos-accent)',
           text: 'var(--pos-text)',
           muted: 'var(--pos-muted)',
-          danger: '#ef4444',
-          warning: '#f59e0b',
-          success: '#10b981',
+          danger: 'var(--pos-danger)',
+          warning: 'var(--pos-warning)',
+          success: 'var(--pos-success)',
         }
       }
     },

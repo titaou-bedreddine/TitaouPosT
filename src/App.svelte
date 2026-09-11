@@ -247,7 +247,7 @@
     // Style & Theme: apply the saved palette + skin before first paint of content.
     try {
       const st = await invoke<Record<string, string>>('get_all_settings');
-      applyThemeSettings(st['app_theme'], st['app_skin']);
+      applyThemeSettings(st['app_theme'], st['app_skin'], st['app_preset']);
     } catch {
       // defaults already applied
     }

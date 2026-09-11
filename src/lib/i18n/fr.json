@@ -962,5 +962,16 @@
   "sk_classic": "Classique",
   "sk_sharp": "Anguleux pro",
   "sk_soft": "Arrondi doux",
-  "sk_bubble": "Bulle"
+  "sk_bubble": "Bulle",
+  "st_presets_title": "Habillages complets",
+  "st_presets_desc": "Chaque habillage restyle couleurs, surfaces, formes et effets ensemble. Choisir un thème de couleur ou un habillage de formes revient au système classique.",
+  "st_preset_overrides": "Un habillage complet est actif — il remplace la palette et les formes ci-dessous.",
+  "preset_neu": "Néomorphique doux",
+  "preset_neu_sub": "Tableau de bord fintech",
+  "preset_glass": "Verre dépoli",
+  "preset_glass_sub": "Style macOS",
+  "preset_bold": "Contraste audacieux",
+  "preset_bold_sub": "Vitrine marketing",
+  "preset_coral": "Corail mobile",
+  "preset_coral_sub": "Duotone mobile"
 }

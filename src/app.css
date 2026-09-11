@@ -502,3 +502,156 @@ body {
   [data-app-skin="sharp"] .shadow-lg { box-shadow: 0 1px 3px rgb(0 0 0 / 0.07) !important; }
   [data-app-skin="sharp"] .shadow-xl { box-shadow: 0 2px 4px rgb(0 0 0 / 0.08) !important; }
   [data-app-skin="sharp"] .shadow-2xl { box-shadow: 0 4px 8px rgb(0 0 0 / 0.1) !important; }
+
+
+/* ---- Semantic color defaults (presets may retint these) ---- */
+:root {
+  --pos-danger: #ef4444;
+  --pos-warning: #f59e0b;
+  --pos-success: #10b981;
+}
+
+/* ===========================================================================
+   THEME SKINS (v0.5.28) — four full looks. Selected via [data-app-preset].
+   Placed LAST so a preset overrides both the color-theme palettes (--th-*)
+   and the shape skins (--r-*). Each defines surfaces (--pos-*), a full
+   accent scale (--th-50..950), radii, and its signature effects.
+   =========================================================================== */
+
+/* ---- 1. SOFT MODERN NEUMORPHIC — fintech dashboard ---- */
+[data-app-preset="neu"] {
+  --pos-bg: #F5F7FA;
+  --pos-card: #FFFFFF;
+  --pos-border: #E4EAF1;
+  --pos-text: #2C3E50;
+  --pos-muted: #A0AEC0;
+  --pos-danger: #FF5B4D;
+  --pos-warning: #FFC107;
+  --pos-success: #28C76F;
+  --th-50: #EBF2FF;  --th-100: #D6E5FF; --th-200: #ADCBFF; --th-300: #85B0FF;
+  --th-400: #5C96FF; --th-500: #3A85FF; --th-600: #1E75FF; --th-700: #155FD6;
+  --th-800: #114BA8; --th-900: #0D3A80; --th-950: #082550;
+  --r-sm: 0.3rem; --r-md: 0.55rem; --r-lg: 0.75rem; --r-xl: 1rem; --r-2xl: 1.25rem; --r-3xl: 1.5rem;
+}
+.dark[data-app-preset="neu"] {
+  --pos-bg: #171C23;
+  --pos-card: #1F262F;
+  --pos-border: #2C3641;
+  --pos-text: #EAF0F7;
+  --pos-muted: #97A3B2;
+}
+[data-app-preset="neu"] .shadow-sm,
+[data-app-preset="neu"] .shadow,
+[data-app-preset="neu"] .shadow-xs,
+[data-app-preset="neu"] .shadow-md,
+[data-app-preset="neu"] .shadow-lg,
+[data-app-preset="neu"] .shadow-xl,
+[data-app-preset="neu"] .shadow-2xl {
+  box-shadow: 0 1px 2px rgb(44 62 80 / 0.04), 0 4px 12px rgb(44 62 80 / 0.06), 0 12px 32px rgb(44 62 80 / 0.08) !important;
+}
+[data-app-preset="neu"] .shadow-none { box-shadow: none !important; }
+
+/* ---- 2. SLEEK GLASSMORPHISM — macOS frosted ---- */
+[data-app-preset="glass"] {
+  --pos-bg: rgba(232, 222, 216, 0.55);
+  --pos-card: rgba(232, 222, 216, 0.72);
+  --pos-border: rgba(120, 95, 80, 0.22);
+  --pos-text: #2B211B;
+  --pos-muted: #8B7B6F;
+  --th-50: #FEF4E8;  --th-100: #FDE8CC; --th-200: #FBD199; --th-300: #F8B966;
+  --th-400: #F5A033; --th-500: #F28C28; --th-600: #D9741A; --th-700: #B05C13;
+  --th-800: #8A4710; --th-900: #6B3710; --th-950: #3D200A;
+  --r-sm: 0.25rem; --r-md: 0.5rem; --r-lg: 0.7rem; --r-xl: 1rem; --r-2xl: 1.1rem; --r-3xl: 1.25rem;
+}
+.dark[data-app-preset="glass"] {
+  --pos-bg: rgba(30, 19, 16, 0.55);
+  --pos-card: rgba(30, 19, 16, 0.72);
+  --pos-border: rgba(255, 214, 170, 0.16);
+  --pos-text: #F5EDE6;
+  --pos-muted: #B9A697;
+}
+[data-app-preset="glass"] body {
+  background:
+    radial-gradient(1200px 800px at 12% 8%, #7B2FBE 0%, transparent 55%),
+    radial-gradient(1000px 700px at 88% 12%, #C026D3 0%, transparent 50%),
+    radial-gradient(1100px 900px at 18% 92%, #F59E0B 0%, transparent 55%),
+    radial-gradient(1200px 800px at 85% 85%, #EA580C 0%, transparent 55%),
+    linear-gradient(135deg, #2E1065, #831843) !important;
+  background-attachment: fixed !important;
+}
+[data-app-preset="glass"] .bg-pos-bg {
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+}
+[data-app-preset="glass"] .bg-pos-card {
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+}
+
+/* ---- 3. BOLD HIGH-CONTRAST — marketing showcase ---- */
+[data-app-preset="bold"] {
+  --pos-bg: #FFCC00;
+  --pos-card: #FFFFFF;
+  --pos-border: #000000;
+  --pos-text: #000000;
+  --pos-muted: #525252;
+  --th-50: #F5F5F5;  --th-100: #EBEBEB; --th-200: #CCCCCC; --th-300: #999999;
+  --th-400: #666666; --th-500: #333333; --th-600: #000000; --th-700: #000000;
+  --th-800: #000000; --th-900: #000000; --th-950: #000000;
+  --r-sm: 0.25rem; --r-md: 0.45rem; --r-lg: 0.7rem; --r-xl: 1rem; --r-2xl: 1.15rem; --r-3xl: 1.25rem;
+}
+.dark[data-app-preset="bold"] {
+  --pos-bg: #E5B800;
+  --pos-card: #FFFFFF;
+  --pos-border: #000000;
+  --pos-text: #000000;
+  --pos-muted: #444444;
+}
+[data-app-preset="bold"] body { letter-spacing: -0.01em; }
+[data-app-preset="bold"] h1,
+[data-app-preset="bold"] h2,
+[data-app-preset="bold"] h3 { font-weight: 900 !important; letter-spacing: -0.02em; }
+
+/* ---- 4. MODERN CORAL DUOTONE — mobile app ---- */
+[data-app-preset="coral"] {
+  --pos-bg: #FFF3F2;
+  --pos-card: #FFFFFF;
+  --pos-border: #FFE0DD;
+  --pos-text: #1C1C1E;
+  --pos-muted: #6E6E73;
+  --th-50: #FFECEB;  --th-100: #FFD9D7; --th-200: #FFB3AF; --th-300: #FF8D87;
+  --th-400: #FF645C; --th-500: #FF5049; --th-600: #FF3B30; --th-700: #D6271D;
+  --th-800: #A81F17; --th-900: #7A1711; --th-950: #450B08;
+  --r-sm: 0.4rem; --r-md: 0.6rem; --r-lg: 0.8rem; --r-xl: 1.15rem; --r-2xl: 1.35rem; --r-3xl: 1.5rem;
+}
+.dark[data-app-preset="coral"] {
+  --pos-bg: #1C1C1E;
+  --pos-card: #2C2C2E;
+  --pos-border: #3A3A3C;
+  --pos-text: #F5F5F7;
+  --pos-muted: #98989D;
+}
+[data-app-preset="coral"] body {
+  background:
+    radial-gradient(900px 600px at 12% 12%, #FFE3E0 0%, transparent 45%),
+    radial-gradient(1000px 700px at 88% 88%, #FFE9E7 0%, transparent 50%),
+    #FFF3F2 !important;
+  background-attachment: fixed !important;
+}
+.dark[data-app-preset="coral"] body {
+  background:
+    radial-gradient(900px 600px at 12% 12%, #3A2220 0%, transparent 50%),
+    radial-gradient(1000px 700px at 88% 88%, #33201E 0%, transparent 50%),
+    #1C1C1E !important;
+  background-attachment: fixed !important;
+}
+[data-app-preset="coral"] .bg-slate-50 { background-color: #FFEBE9 !important; }
+.dark[data-app-preset="coral"] .bg-slate-50 { background-color: rgba(255, 59, 48, 0.08) !important; }
+[data-app-preset="coral"] .shadow-sm,
+[data-app-preset="coral"] .shadow,
+[data-app-preset="coral"] .shadow-md,
+[data-app-preset="coral"] .shadow-lg,
+[data-app-preset="coral"] .shadow-xl {
+  box-shadow: 0 2px 6px rgb(255 59 48 / 0.06), 0 10px 28px rgb(255 59 48 / 0.12) !important;
+}
+[data-app-preset="coral"] button { border-radius: 999px !important; }

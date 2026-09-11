@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { t, currentLocale } from '../../lib/i18n';
-  import { THEMES, SKINS, applyTheme, applySkin } from '../../lib/utils/theme';
+  import { THEMES, SKINS, PRESETS, applyTheme, applySkin, applyPreset } from '../../lib/utils/theme';
   import { runSilentUpdate } from '../../lib/utils/autoUpdater';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
@@ -492,6 +492,7 @@
       // Apply the saved style & theme live (also on first open).
       applyTheme(settings.app_theme);
       applySkin(settings.app_skin);
+      applyPreset(settings.app_preset);
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
     } catch (e) {
@@ -499,13 +500,27 @@
     }
   }
 
+  function clearPreset() {
+    settings.app_preset = '';
+    applyPreset('');
+    invoke('set_setting', { key: 'app_preset', value: '' }).catch((e) => console.warn('preset save:', e));
+  }
+
+  function pickPreset(id: string) {
+    settings.app_preset = id;
+    applyPreset(id);
+    invoke('set_setting', { key: 'app_preset', value: id }).catch((e) => console.warn('preset save:', e));
+  }
+
   function pickTheme(id: string) {
+    clearPreset();
     settings.app_theme = id;
     applyTheme(id);
     invoke('set_setting', { key: 'app_theme', value: id }).catch((e) => console.warn('theme save:', e));
   }
 
   function pickSkin(id: string) {
+    clearPreset();
     settings.app_skin = id;
     applySkin(id);
     invoke('set_setting', { key: 'app_skin', value: id }).catch((e) => console.warn('skin save:', e));
@@ -1508,9 +1523,38 @@
           <p class="text-xs text-pos-muted">{ t('st_style_theme_desc', $currentLocale) }</p>
         </div>
 
-        <!-- Color themes -->
+        <!-- Theme Skins (full looks) -->
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+          <h3 class="font-black text-sm text-pos-text">{ t('st_presets_title', $currentLocale) }</h3>
+          <p class="text-[11px] text-pos-muted font-bold">{ t('st_presets_desc', $currentLocale) }</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {#each PRESETS as pr}
+              <button
+                type="button"
+                on:click={() => pickPreset(pr.id)}
+                class="p-3 rounded-xl border-2 text-start transition cursor-pointer {settings.app_preset === pr.id ? 'border-sky-500 ring-2 ring-sky-500/40 bg-white dark:bg-slate-900' : 'border-pos-border hover:border-sky-400 bg-white dark:bg-slate-900'}"
+              >
+                <div class="flex items-center gap-1.5 mb-2">
+                  <span class="w-6 h-6 rounded-md border border-black/10" style="background:{pr.preview[0]}"></span>
+                  <span class="w-6 h-6 rounded-md border border-black/10" style="background:{pr.preview[1]}"></span>
+                  <span class="w-6 h-6 rounded-full border border-black/10" style="background:{pr.preview[2]}"></span>
+                  {#if settings.app_preset === pr.id}
+                    <Check class="w-4 h-4 text-emerald-600 ms-auto" />
+                  {/if}
+                </div>
+                <span class="text-[11px] font-black text-pos-text block">{ t(pr.nameKey, $currentLocale) }</span>
+                <span class="text-[9px] font-bold text-pos-muted">{ t(pr.subKey, $currentLocale) }</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Color themes -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4 {settings.app_preset ? 'opacity-50' : ''}">
           <h3 class="font-black text-sm text-pos-text">{ t('st_themes_title', $currentLocale) }</h3>
+          {#if settings.app_preset}
+            <p class="text-[10px] font-black text-amber-600">{ t('st_preset_overrides', $currentLocale) }</p>
+          {/if}
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             {#each THEMES as th}
               <button
@@ -1532,9 +1576,12 @@
         </div>
 
         <!-- Shape skins -->
-        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4 {settings.app_preset ? 'opacity-50' : ''}">
           <h3 class="font-black text-sm text-pos-text">{ t('st_skins_title', $currentLocale) }</h3>
           <p class="text-[11px] text-pos-muted font-bold">{ t('sk_desc', $currentLocale) }</p>
+          {#if settings.app_preset}
+            <p class="text-[10px] font-black text-amber-600">{ t('st_preset_overrides', $currentLocale) }</p>
+          {/if}
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             {#each SKINS as sk}
               <button

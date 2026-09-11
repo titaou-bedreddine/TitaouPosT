@@ -40,6 +40,31 @@ export const SKINS: SkinMeta[] = [
   { id: 'bubble', nameKey: 'sk_bubble', previewRadius: 20 },
 ];
 
+export interface PresetMeta {
+  id: string;
+  nameKey: string;
+  subKey: string;
+  /** Mini-preview: [canvas, surface, accent]. */
+  preview: [string, string, string];
+}
+
+/** Full-look theme skins: colors + surfaces + shapes + effects in one pick.
+ *  Highest precedence — overrides both the color themes and the shape skins. */
+export const PRESETS: PresetMeta[] = [
+  { id: 'neu', nameKey: 'preset_neu', subKey: 'preset_neu_sub', preview: ['#F5F7FA', '#FFFFFF', '#1E75FF'] },
+  { id: 'glass', nameKey: 'preset_glass', subKey: 'preset_glass_sub', preview: ['#E8DED8', '#F5EDE6', '#F28C28'] },
+  { id: 'bold', nameKey: 'preset_bold', subKey: 'preset_bold_sub', preview: ['#FFCC00', '#FFFFFF', '#000000'] },
+  { id: 'coral', nameKey: 'preset_coral', subKey: 'preset_coral_sub', preview: ['#FFF3F2', '#FFEBE9', '#FF3B30'] },
+];
+
+export function applyPreset(id: string | null | undefined): void {
+  if (id && PRESETS.some((x) => x.id === id)) {
+    document.documentElement.setAttribute('data-app-preset', id);
+  } else {
+    document.documentElement.removeAttribute('data-app-preset');
+  }
+}
+
 export function applyTheme(id: string | null | undefined): void {
   const t = THEMES.some((x) => x.id === id) ? id : 'default';
   document.documentElement.setAttribute('data-app-theme', t!);
@@ -50,7 +75,8 @@ export function applySkin(id: string | null | undefined): void {
   document.documentElement.setAttribute('data-app-skin', s!);
 }
 
-export function applyThemeSettings(theme?: string | null, skin?: string | null): void {
+export function applyThemeSettings(theme?: string | null, skin?: string | null, preset?: string | null): void {
   applyTheme(theme);
   applySkin(skin);
+  applyPreset(preset);
 }
