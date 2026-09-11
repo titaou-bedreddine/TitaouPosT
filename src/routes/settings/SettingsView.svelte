@@ -21,7 +21,7 @@
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
     Scale, Bell, Send, CreditCard, Keyboard, Eye,
-    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus, Palette
+    Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus, Palette, LifeBuoy
   } from 'lucide-svelte';
 
   type SettingsTab =
@@ -93,6 +93,8 @@
     app_license_status: 'activated',
     allow_negative_stock: 'false',
     pos_hide_arabic_name: 'false',
+    rustdesk_path: '',
+    rustdesk_support_password: '',
     pos_autofocus_search: 'true',
     pos_autofocus_timer_seconds: '10',
     pos_auto_capture_barcode: 'true',
@@ -510,6 +512,16 @@
     settings.app_preset = id;
     applyPreset(id);
     invoke('set_setting', { key: 'app_preset', value: id }).catch((e) => console.warn('preset save:', e));
+  }
+
+  function restoreOriginalLook() {
+    clearPreset();
+    settings.app_theme = 'default';
+    applyTheme('default');
+    settings.app_skin = 'classic';
+    applySkin('classic');
+    invoke('set_setting', { key: 'app_theme', value: 'default' }).catch(() => {});
+    invoke('set_setting', { key: 'app_skin', value: 'classic' }).catch(() => {});
   }
 
   function pickTheme(id: string) {
@@ -1518,9 +1530,19 @@
     <!-- STYLE & THEME TAB -->
     <div class:hidden={currentTab !== 'style'}>
       <div class="max-w-4xl space-y-6">
-        <div>
-          <h2 class="text-base font-black text-pos-text">{ t('set_style_theme', $currentLocale) }</h2>
-          <p class="text-xs text-pos-muted">{ t('st_style_theme_desc', $currentLocale) }</p>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-base font-black text-pos-text">{ t('set_style_theme', $currentLocale) }</h2>
+            <p class="text-xs text-pos-muted">{ t('st_style_theme_desc', $currentLocale) }</p>
+          </div>
+          <button
+            type="button"
+            on:click={restoreOriginalLook}
+            class="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-pos-text font-black text-[11px] rounded-xl cursor-pointer transition border border-pos-border shrink-0"
+            title="Back to the original factory look (العودة للمظهر الأصلي)"
+          >
+            { t('st_restore_original_look', $currentLocale) }
+          </button>
         </div>
 
         <!-- Theme Skins (full looks) -->
@@ -2815,6 +2837,25 @@
                 <p class="text-pos-muted italic">{ t('st_no_lan_address_detected', $currentLocale) }</p>
               {/if}
               <p class="text-pos-muted text-[11px] mt-2">Uptime: {Math.floor((serverStatus?.uptime_secs || 0) / 60)} min • Endpoints: /api/status, /api/handshake</p>
+            </div>
+
+            <!-- Remote Support (RustDesk) -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+              <div class="flex items-center gap-2">
+                <LifeBuoy class="w-4 h-4 text-emerald-600" />
+                <h4 class="font-black text-xs text-pos-text">{ t('st_remote_support_title', $currentLocale) }</h4>
+              </div>
+              <p class="text-[10px] text-pos-muted font-bold">{ t('st_remote_support_desc', $currentLocale) }</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_rustdesk_path', $currentLocale) }</label>
+                  <input type="text" bind:value={settings.rustdesk_path} on:change={autoSaveSettings} placeholder="C:/Program Files/RustDesk/rustdesk.exe" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_rustdesk_password', $currentLocale) }</label>
+                  <input type="text" bind:value={settings.rustdesk_support_password} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                </div>
+              </div>
             </div>
 
             <!-- REAL QR: the actual LAN URL — scanning opens the landing

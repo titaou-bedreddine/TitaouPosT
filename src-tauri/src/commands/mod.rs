@@ -9,7 +9,7 @@ use crate::models::{
 use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
     payroll_service, product_service, purchase_service, sales_service, settings_service,
-    supplier_service, scale_service, drawer_service, user_service,
+    supplier_service, scale_service, drawer_service, user_service, support_service,
 };
 use std::collections::HashMap;
 use tauri::State;
@@ -453,6 +453,11 @@ pub fn record_supplier_debt_payment(db: State<'_, DbState>, input: SupplierPayme
 #[tauri::command]
 pub fn list_supplier_debt_payments(db: State<'_, DbState>, supplier_id: i64) -> Result<Vec<SupplierPaymentRow>, String> {
     supplier_service::list_supplier_debt_payments(&db, supplier_id)
+}
+
+#[tauri::command]
+pub fn request_support(db: State<'_, DbState>) -> Result<String, String> {
+    support_service::request_support(&db)
 }
 
 #[tauri::command]

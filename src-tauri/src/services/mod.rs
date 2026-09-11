@@ -12,5 +12,6 @@ pub mod sales_service;
 pub mod settings_service;
 pub mod supplier_service;
 pub mod scale_service;
+pub mod support_service;
 pub mod drawer_service;
 pub mod user_service;

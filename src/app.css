@@ -162,14 +162,18 @@ body {
   }
 
   [data-app-theme="mustard"] {
-    --pos-bg: #faf7ec;
-    --pos-card: #fffdf6;
-    --pos-border: #e8e0c8;
+    --pos-bg: #FFCC00;
+    --pos-card: #FFF8DB;
+    --pos-border: #E0A800;
+    --pos-text: #3D2E00;
+    --pos-muted: #7A621B;
   }
   .dark[data-app-theme="mustard"] {
-    --pos-bg: #1b1710;
-    --pos-card: #2a2318;
-    --pos-border: #443a26;
+    --pos-bg: #2E2504;
+    --pos-card: #3A2E0A;
+    --pos-border: #55430E;
+    --pos-text: #FFE9A8;
+    --pos-muted: #C4A94D;
   }
 
 /* ---- Accent remap: every sky/indigo utility used in the app follows the theme ---- */

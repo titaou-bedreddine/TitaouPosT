@@ -19,7 +19,7 @@ export const THEMES: ThemeMeta[] = [
   { id: 'default', nameKey: 'th_default', swatch: ['#0284c7', '#bae6fd'] },
   { id: 'indigo', nameKey: 'th_indigo', swatch: ['#4f46e5', '#c7d2fe'] },
   { id: 'emerald', nameKey: 'th_emerald', swatch: ['#059669', '#a7f3d0'] },
-  { id: 'mustard', nameKey: 'th_mustard', swatch: ['#a16207', '#fef08a'] },
+  { id: 'mustard', nameKey: 'th_mustard', swatch: ['#FFCC00', '#713F12'] },
   { id: 'rose', nameKey: 'th_rose', swatch: ['#e11d48', '#fecdd3'] },
   { id: 'teal', nameKey: 'th_teal', swatch: ['#0d9488', '#99f6e4'] },
   { id: 'orange', nameKey: 'th_orange', swatch: ['#ea580c', '#fed7aa'] },

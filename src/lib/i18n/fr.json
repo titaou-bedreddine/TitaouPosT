@@ -973,5 +973,14 @@
   "preset_bold": "Contraste audacieux",
   "preset_bold_sub": "Vitrine marketing",
   "preset_coral": "Corail mobile",
-  "preset_coral_sub": "Duotone mobile"
+  "preset_coral_sub": "Duotone mobile",
+  "st_restore_original_look": "↺ Restaurer le look d'origine",
+  "help_support_title": "Obtenir de l'aide (à distance)",
+  "support_sent": "🆘 تم إرسال طلب الدعم — وصل معرّف جهازك إلى الفني. ابقى عند هذا الجهاز.",
+  "support_missing_rustdesk": "❌ RustDesk غير مثبت على هذا الجهاز — اطلب من المسؤول تثبيت وحدة الدعم.",
+  "support_missing_telegram": "❌ تنبيهات الدعم غير مهيأة (تيليجرام). اطلب من المسؤول.",
+  "st_remote_support_title": "Assistance à distance (RustDesk)",
+  "st_remote_support_desc": "Les PC clients envoient une demande d'assistance en un clic : ID RustDesk et mot de passe livrés sur votre Telegram.",
+  "st_rustdesk_path": "Chemin de RustDesk (optionnel — détection auto)",
+  "st_rustdesk_password": "Mot de passe d'accès support"
 }

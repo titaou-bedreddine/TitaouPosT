@@ -973,5 +973,14 @@
   "preset_bold": "تباين جريء",
   "preset_bold_sub": "عرض تسويقي",
   "preset_coral": "مرجاني للجوال",
-  "preset_coral_sub": "ثنائي اللون للجوال"
+  "preset_coral_sub": "ثنائي اللون للجوال",
+  "st_restore_original_look": "↺ استعادة المظهر الأصلي",
+  "help_support_title": "اطلب الدعم (عن بعد)",
+  "support_sent": "🆘 Demande envoyée — l'ID du PC a été transmis au technicien. Restez à ce poste.",
+  "support_missing_rustdesk": "❌ RustDesk n'est pas installé sur ce PC — demandez l'installation au responsable.",
+  "support_missing_telegram": "❌ Les alertes Telegram ne sont pas configurées. Contactez le responsable.",
+  "st_remote_support_title": "الدعم عن بعد (RustDesk)",
+  "st_remote_support_desc": "تستطيع أجهزة العملاء إرسال طلب دعم بنقرة واحدة: يصلك معرّف RustDesk وكلمة المرور على تيليجرام.",
+  "st_rustdesk_path": "مسار RustDesk (اختياري — كشف تلقائي)",
+  "st_rustdesk_password": "كلمة مرور الوصول للدعم"
 }

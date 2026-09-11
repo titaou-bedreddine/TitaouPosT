@@ -973,5 +973,14 @@
   "preset_bold": "Bold Contrast",
   "preset_bold_sub": "Marketing showcase",
   "preset_coral": "Coral Mobile",
-  "preset_coral_sub": "Mobile duotone"
+  "preset_coral_sub": "Mobile duotone",
+  "st_restore_original_look": "↺ Restore Original Look",
+  "help_support_title": "Get Support (Remote Help)",
+  "support_sent": "🆘 Support request sent — your PC ID was delivered to the technician. Stay at this PC, help is on the way.",
+  "support_missing_rustdesk": "❌ RustDesk is not installed on this PC yet — ask the administrator to install the support module.",
+  "support_missing_telegram": "❌ Support alerts are not configured yet (Telegram). Ask the administrator.",
+  "st_remote_support_title": "Remote Support (RustDesk)",
+  "st_remote_support_desc": "Client PCs can send a one-click support request: their RustDesk ID and access password are delivered to your Telegram.",
+  "st_rustdesk_path": "RustDesk Path (optional — auto-detected)",
+  "st_rustdesk_password": "Support Access Password"
 }

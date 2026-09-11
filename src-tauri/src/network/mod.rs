@@ -101,6 +101,7 @@ pub const LOCAL_ONLY_SETTINGS: &[&str] = &[
     "label_printer_name",
     "drawer_com_port",
     "drawer_baud_rate",
+    "rustdesk_path",
     "mobile_server_port",
     "ui_language",
     "first_setup_completed",
