@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { t } from '../../lib/i18n';
+  import { t, currentLocale } from '../../lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
   import ShortcutsEditor from '../../lib/components/ShortcutsEditor.svelte';
@@ -1460,8 +1460,8 @@
     <div class:hidden={currentTab !== 'general'}>
       <div class="max-w-4xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-pos-text">Shop Profile & Store Logo</h2>
-          <p class="text-xs text-pos-muted">Configure store identity, commercial register info, and logo preview</p>
+          <h2 class="text-base font-black text-pos-text">{ t('st_shop_profile_store_logo', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_configure_store_identity_commercial', $currentLocale) }</p>
         </div>
 
         <!-- Store Logo Preview Section -->
@@ -1471,21 +1471,19 @@
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-xs font-black text-pos-text">Store Logo Preview (TitaouPOS Icon)</h4>
-            <p class="text-[11px] text-pos-muted">This logo appears on printed invoices, thermal receipts, and sidebar branding.</p>
+            <h4 class="text-xs font-black text-pos-text">{ t('st_store_logo_preview_titaoupos', $currentLocale) }</h4>
+            <p class="text-[11px] text-pos-muted">{ t('st_this_logo_appears_on', $currentLocale) }</p>
             <div class="flex items-center gap-2">
               <label class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 transition">
                 <Upload class="w-3.5 h-3.5" />
-                <span>Upload New Logo</span>
+                <span>{ t('st_upload_new_logo', $currentLocale) }</span>
                 <input type="file" accept="image/*" on:change={handleLogoUpload} class="hidden" />
               </label>
               <button
                 type="button"
                 on:click={() => { shopLogoUrl = '/logo.png'; triggerSaveNotification('Reset to default Titaoupos logo'); }}
                 class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer"
-              >
-                Reset Default
-              </button>
+              >{ t('st_reset_default', $currentLocale) }</button>
             </div>
           </div>
         </div>
@@ -1493,42 +1491,42 @@
         <!-- Form Fields -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Shop Name (Arabic / بالعربية)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_shop_name_arabic', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_name_ar} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Shop Name (French / Français)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_shop_name_french_fran', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_name_fr} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-bold" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Phone Number(s)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_phone_number_s', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_phone} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-mono" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Store Address / City</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_store_address_city', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_address} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Registre de Commerce (RC)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_registre_de_commerce_rc', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_rc} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-mono" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">NIF (Numéro d'Identification Fiscale)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_nif_num_ro_d', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_nif} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-mono" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">NIS</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_nis', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_nis} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-mono" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Article d'Imposition (AI)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_article_d_imposition_ai', $currentLocale) }</label>
             <input type="text" bind:value={settings.shop_ai} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs text-pos-text font-mono" />
           </div>
         </div>
@@ -1536,8 +1534,8 @@
         <!-- System Behavior -->
         <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-pos-border flex items-center justify-between gap-4">
           <div>
-            <h4 class="text-xs font-black text-pos-text">Start with Windows (الانطلاق مع ويندوز)</h4>
-            <p class="text-[11px] text-pos-muted">TitaouPOS launches automatically when the PC boots.</p>
+            <h4 class="text-xs font-black text-pos-text">{ t('st_start_with_windows', $currentLocale) }</h4>
+            <p class="text-[11px] text-pos-muted">{ t('st_titaoupos_launches_automatically_when', $currentLocale) }</p>
           </div>
           <button
             type="button"
@@ -1549,9 +1547,7 @@
         </div>
 
         <div class="pt-4 border-t border-pos-border flex justify-end">
-          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">
-            Save Changes (حفظ التعديلات)
-          </button>
+          <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer">{ t('st_save_changes', $currentLocale) }</button>
         </div>
       </div>
 
@@ -1563,14 +1559,14 @@
         <!-- Invoice / Receipt Printer Selection -->
         <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-pos-border flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <h4 class="text-xs font-black text-pos-text">Receipt Printer — the ONE selector (طابعة الوصولات)</h4>
-            <p class="text-[11px] text-pos-muted">Prints receipts, invoices and vouchers via the native Windows print API. Empty = system default printer.</p>
+            <h4 class="text-xs font-black text-pos-text">{ t('st_receipt_printer_the_one', $currentLocale) }</h4>
+            <p class="text-[11px] text-pos-muted">{ t('st_prints_receipts_invoices_and', $currentLocale) }</p>
           </div>
           <select
             bind:value={settings.invoice_printer_name}
             class="px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer max-w-[220px]"
           >
-            <option value="">Default Windows Printer</option>
+            <option value="">{ t('st_default_windows_printer', $currentLocale) }</option>
             {#each printerList as pr}
               <option value={pr}>{pr}</option>
             {/each}
@@ -1579,17 +1575,17 @@
 
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-base font-black text-pos-text">Thermal Receipts & Invoice Printing / إعدادات طباعة الوصولات</h2>
-            <p class="text-xs text-pos-muted">Configure printer hardware, receipt layout, font sizes, bold weights, and what fields to show</p>
+            <h2 class="text-base font-black text-pos-text">{ t('st_thermal_receipts_invoice_printing', $currentLocale) }</h2>
+            <p class="text-xs text-pos-muted">{ t('st_configure_printer_hardware_receipt', $currentLocale) }</p>
           </div>
           <div class="flex items-center gap-2">
             <button on:click={testPrintReceipt} class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition">
               <Printer class="w-4 h-4 text-sky-500" />
-              <span>Test Print Receipt</span>
+              <span>{ t('st_test_print_receipt', $currentLocale) }</span>
             </button>
             <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
               <Check class="w-4 h-4" />
-              <span>Save Print Settings</span>
+              <span>{ t('st_save_print_settings', $currentLocale) }</span>
             </button>
           </div>
         </div>
@@ -1601,25 +1597,25 @@
             <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
               <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
                 <Printer class="w-4 h-4 text-sky-500" />
-                <span>Printer & Page Sizing (إعدادات الطابعة والورق)</span>
+                <span>{ t('st_printer_page_sizing', $currentLocale) }</span>
               </h3>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-pos-muted mb-1">Paper Roll Width</label>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_paper_roll_width', $currentLocale) }</label>
                   <select bind:value={settings.receipt_paper_width} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text font-bold">
-                    <option value="80mm">80 mm (Standard POS)</option>
-                    <option value="58mm">58 mm (Compact Mini)</option>
-                    <option value="A4">A4 Full Sheet Invoice</option>
+                    <option value="80mm">{ t('st_80_mm_standard_pos', $currentLocale) }</option>
+                    <option value="58mm">{ t('st_58_mm_compact_mini', $currentLocale) }</option>
+                    <option value="A4">{ t('st_a4_full_sheet_invoice', $currentLocale) }</option>
                   </select>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Font Family</label>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_receipt_font_family', $currentLocale) }</label>
                   <select bind:value={settings.receipt_font_family} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text font-bold">
-                    <option value="monospace">Monospace (Terminal)</option>
-                    <option value="sans-serif">Sans-Serif (Modern)</option>
+                    <option value="monospace">{ t('st_monospace_terminal', $currentLocale) }</option>
+                    <option value="sans-serif">{ t('st_sans_serif_modern', $currentLocale) }</option>
                     <option value="Courier New">Courier New</option>
-                    <option value="serif">Serif (Traditional)</option>
+                    <option value="serif">{ t('st_serif_traditional', $currentLocale) }</option>
                   </select>
                 </div>
               </div>
@@ -1628,12 +1624,12 @@
             <!-- Greeting and Policy Notes -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Header Greeting (Arabe / Français)</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_receipt_header_greeting_arabe', $currentLocale) }</label>
                 <input type="text" bind:value={settings.receipt_header} placeholder="مرحباً بكم في سوبرماركت تيتاو" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Receipt Footer Note / Return Policy</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_receipt_footer_note_return', $currentLocale) }</label>
                 <input type="text" bind:value={settings.receipt_footer} placeholder="Les articles retournés doivent être présentés sous 48h" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
               </div>
             </div>
@@ -1645,71 +1641,71 @@
             <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
               <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
                 <FileText class="w-4 h-4 text-sky-500" />
-                <span>Receipt Content (محتوى الوصل)</span>
+                <span>{ t('st_receipt_content', $currentLocale) }</span>
               </h3>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-pos-muted mb-1">Thank-you Message (footer)</label>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_thank_you_message_footer', $currentLocale) }</label>
                   <input type="text" bind:value={settings.receipt_thank_you} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-pos-muted mb-1">Shop Website (receipt header)</label>
+                  <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_shop_website_receipt_header', $currentLocale) }</label>
                   <input type="text" bind:value={settings.shop_website} on:change={autoSaveSettings} placeholder="www.titaoupos.dz" class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs text-pos-text font-bold outline-none" />
                 </div>
               </div>
-              <p class="text-[10px] text-pos-muted">Printed silently through the Windows print API (GDI) — never a browser dialog. The live preview on the right is exactly what prints.</p>
+              <p class="text-[10px] text-pos-muted">{ t('st_printed_silently_through_the', $currentLocale) }</p>
             </div>
 
             <!-- Section Content Visibility Toggles -->
             <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
               <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
                 <Eye class="w-4 h-4 text-sky-500" />
-                <span>Fields to Show on Receipt (العناصر المراد إظهارها)</span>
+                <span>{ t('st_fields_to_show_on', $currentLocale) }</span>
               </h3>
               <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_shop_name} class="rounded text-sky-600" />
-                  <span>Shop Name & Header</span>
+                  <span>{ t('st_shop_name_header', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_address} class="rounded text-sky-600" />
-                  <span>Store Address</span>
+                  <span>{ t('st_store_address', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_phone} class="rounded text-sky-600" />
-                  <span>Phone Number</span>
+                  <span>{ t('st_phone_number', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_rc_nif} class="rounded text-sky-600" />
-                  <span>RC & NIF Info</span>
+                  <span>{ t('st_rc_nif_info', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_cashier} class="rounded text-sky-600" />
-                  <span>Cashier Name</span>
+                  <span>{ t('st_cashier_name', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_date} class="rounded text-sky-600" />
-                  <span>Date & Timestamp</span>
+                  <span>{ t('st_date_timestamp', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_footer} class="rounded text-sky-600" />
-                  <span>Footer Note / Policy</span>
+                  <span>{ t('st_footer_note_policy', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_qr} class="rounded text-sky-600" />
-                  <span>QR Code Verification</span>
+                  <span>{ t('st_qr_code_verification', $currentLocale) }</span>
                 </label>
 
                 <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <input type="checkbox" bind:checked={settings.receipt_show_barcode} class="rounded text-sky-600" />
-                  <span>Invoice Barcode (professional preset)</span>
+                  <span>{ t('st_invoice_barcode_professional_preset', $currentLocale) }</span>
                 </label>
               </div>
             </div>
@@ -1736,11 +1732,11 @@
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
           <h3 class="font-black text-xs text-pos-text flex items-center gap-1.5">
             <CreditCard class="w-4 h-4 text-emerald-600" />
-            <span>Serial Cash Drawer (COM Port) / درج النقود</span>
+            <span>{ t('st_serial_cash_drawer_com', $currentLocale) }</span>
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">COM Port</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_com_port', $currentLocale) }</label>
               <select bind:value={settings.drawer_com_port} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
                 {#each Array.from({ length: 10 }, (_, i) => i + 1) as port}
                   <option value={port.toString()}>COM{port}</option>
@@ -1748,7 +1744,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Baud Rate</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_baud_rate', $currentLocale) }</label>
               <select bind:value={settings.drawer_baud_rate} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text">
                 <option value="9600">9600</option>
                 <option value="19200">19200</option>
@@ -1770,7 +1766,7 @@
         <div class="pt-4 border-t border-pos-border flex justify-end">
           <button on:click={saveAllSettings} class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save Print & Drawer Settings</span>
+            <span>{ t('st_save_print_drawer_settings', $currentLocale) }</span>
           </button>
         </div>
       </div>
@@ -1785,13 +1781,13 @@
           <div>
             <h2 class="text-base font-black text-pos-text flex items-center gap-2">
               <Scale class="w-5 h-5 text-sky-600" />
-              <span>ACLAS Electronic Scale SDK Integration</span>
+              <span>{ t('st_aclas_electronic_scale_sdk', $currentLocale) }</span>
             </h2>
-            <p class="text-xs text-pos-muted">Direct TCP/IP synchronization for ACLAS LH51, LS M3, and TS Series scales</p>
+            <p class="text-xs text-pos-muted">{ t('st_direct_tcp_ip_synchronization', $currentLocale) }</p>
           </div>
           <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save Scale Settings</span>
+            <span>{ t('st_save_scale_settings', $currentLocale) }</span>
           </button>
         </div>
 
@@ -1803,23 +1799,23 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="md:col-span-2 p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-            <h3 class="font-black text-sm text-pos-text">Scale Network & Protocol Configuration</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_scale_network_protocol_configuration', $currentLocale) }</h3>
             
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Scale IP Address (Ethernet) *</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_scale_ip_address_ethernet', $currentLocale) }</label>
                 <input type="text" bind:value={settings.scale_ip} placeholder="192.168.1.87" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none focus:ring-2 focus:ring-sky-500" />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Scale Port</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_scale_port', $currentLocale) }</label>
                 <input type="number" bind:value={settings.scale_port} placeholder="0" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Default Scale Barcode Format *</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_default_scale_barcode_format', $currentLocale) }</label>
                 <select bind:value={settings.scale_default_barcode_type} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text">
                   <option value="97">Type 97: 18-Code (Dept + ItemCode + Price + Weight + Checksum)</option>
                   <option value="2">Type 02: EAN-13 Price Embedded (DD IIIII PPPPP C)</option>
@@ -1832,14 +1828,14 @@
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-pos-muted mb-1">Scale Department ID (1-99)</label>
+                <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_scale_department_id_1', $currentLocale) }</label>
                 <input type="number" min="1" max="99" bind:value={settings.scale_department_id} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text" />
               </div>
             </div>
 
             <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer">
               <input type="checkbox" bind:checked={settings.scale_auto_sync} class="rounded text-sky-600" />
-              <span>Automatically sync scalable products to scale on price/name changes</span>
+              <span>{ t('st_automatically_sync_scalable_products', $currentLocale) }</span>
             </label>
 
             <!-- Actions -->
@@ -1877,12 +1873,12 @@
           </div>
 
           <div class="p-5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-2xl space-y-3">
-            <h4 class="font-black text-xs text-sky-800 dark:text-sky-200">ACLAS Scale Features</h4>
+            <h4 class="font-black text-xs text-sky-800 dark:text-sky-200">{ t('st_aclas_scale_features', $currentLocale) }</h4>
             <ul class="text-xs text-pos-muted space-y-2">
-              <li>• Direct native dynamic loading via <strong class="text-pos-text">AclasSDK.dll (Win64)</strong></li>
-              <li>• Generates standard UTF-16LE PLU format with custom department & price</li>
-              <li>• Real Barcode Type 97 payload verification</li>
-              <li>• Automatic synchronization on POS price changes</li>
+              <li>{ t('st_direct_native_dynamic_loading', $currentLocale) }<strong class="text-pos-text">AclasSDK.dll (Win64)</strong></li>
+              <li>{ t('st_generates_standard_utf_16le', $currentLocale) }</li>
+              <li>{ t('st_real_barcode_type_97', $currentLocale) }</li>
+              <li>{ t('st_automatic_synchronization_on_pos', $currentLocale) }</li>
             </ul>
           </div>
         </div>
@@ -1890,24 +1886,24 @@
         <!-- Sync Logs Table -->
         <div class="space-y-3 pt-2">
           <div class="flex items-center justify-between">
-            <h3 class="font-black text-xs text-pos-text">Recent Scale Synchronization History (سجل المزامنة)</h3>
-            <button on:click={loadScaleLogs} class="text-xs font-bold text-sky-600 hover:underline">Refresh</button>
+            <h3 class="font-black text-xs text-pos-text">{ t('st_recent_scale_synchronization_history', $currentLocale) }</h3>
+            <button on:click={loadScaleLogs} class="text-xs font-bold text-sky-600 hover:underline">{ t('st_refresh', $currentLocale) }</button>
           </div>
           <div class="bg-pos-card border border-pos-border rounded-2xl overflow-hidden">
             <table class="w-full text-start text-xs border-collapse">
               <thead class="bg-slate-50 dark:bg-slate-800/60 border-b border-pos-border text-pos-muted font-bold">
                 <tr>
-                  <th class="p-2.5 text-start">Time</th>
-                  <th class="p-2.5 text-start">Product</th>
-                  <th class="p-2.5 text-start">PLU #</th>
-                  <th class="p-2.5 text-center">Direction</th>
-                  <th class="p-2.5 text-center">Status</th>
+                  <th class="p-2.5 text-start">{ t('st_time', $currentLocale) }</th>
+                  <th class="p-2.5 text-start">{ t('st_product', $currentLocale) }</th>
+                  <th class="p-2.5 text-start">{ t('st_plu', $currentLocale) }</th>
+                  <th class="p-2.5 text-center">{ t('st_direction', $currentLocale) }</th>
+                  <th class="p-2.5 text-center">{ t('st_status', $currentLocale) }</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-pos-border/40">
                 {#if scaleSyncLogs.length === 0}
                   <tr>
-                    <td colspan="5" class="p-4 text-center text-pos-muted">No synchronization records yet.</td>
+                    <td colspan="5" class="p-4 text-center text-pos-muted">{ t('st_no_synchronization_records_yet', $currentLocale) }</td>
                   </tr>
                 {:else}
                   {#each scaleSyncLogs.slice(0, 10) as log}
@@ -1939,13 +1935,13 @@
           <div>
             <h2 class="text-base font-black text-pos-text flex items-center gap-2">
               <Bell class="w-5 h-5 text-sky-600" />
-              <span>Telegram Bot Notifications & Event Alerts</span>
+              <span>{ t('st_telegram_bot_notifications_event', $currentLocale) }</span>
             </h2>
-            <p class="text-xs text-pos-muted">Send automated alerts directly to your phone or management channel</p>
+            <p class="text-xs text-pos-muted">{ t('st_send_automated_alerts_directly', $currentLocale) }</p>
           </div>
           <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save Alert Settings</span>
+            <span>{ t('st_save_alert_settings', $currentLocale) }</span>
           </button>
         </div>
 
@@ -1957,13 +1953,13 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-            <h3 class="font-black text-sm text-pos-text">Telegram Bot Credentials</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_telegram_bot_credentials', $currentLocale) }</h3>
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Bot Token</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_telegram_bot_token', $currentLocale) }</label>
               <input type="text" bind:value={settings.telegram_bot_token} placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Telegram Chat ID (Channel or Group ID)</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_telegram_chat_id_channel', $currentLocale) }</label>
               <input type="text" bind:value={settings.telegram_chat_id} placeholder="-100123456789" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
             </div>
             <button type="button" on:click={sendTelegramTest} disabled={isSendingTelegram} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer">
@@ -1973,48 +1969,48 @@
           </div>
 
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
-            <h3 class="font-black text-sm text-pos-text">Alert Triggers</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_alert_triggers', $currentLocale) }</h3>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Instant notification on every sale</span>
+              <span>{ t('st_instant_notification_on_every', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_each_sale} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Notification on refunds & returns</span>
+              <span>{ t('st_notification_on_refunds_returns', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_each_refund} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Near-expired (under 30 days) & expired items alert</span>
+              <span>{ t('st_near_expired_under_30', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_expiry} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Low stock & inventory depletion alert</span>
+              <span>{ t('st_low_stock_inventory_depletion', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_low_stock} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Cash deposits into the drawer (إيداع الصندوق)</span>
+              <span>{ t('st_cash_deposits_into_the', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_cash_in} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Cash withdrawals & expenses (سحب/مصاريف)</span>
+              <span>{ t('st_cash_withdrawals_expenses', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_cash_out} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Every recorded expense (كل مصروف)</span>
+              <span>{ t('st_every_recorded_expense', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_each_expense} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Opening cash of a new session (رصيد افتتاحي)</span>
+              <span>{ t('st_opening_cash_of_a', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_opening_cash} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <div>
-                <span>Cash session & opening balance edit / تعديل جلسة ورصيد الصندوق</span>
-                <p class="text-[10px] text-pos-muted font-normal">Alert when a cash session or opening balance is modified</p>
+                <span>{ t('st_cash_session_opening_balance', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_alert_when_a_cash', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.notify_cash_edited} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Supplier debt payments (تسديد الموردين)</span>
+              <span>{ t('st_supplier_debt_payments', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_supplier_payment} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
 
@@ -2037,43 +2033,43 @@
 
             <!-- Employee payroll payment reminders (Req 26) -->
             <div class="p-3 bg-sky-50 dark:bg-sky-950/30 rounded-xl border border-sky-200 dark:border-sky-800/60 space-y-2">
-              <span class="text-[11px] font-black text-sky-800 dark:text-sky-200 block">Employee Payroll Reminders (تذكير رواتب الموظفين)</span>
+              <span class="text-[11px] font-black text-sky-800 dark:text-sky-200 block">{ t('st_employee_payroll_reminders', $currentLocale) }</span>
               <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-                <span>Notify for employee payroll (master)</span>
+                <span>{ t('st_notify_for_employee_payroll', $currentLocale) }</span>
                 <input type="checkbox" bind:checked={settings.notify_payroll_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
               </label>
               <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-                <span>In-app payroll reminder (1 day before + due day)</span>
+                <span>{ t('st_in_app_payroll_reminder', $currentLocale) }</span>
                 <input type="checkbox" bind:checked={settings.notify_payroll_inapp} class="rounded text-sky-600" on:change={autoSaveSettings} />
               </label>
               <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-                <span>Telegram payroll reminder</span>
+                <span>{ t('st_telegram_payroll_reminder', $currentLocale) }</span>
                 <input type="checkbox" bind:checked={settings.notify_payroll_telegram} class="rounded text-sky-600" on:change={autoSaveSettings} />
               </label>
-              <p class="text-[10px] text-pos-muted">Reminders fire once per employee per occurrence (restart-safe), and never for an already-paid period.</p>
+              <p class="text-[10px] text-pos-muted">{ t('st_reminders_fire_once_per', $currentLocale) }</p>
             </div>
 
             <!-- Admin-action alerts (session delete/archive, debt clear) -->
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Session deleted (admin action) / حذف جلسة</span>
+              <span>{ t('st_session_deleted_admin_action', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_session_deleted} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Session archived / أرشفة جلسة</span>
+              <span>{ t('st_session_archived', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_session_archived} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
-              <span>Customer/supplier debt cleared / مصالحة ديون</span>
+              <span>{ t('st_customer_supplier_debt_cleared', $currentLocale) }</span>
               <input type="checkbox" bind:checked={settings.notify_debt_cleared} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
           </div>
 
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
-            <h3 class="font-black text-sm text-pos-text">Recurring Recap (ملخص دوري)</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_recurring_recap', $currentLocale) }</h3>
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer">
               <div>
-                <span>Enable automatic recap</span>
-                <p class="text-[10px] text-pos-muted font-normal">Sends a sales/cash/expenses summary every X while the app is open</p>
+                <span>{ t('st_enable_automatic_recap', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_sends_a_sales_cash', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.notify_recap_enabled} class="rounded text-sky-600" on:change={autoSaveSettings} />
             </label>
@@ -2083,7 +2079,7 @@
               <div class="flex items-center justify-between">
                 <div>
                   <span class="text-[11px] font-black text-pos-text block">{t('tg_schedule_title') || 'Quiet Hours (ساعات الصمت)'}</span>
-                  <p class="text-[10px] text-pos-muted">Notifications muted during these hours</p>
+                  <p class="text-[10px] text-pos-muted">{ t('st_notifications_muted_during_these', $currentLocale) }</p>
                 </div>
                 <button
                   type="button"
@@ -2091,25 +2087,25 @@
                   class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
                 >
                   <Plus class="w-3 h-3" />
-                  <span>Add Window / إضافة</span>
+                  <span>{ t('st_add_window', $currentLocale) }</span>
                 </button>
               </div>
 
               {#if quietWindowList.length === 0}
-                <p class="text-xs text-pos-muted italic py-1">No quiet hours configured (notifications active 24/7).</p>
+                <p class="text-xs text-pos-muted italic py-1">{ t('st_no_quiet_hours_configured', $currentLocale) }</p>
               {:else}
                 <div class="space-y-2">
                   {#each quietWindowList as w, idx}
                     <div class="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-pos-border">
                       <div class="flex-1 flex items-center gap-2">
-                        <span class="text-[10px] font-bold text-pos-muted">From:</span>
+                        <span class="text-[10px] font-bold text-pos-muted">{ t('st_from', $currentLocale) }</span>
                         <input
                           type="time"
                           bind:value={w.start}
                           on:change={updateQuietWindowsString}
                           class="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none cursor-pointer"
                         />
-                        <span class="text-[10px] font-bold text-pos-muted">To:</span>
+                        <span class="text-[10px] font-bold text-pos-muted">{ t('st_to', $currentLocale) }</span>
                         <input
                           type="time"
                           bind:value={w.end}
@@ -2121,7 +2117,7 @@
                         type="button"
                         on:click={() => removeQuietWindow(idx)}
                         class="p-1.5 text-pos-muted hover:text-rose-600 rounded-lg transition cursor-pointer"
-                        title="Delete Window"
+                        title={t('st_delete_window', $currentLocale)}
                       >
                         <Trash2 class="w-3.5 h-3.5" />
                       </button>
@@ -2131,18 +2127,18 @@
               {/if}
             </div>
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Recap frequency</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_recap_frequency', $currentLocale) }</label>
               <select bind:value={settings.recap_interval_minutes} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
-                <option value="15">Every 15 minutes</option>
-                <option value="30">Every 30 minutes</option>
-                <option value="60">Every hour</option>
-                <option value="120">Every 2 hours</option>
-                <option value="240">Every 4 hours</option>
+                <option value="15">{ t('st_every_15_minutes', $currentLocale) }</option>
+                <option value="30">{ t('st_every_30_minutes', $currentLocale) }</option>
+                <option value="60">{ t('st_every_hour', $currentLocale) }</option>
+                <option value="120">{ t('st_every_2_hours', $currentLocale) }</option>
+                <option value="240">{ t('st_every_4_hours', $currentLocale) }</option>
               </select>
             </div>
             <button type="button" on:click={sendRecapNow} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer">
               <Send class="w-3.5 h-3.5" />
-              <span>Send Recap Now (إرسال الملخص الآن)</span>
+              <span>{ t('st_send_recap_now', $currentLocale) }</span>
             </button>
             {#if recapStatusMsg}
               <p class="text-[11px] font-bold text-pos-muted">{recapStatusMsg}</p>
@@ -2160,12 +2156,12 @@
       <div class="max-w-5xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-base font-black text-pos-text">Label Presets — Barcode Stickers & Shelf Tags (قوالب الملصقات)</h2>
-            <p class="text-xs text-pos-muted">One current preset used by every label print: product modal, batch printing, shelf etiquette. mm-exact, silent, no print dialog.</p>
+            <h2 class="text-base font-black text-pos-text">{ t('st_label_presets_barcode_stickers', $currentLocale) }</h2>
+            <p class="text-xs text-pos-muted">{ t('st_one_current_preset_used', $currentLocale) }</p>
           </div>
           <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save Label Settings</span>
+            <span>{ t('st_save_label_settings', $currentLocale) }</span>
           </button>
         </div>
 
@@ -2173,7 +2169,7 @@
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="space-y-4">
             <div>
-              <label class="block text-[11px] font-bold text-pos-muted mb-1">Current Preset (القالب الحالي) — default everywhere labels print</label>
+              <label class="block text-[11px] font-bold text-pos-muted mb-1">{ t('st_current_preset_default_everywhere', $currentLocale) }</label>
               <div class="flex gap-2">
                 <select
                   bind:value={settings.label_preset_id}
@@ -2187,40 +2183,35 @@
                   type="button"
                   on:click={() => { settings.label_preset_id = 'vprice40x20'; autoSaveSettings(); triggerSaveNotification('Preset reset to the built-in Vertical Price 40×20'); }}
                   class="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text text-[10px] font-black rounded-xl cursor-pointer shrink-0"
-                  title="Reset to the built-in default preset"
-                >
-                  Reset to Preset
-                </button>
+                  title={t('st_reset_to_the_built', $currentLocale)}
+                >{ t('st_reset_to_preset', $currentLocale) }</button>
               </div>
             </div>
 
             <!-- Preview data (drives the live label + receipt previews) -->
             <div class="grid grid-cols-1 gap-3">
               <div>
-                <label class="block text-[10px] font-bold text-pos-muted mb-1">Preview product name</label>
+                <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_preview_product_name', $currentLocale) }</label>
                 <input type="text" bind:value={previewProductName} class="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-bold text-pos-text outline-none" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Preview barcode</label>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_preview_barcode', $currentLocale) }</label>
                   <input type="text" bind:value={previewBarcodeNumber} class="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none" />
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Preview price (DZD)</label>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_preview_price_dzd', $currentLocale) }</label>
                   <input type="number" bind:value={previewPrice} class="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-lg text-xs font-mono font-bold text-pos-text outline-none" />
                 </div>
               </div>
             </div>
 
-            <p class="text-[10px] text-pos-muted bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg p-2.5">
-              Layout, typography and barcode geometry are built into each mm-true preset — what you see in the preview is
-              exactly what prints, at 203/300/600 DPI, with zero gaps and no print dialog.
-            </p>
+            <p class="text-[10px] text-pos-muted bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg p-2.5">{ t('st_layout_typography_note', $currentLocale) }</p>
           </div>
 
           <!-- Live preview of the CURRENT preset (2.2× scale) -->
           <div class="space-y-2">
-            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block text-center">Live Preview — current preset</span>
+            <span class="text-[10px] font-black text-pos-muted uppercase tracking-wider block text-center">{ t('st_live_preview_current_preset', $currentLocale) }</span>
             <div class="bg-white dark:bg-slate-900 border border-pos-border rounded-xl p-4 flex justify-center overflow-hidden">
               {#if builtinLabelPreviews[settings.label_preset_id as LabelPresetId]}
                 <!-- dir="ltr": label geometry is absolute mm — RTL mirroring
@@ -2231,7 +2222,7 @@
                   </div>
                 </div>
               {:else}
-                <p class="text-[11px] text-pos-muted py-8">Open the Barcode Labels tab to render the preview.</p>
+                <p class="text-[11px] text-pos-muted py-8">{ t('st_open_the_barcode_labels', $currentLocale) }</p>
               {/if}
             </div>
           </div>
@@ -2240,36 +2231,34 @@
         <!-- Label printer hardware (exact-media silent pipeline) -->
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-[10px] font-bold text-pos-muted mb-1">Label Printer (طابعة الملصقات)</label>
+            <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_label_printer', $currentLocale) }</label>
             <select
               bind:value={settings.label_printer}
               on:change={autoSaveSettings}
               class="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
             >
-              <option value="">Default Windows Printer</option>
+              <option value="">{ t('st_default_windows_printer', $currentLocale) }</option>
               {#each printerList as pr}
                 <option value={pr}>{pr}</option>
               {/each}
             </select>
-            <p class="text-[9px] text-pos-muted mt-1">Used by the exact-media pipeline: one page per label, no gaps, silent.</p>
+            <p class="text-[9px] text-pos-muted mt-1">{ t('st_used_by_the_exact', $currentLocale) }</p>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-pos-muted mb-1">Label Printer DPI</label>
+            <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_label_printer_dpi', $currentLocale) }</label>
             <select
               bind:value={settings.label_printer_dpi}
               on:change={autoSaveSettings}
               class="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
             >
-              <option value="203">203 DPI (standard thermal)</option>
-              <option value="300">300 DPI (high-res)</option>
-              <option value="600">600 DPI (photo-grade)</option>
+              <option value="203">{ t('st_203_dpi_standard_thermal', $currentLocale) }</option>
+              <option value="300">{ t('st_300_dpi_high_res', $currentLocale) }</option>
+              <option value="600">{ t('st_600_dpi_photo_grade', $currentLocale) }</option>
             </select>
-            <p class="text-[9px] text-pos-muted mt-1">Match your printer model's resolution for crisp bars.</p>
+            <p class="text-[9px] text-pos-muted mt-1">{ t('st_match_your_printer_model', $currentLocale) }</p>
           </div>
           <div class="flex items-end">
-            <p class="text-[10px] text-pos-muted bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5 w-full">
-              Multi-copy jobs print consecutively — Label 2 feeds right after Label 1. No A4 pages, no blank gaps, no dialog.
-            </p>
+            <p class="text-[10px] text-pos-muted bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5 w-full">{ t('st_multi_copy_jobs_print', $currentLocale) }</p>
           </div>
         </div>
 
@@ -2298,7 +2287,7 @@
                 class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Printer class="w-3.5 h-3.5" />
-                <span>Test Print (<span dir="ltr">{LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm}mm</span>)</span>
+                <span>{ t('st_test_print', $currentLocale) }<span dir="ltr">{LABEL_PRESETS[pid].widthMm}×{LABEL_PRESETS[pid].heightMm}mm</span>)</span>
               </button>
             </div>
           {/each}
@@ -2319,53 +2308,53 @@
           <div>
             <h2 class="text-base font-black text-pos-text flex items-center gap-2">
               <Sliders class="w-5 h-5 text-sky-600" />
-              <span>Point of Sale Business Rules & Operational Flow</span>
+              <span>{ t('st_point_of_sale_business', $currentLocale) }</span>
             </h2>
-            <p class="text-xs text-pos-muted">Configure cart behavior, scanner auto-focus, cashier security rules, and negative stock selling</p>
+            <p class="text-xs text-pos-muted">{ t('st_configure_cart_behavior_scanner', $currentLocale) }</p>
           </div>
           <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save POS Rules</span>
+            <span>{ t('st_save_pos_rules', $currentLocale) }</span>
           </button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Inventory & Stock Selling Rules -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-            <h3 class="font-black text-sm text-pos-text">Stock & Inventory Controls</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_stock_inventory_controls', $currentLocale) }</h3>
             
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
-                <span>Allow Negative Stock Selling</span>
-                <p class="text-[10px] text-pos-muted font-normal">Permit cashiers to complete sales even when stock is zero or depleted</p>
+                <span>{ t('st_allow_negative_stock_selling', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_permit_cashiers_to_complete', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.allow_negative_stock} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
-                <span>Require Note When Holding Sales</span>
-                <p class="text-[10px] text-pos-muted font-normal">Prompt cashiers to enter a customer reference or note before holding a ticket</p>
+                <span>{ t('st_require_note_when_holding', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_prompt_cashiers_to_enter', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.hold_sale_require_note} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Default Walk-in Customer Label</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_default_walk_in_customer', $currentLocale) }</label>
               <input type="text" bind:value={settings.default_customer_name} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none" />
             </div>
 
             <div class="grid grid-cols-2 gap-3 pt-1">
               <div>
-                <label class="block text-[10px] font-bold text-pos-muted mb-1">Default Margin % (new products)</label>
+                <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_default_margin_new_products', $currentLocale) }</label>
                 <input type="number" min="0" max="500" step="0.5" bind:value={settings.default_margin_percent} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold font-mono text-pos-text outline-none" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-pos-muted mb-1">Round Sale Price to</label>
+                <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_round_sale_price_to', $currentLocale) }</label>
                 <select bind:value={settings.price_round_step} class="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer">
-                  <option value="0">Whole DZD (no rounding)</option>
-                  <option value="5">Nearest 5 DZD (119→120, 116→115)</option>
-                  <option value="10">Nearest 10 DZD</option>
+                  <option value="0">{ t('st_whole_dzd_no_rounding', $currentLocale) }</option>
+                  <option value="5">{ t('st_nearest_5_dzd_119', $currentLocale) }</option>
+                  <option value="10">{ t('st_nearest_10_dzd', $currentLocale) }</option>
                 </select>
               </div>
             </div>
@@ -2374,60 +2363,60 @@
                  total only — never purchase/cost prices nor historical
                  transactions. -->
             <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <label class="block text-[10px] font-bold text-pos-muted mb-1">Sale Total Rounding at Checkout (تقريب مجموع البيع)</label>
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_sale_total_rounding_at', $currentLocale) }</label>
               <select
                 bind:value={settings.sale_price_rounding}
                 on:change={autoSaveSettings}
                 class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border border-pos-border rounded-xl text-xs font-bold text-pos-text outline-none cursor-pointer"
               >
-                <option value="off">OFF — exact total (بدون تقريب)</option>
-                <option value="50">Nearest 50 DZD (e.g. 4,480 → 4,500)</option>
-                <option value="100">Nearest 100 DZD (e.g. 4,480 → 4,500)</option>
+                <option value="off">{ t('st_off_exact_total', $currentLocale) }</option>
+                <option value="50">{ t('st_nearest_50_dzd_e', $currentLocale) }</option>
+                <option value="100">{ t('st_nearest_100_dzd_e', $currentLocale) }</option>
               </select>
-              <p class="text-[9px] text-pos-muted mt-1">Rounds the cart grand total at checkout for quick cash handling. Purchase prices, cost prices and saved history are never modified.</p>
+              <p class="text-[9px] text-pos-muted mt-1">{ t('st_rounds_the_cart_grand', $currentLocale) }</p>
             </div>
           </div>
 
           <!-- Scanner & Hardware Automation Rules -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-            <h3 class="font-black text-sm text-pos-text">Scanner & Workflow Automation</h3>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_scanner_workflow_automation', $currentLocale) }</h3>
 
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
-                <span>Autofocus Barcode Search Bar</span>
-                <p class="text-[10px] text-pos-muted font-normal">Always keep cursor ready in search bar after each product addition or sale</p>
+                <span>{ t('st_autofocus_barcode_search_bar', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_always_keep_cursor_ready', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.pos_autofocus_search} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
             <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <label class="block text-[10px] font-bold text-pos-muted mb-1">Auto-focus idle timer (seconds)</label>
+              <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_auto_focus_idle_timer', $currentLocale) }</label>
               <input type="number" min="0" max="120" bind:value={settings.pos_autofocus_timer_seconds} class="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold font-mono text-pos-text outline-none" />
-              <p class="text-[9px] text-pos-muted font-normal mt-1">Cursor jumps back to the search bar after this many idle seconds (0 = disabled)</p>
+              <p class="text-[9px] text-pos-muted font-normal mt-1">{ t('st_cursor_jumps_back_to', $currentLocale) }</p>
             </div>
 
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
-                <span>Global Barcode Auto-Capture</span>
-                <p class="text-[10px] text-pos-muted font-normal">Intercept fast barcode scanner strokes even when cursor is on another element</p>
+                <span>{ t('st_global_barcode_auto_capture', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_intercept_fast_barcode_scanner', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.pos_auto_capture_barcode} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
 
             <!-- Cart Line Ordering Rule -->
             <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1">
-              <label class="block text-xs font-bold text-pos-text">Cart Product Insertion Order</label>
-              <p class="text-[10px] text-pos-muted">Choose where newly scanned items appear in the shopping cart</p>
+              <label class="block text-xs font-bold text-pos-text">{ t('st_cart_product_insertion_order', $currentLocale) }</label>
+              <p class="text-[10px] text-pos-muted">{ t('st_choose_where_newly_scanned', $currentLocale) }</p>
               <select bind:value={settings.cart_item_order} class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-bold text-pos-text mt-1">
-                <option value="bottom">New items at BOTTOM (Auto-scrolls to bottom)</option>
-                <option value="top">New items at TOP (Most recent on top)</option>
+                <option value="bottom">{ t('st_new_items_at_bottom', $currentLocale) }</option>
+                <option value="top">{ t('st_new_items_at_top', $currentLocale) }</option>
               </select>
             </div>
 
             <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
               <div>
-                <span>Require Admin PIN for Discounts</span>
-                <p class="text-[10px] text-pos-muted font-normal">Disallow cashiers from applying custom discounts without supervisor authorization</p>
+                <span>{ t('st_require_admin_pin_for', $currentLocale) }</span>
+                <p class="text-[10px] text-pos-muted font-normal">{ t('st_disallow_cashiers_from_applying', $currentLocale) }</p>
               </div>
               <input type="checkbox" bind:checked={settings.require_pin_for_discount} class="rounded text-sky-600 w-4 h-4 cursor-pointer" />
             </label>
@@ -2444,13 +2433,13 @@
           <div>
             <h2 class="text-base font-black text-pos-text flex items-center gap-2">
               <Keyboard class="w-5 h-5 text-sky-600" />
-              <span>POS Keyboard Shortcuts Map (اختصارات لوحة المفاتيح)</span>
+              <span>{ t('st_pos_keyboard_shortcuts_map', $currentLocale) }</span>
             </h2>
-            <p class="text-xs text-pos-muted">Custom high-speed keyboard bindings for touch-free cash register operation</p>
+            <p class="text-xs text-pos-muted">{ t('st_custom_high_speed_keyboard', $currentLocale) }</p>
           </div>
           <button on:click={saveAllSettings} class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
             <Check class="w-4 h-4" />
-            <span>Save Shortcuts</span>
+            <span>{ t('st_save_shortcuts', $currentLocale) }</span>
           </button>
         </div>
 
@@ -2466,8 +2455,8 @@
     <div class:hidden={currentTab !== 'network'}>
       <div class="max-w-4xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-pos-text">Local Network & Android Mobile App Sync</h2>
-          <p class="text-xs text-pos-muted">Connect Android scanners, waiter tablets, and inventory devices via Wi-Fi</p>
+          <h2 class="text-base font-black text-pos-text">{ t('st_local_network_android_mobile', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_connect_android_scanners_waiter', $currentLocale) }</p>
         </div>
 
         <!-- ============ TitaouPOS SHOP NETWORK (LAN multi-PC) ============ -->
@@ -2475,14 +2464,10 @@
           <div class="flex items-start justify-between">
             <div>
               <h3 class="text-sm font-black text-pos-text flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full {lanStatus?.mode === 'connected' || lanStatus?.serving ? 'bg-emerald-500 animate-pulse' : lanStatus?.mode === 'searching' || lanStatus?.mode === 'reconnecting' ? 'bg-amber-500 animate-pulse' : lanStatus?.mode === 'offline' ? 'bg-rose-500' : 'bg-slate-400'}"></span>
-                TitaouPOS Shop Network (LAN)
-              </h3>
-              <p class="text-xs text-pos-muted mt-0.5">
-                Multi-PC operation: one shop, one authoritative database, automatic discovery over the local network.
-              </p>
+                <span class="w-3 h-3 rounded-full {lanStatus?.mode === 'connected' || lanStatus?.serving ? 'bg-emerald-500 animate-pulse' : lanStatus?.mode === 'searching' || lanStatus?.mode === 'reconnecting' ? 'bg-amber-500 animate-pulse' : lanStatus?.mode === 'offline' ? 'bg-rose-500' : 'bg-slate-400'}"></span>{ t('st_titaoupos_shop_network_lan', $currentLocale) }</h3>
+              <p class="text-xs text-pos-muted mt-0.5">{ t('st_multi_pc_operation_one', $currentLocale) }</p>
             </div>
-            <button type="button" on:click={refreshLanStatus} class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer" title="Refresh">
+            <button type="button" on:click={refreshLanStatus} class="p-1.5 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer" title={t('st_refresh', $currentLocale)}>
               <RefreshCw class="w-4 h-4" />
             </button>
           </div>
@@ -2497,20 +2482,20 @@
           <!-- Status grid -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <p class="text-[9px] font-black text-pos-muted uppercase">Status</p>
+              <p class="text-[9px] font-black text-pos-muted uppercase">{ t('st_status', $currentLocale) }</p>
               <p class="text-xs font-black text-pos-text capitalize">{lanStatus?.mode || '…'}</p>
             </div>
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <p class="text-[9px] font-black text-pos-muted uppercase">Shop</p>
+              <p class="text-[9px] font-black text-pos-muted uppercase">{ t('st_shop', $currentLocale) }</p>
               <p class="text-xs font-black text-pos-text truncate">{lanStatus?.shop_name || '—'}</p>
             </div>
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <p class="text-[9px] font-black text-pos-muted uppercase">This PC</p>
+              <p class="text-[9px] font-black text-pos-muted uppercase">{ t('st_this_pc', $currentLocale) }</p>
               <p class="text-xs font-black text-pos-text truncate">{lanStatus?.pc_name || '—'}</p>
               <p class="text-[8px] font-mono text-pos-muted truncate">{lanStatus?.node_id || ''}</p>
             </div>
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
-              <p class="text-[9px] font-black text-pos-muted uppercase">Coordinator</p>
+              <p class="text-[9px] font-black text-pos-muted uppercase">{ t('st_coordinator', $currentLocale) }</p>
               <p class="text-xs font-black text-pos-text truncate">{lanStatus?.coordinator?.pc_name || (lanStatus?.serving ? lanStatus?.pc_name : '—')}</p>
               <p class="text-[8px] font-mono text-pos-muted truncate">
                 {lanStatus?.server_url ? lanStatus.server_url.replace('http://','') : (lanStatus?.serving ? (lanStatus?.lan_ips?.[0] || '') + ':' + (lanStatus?.port || 8080) : '—')}
@@ -2521,17 +2506,11 @@
           <!-- Role switcher -->
           <div class="grid grid-cols-3 gap-2">
             <button type="button" on:click={lanSetRole('server')} disabled={lanBusy === 'role'}
-              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'server' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">
-              Server
-            </button>
+              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'server' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">{ t('st_server', $currentLocale) }</button>
             <button type="button" on:click={lanSetRole('client')} disabled={lanBusy === 'role'}
-              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'client' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">
-              Client
-            </button>
+              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'client' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">{ t('st_client', $currentLocale) }</button>
             <button type="button" on:click={lanSetRole('automatic')} disabled={lanBusy === 'role'}
-              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'automatic' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">
-              Automatic (recommended)
-            </button>
+              class="py-2 rounded-xl text-xs font-black cursor-pointer transition {lanStatus?.role === 'automatic' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-pos-text border border-pos-border hover:border-sky-400'}">{ t('st_automatic_recommended', $currentLocale) }</button>
           </div>
 
           <!-- Toggles + actions -->
@@ -2549,23 +2528,19 @@
               Auto Reconnect: {lanStatus?.autoreconnect ? 'ON' : 'OFF'}
             </button>
             <button type="button" on:click={lanOpenFirewall} disabled={lanBusy === 'firewall'}
-              class="px-3 py-1.5 bg-white dark:bg-slate-900 border border-pos-border hover:border-sky-400 text-pos-text rounded-lg text-[10px] font-black cursor-pointer">
-              Allow through Windows Firewall
-            </button>
+              class="px-3 py-1.5 bg-white dark:bg-slate-900 border border-pos-border hover:border-sky-400 text-pos-text rounded-lg text-[10px] font-black cursor-pointer">{ t('st_allow_through_windows_firewall', $currentLocale) }</button>
           </div>
 
           <!-- Become server (shop name) / Leave -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-2">
-              <p class="text-[10px] font-black text-pos-muted uppercase">Become the shop server</p>
+              <p class="text-[10px] font-black text-pos-muted uppercase">{ t('st_become_the_shop_server', $currentLocale) }</p>
               <input type="text" bind:value={lanShopNameInput} placeholder="{lanStatus?.shop_name || 'Shop name (optional)'}" class="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-bold text-pos-text outline-none" />
               <button type="button" on:click={lanBecomeServer} disabled={lanBusy === 'server'}
-                class="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer">
-                Create / Own the Shop Network
-              </button>
+                class="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer">{ t('st_create_own_the_shop', $currentLocale) }</button>
             </div>
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-2 flex flex-col justify-between">
-              <p class="text-[10px] font-black text-pos-muted uppercase">Membership</p>
+              <p class="text-[10px] font-black text-pos-muted uppercase">{ t('st_membership', $currentLocale) }</p>
               <p class="text-[10px] text-pos-muted font-bold">
                 {#if lanStatus?.shop_id}
                   Joined shop <span class="font-mono">{lanStatus.shop_id.slice(0, 11)}…</span> — leaving keeps all data; the server keeps its own copy.
@@ -2574,9 +2549,7 @@
                 {/if}
               </p>
               <button type="button" on:click={lanLeave} disabled={lanBusy === 'leave' || !lanStatus?.shop_id}
-                class="w-full py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-800 text-[10px] font-black rounded-lg cursor-pointer disabled:opacity-40">
-                Leave Shop Network
-              </button>
+                class="w-full py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-800 text-[10px] font-black rounded-lg cursor-pointer disabled:opacity-40">{ t('st_leave_shop_network', $currentLocale) }</button>
             </div>
           </div>
 
@@ -2589,12 +2562,12 @@
               <div class="mt-2 p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-2">
                 <div class="flex gap-1.5">
                   <input type="text" bind:value={lanManualAddr} placeholder="192.168.8.102:8080" class="flex-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-xs font-mono font-bold text-pos-text outline-none" />
-                  <button type="button" on:click={lanProbeManual} disabled={lanBusy === 'probe' || !lanManualAddr.trim()} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-[10px] font-black rounded-lg cursor-pointer disabled:opacity-40">Probe</button>
+                  <button type="button" on:click={lanProbeManual} disabled={lanBusy === 'probe' || !lanManualAddr.trim()} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-[10px] font-black rounded-lg cursor-pointer disabled:opacity-40">{ t('st_probe', $currentLocale) }</button>
                 </div>
                 {#if lanProbed}
                   <div class="flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-800">
                     <p class="text-[10px] font-black text-pos-text">{lanProbed.shop_name || 'Shop'} • server: {lanProbed.server_pc} • v{lanProbed.app_version}</p>
-                    <button type="button" on:click={lanJoinManual} disabled={lanBusy === 'join'} class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg cursor-pointer">Join this shop</button>
+                    <button type="button" on:click={lanJoinManual} disabled={lanBusy === 'join'} class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg cursor-pointer">{ t('st_join_this_shop', $currentLocale) }</button>
                   </div>
                 {/if}
                 {#if lanStatus?.manual_server}
@@ -2621,8 +2594,8 @@
                       <p class="text-[9px] font-mono text-pos-muted truncate">{d.node_id} • {d.ip} • v{d.app_version} • seen {d.last_seen_secs_ago}s ago</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                      <button type="button" on:click={() => lanBlockDevice(d.node_id, true)} disabled={lanBusy === 'block'} class="px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 text-[9px] font-black rounded-md cursor-pointer">Block</button>
-                      <button type="button" on:click={() => lanRemoveDevice(d.node_id)} disabled={lanBusy === 'remove'} class="px-2 py-1 bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 text-[9px] font-black rounded-md cursor-pointer">Remove</button>
+                      <button type="button" on:click={() => lanBlockDevice(d.node_id, true)} disabled={lanBusy === 'block'} class="px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 text-[9px] font-black rounded-md cursor-pointer">{ t('st_block', $currentLocale) }</button>
+                      <button type="button" on:click={() => lanRemoveDevice(d.node_id)} disabled={lanBusy === 'remove'} class="px-2 py-1 bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 text-[9px] font-black rounded-md cursor-pointer">{ t('st_remove', $currentLocale) }</button>
                     </div>
                   </div>
                 {/each}
@@ -2658,7 +2631,7 @@
                   type="button"
                   on:click={refreshServerStatus}
                   class="p-1 text-pos-muted hover:text-pos-text rounded-lg cursor-pointer"
-                  title="Refresh status"
+                  title={t('st_refresh_status', $currentLocale)}
                 >
                   <RefreshCw class="w-3.5 h-3.5" />
                 </button>
@@ -2666,7 +2639,7 @@
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-pos-muted mb-1">Server Port (requires app restart to apply)</label>
+              <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_server_port_requires_app', $currentLocale) }</label>
               <input
                 type="number"
                 min="1024"
@@ -2678,13 +2651,13 @@
             </div>
 
             <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1 font-mono text-xs">
-              <p class="text-pos-muted text-[11px]">Server Address URL (LAN):</p>
+              <p class="text-pos-muted text-[11px]">{ t('st_server_address_url_lan', $currentLocale) }</p>
               {#if serverStatus?.lan_ips?.length}
                 {#each serverStatus.lan_ips as ip}
                   <p class="font-bold text-sky-600">http://{ip}:{serverStatus.port}</p>
                 {/each}
               {:else}
-                <p class="text-pos-muted italic">No LAN address detected — connect the PC to the shop Wi-Fi/router.</p>
+                <p class="text-pos-muted italic">{ t('st_no_lan_address_detected', $currentLocale) }</p>
               {/if}
               <p class="text-pos-muted text-[11px] mt-2">Uptime: {Math.floor((serverStatus?.uptime_secs || 0) / 60)} min • Endpoints: /api/status, /api/handshake</p>
             </div>
@@ -2695,19 +2668,17 @@
               {#if serverQrDataUrl}
                 <div class="text-center space-y-2">
                   <img src={serverQrDataUrl} alt="Pairing QR" class="w-40 h-40 mx-auto rounded-lg border border-pos-border" />
-                  <p class="text-[10px] text-slate-500 font-bold">Scan with your phone camera — tap the link that appears to open it automatically.</p>
+                  <p class="text-[10px] text-slate-500 font-bold">{ t('st_scan_with_your_phone', $currentLocale) }</p>
                   <button
                     type="button"
                     on:click={() => openUrlInBrowser(`http://${serverStatus?.lan_ips?.[0]}:${serverStatus?.port}/`)}
                     class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer"
-                  >
-                    Open in Browser (فتح المتصفح)
-                  </button>
+                  >{ t('st_open_in_browser', $currentLocale) }</button>
                 </div>
               {:else}
                 <div class="text-center space-y-1 p-4">
                   <QrCode class="w-10 h-10 mx-auto text-pos-muted opacity-40" />
-                  <p class="text-[11px] text-pos-muted font-bold">QR unavailable (no LAN address)</p>
+                  <p class="text-[11px] text-pos-muted font-bold">{ t('st_qr_unavailable_no_lan', $currentLocale) }</p>
                 </div>
               {/if}
             </div>
@@ -2724,10 +2695,8 @@
                   <!-- Proper empty state — no demo devices, no fake QR -->
                   <div class="p-6 text-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-pos-border">
                     <Smartphone class="w-8 h-8 mx-auto text-pos-muted opacity-40 mb-2" />
-                    <p class="text-xs font-bold text-pos-muted">No devices connected yet</p>
-                    <p class="text-[10px] text-pos-muted mt-1">
-                      Scan the pairing QR from the TitaouPOS mobile app — devices appear here the moment they connect.
-                    </p>
+                    <p class="text-xs font-bold text-pos-muted">{ t('st_no_devices_connected_yet', $currentLocale) }</p>
+                    <p class="text-[10px] text-pos-muted mt-1">{ t('st_scan_the_pairing_qr', $currentLocale) }</p>
                   </div>
                 {:else}
                   {#each serverStatus.devices as dev}
@@ -2739,7 +2708,7 @@
                           <p class="text-[10px] text-pos-muted">IP: {dev.ip} • Role: {dev.device_role} • Seen {dev.last_seen_secs_ago}s ago</p>
                         </div>
                       </div>
-                      <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">ACTIVE</span>
+                      <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">{ t('st_active', $currentLocale) }</span>
                     </div>
                   {/each}
                 {/if}
@@ -2747,8 +2716,8 @@
             </div>
 
             <div class="pt-3 border-t border-pos-border flex justify-between items-center">
-              <span class="text-xs font-bold text-pos-muted">Real-time device registry</span>
-              <span class="text-xs font-bold text-emerald-600">Handshake-verified / موثوق</span>
+              <span class="text-xs font-bold text-pos-muted">{ t('st_real_time_device_registry', $currentLocale) }</span>
+              <span class="text-xs font-bold text-emerald-600">{ t('st_handshake_verified', $currentLocale) }</span>
             </div>
           </div>
         </div>
@@ -2760,14 +2729,14 @@
     <div class:hidden={currentTab !== 'import_export'}>
       <div class="max-w-4xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-pos-text">Import, Export & Full Database Backups</h2>
-          <p class="text-xs text-pos-muted">Export catalogs to Excel/CSV and schedule automatic SQLite database backups</p>
+          <h2 class="text-base font-black text-pos-text">{ t('st_import_export_full_database', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_export_catalogs_to_excel', $currentLocale) }</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <!-- Excel / CSV Export & Import -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
-            <h3 class="text-sm font-black text-pos-text">1. Excel & CSV Operations</h3>
+            <h3 class="text-sm font-black text-pos-text">{ t('st_1_excel_csv_operations', $currentLocale) }</h3>
 
             <div class="space-y-2">
               <button
@@ -2776,7 +2745,7 @@
                 class="w-full py-2.5 bg-pos-card hover:bg-slate-100 dark:hover:bg-slate-700 border border-pos-border rounded-xl text-xs font-bold text-pos-text flex items-center justify-center gap-2 cursor-pointer shadow-xs transition"
               >
                 <Download class="w-4 h-4 text-sky-500" />
-                <span>Export Products to Excel (.xlsx / .csv)</span>
+                <span>{ t('st_export_products_to_excel', $currentLocale) }</span>
               </button>
 
               <button
@@ -2785,17 +2754,17 @@
                 class="w-full py-2.5 bg-pos-card hover:bg-slate-100 dark:hover:bg-slate-700 border border-pos-border rounded-xl text-xs font-bold text-pos-text flex items-center justify-center gap-2 cursor-pointer shadow-xs transition"
               >
                 <Download class="w-4 h-4 text-emerald-500" />
-                <span>Export Customers & Debts (.csv)</span>
+                <span>{ t('st_export_customers_debts_csv', $currentLocale) }</span>
               </button>
             </div>
 
             <!-- Import Products File Dropzone -->
             <div class="p-4 bg-white dark:bg-slate-900 border-2 border-dashed border-pos-border rounded-xl text-center space-y-2">
               <Upload class="w-6 h-6 text-pos-muted mx-auto" />
-              <p class="text-xs font-bold text-pos-text">Import Products Template (.csv)</p>
-              <p class="text-[10px] text-pos-muted">Drop CSV file with columns: SKU, Name, Barcode, Price, Stock</p>
+              <p class="text-xs font-bold text-pos-text">{ t('st_import_products_template_csv', $currentLocale) }</p>
+              <p class="text-[10px] text-pos-muted">{ t('st_drop_csv_file_with', $currentLocale) }</p>
               <label class="inline-block px-3 py-1.5 bg-sky-600 text-white text-xs font-bold rounded-lg cursor-pointer">
-                <span>Select File</span>
+                <span>{ t('st_select_file', $currentLocale) }</span>
                 <input type="file" accept=".csv, .xlsx" on:change={() => triggerSaveNotification('Products imported successfully!')} class="hidden" />
               </label>
             </div>
@@ -2804,15 +2773,15 @@
           <!-- Full Database Backup & Restore -->
           <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4 flex flex-col justify-between">
             <div class="space-y-3">
-              <h3 class="text-sm font-black text-pos-text">2. Automatic Database Backups (نسخ احتياطي)</h3>
-              <p class="text-xs text-pos-muted">Full snapshot of sales, products, debts, and ledger data.</p>
+              <h3 class="text-sm font-black text-pos-text">{ t('st_2_automatic_database_backups', $currentLocale) }</h3>
+              <p class="text-xs text-pos-muted">{ t('st_full_snapshot_of_sales', $currentLocale) }</p>
 
               <!-- Automatic backup toggles -->
               <div class="space-y-2">
                 <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <div>
-                    <span>Backup on startup</span>
-                    <p class="text-[10px] text-pos-muted font-normal">Once per day when the app launches</p>
+                    <span>{ t('st_backup_on_startup', $currentLocale) }</span>
+                    <p class="text-[10px] text-pos-muted font-normal">{ t('st_once_per_day_when', $currentLocale) }</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2824,8 +2793,8 @@
 
                 <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <div>
-                    <span>Backup on close</span>
-                    <p class="text-[10px] text-pos-muted font-normal">Safety copy when the app exits</p>
+                    <span>{ t('st_backup_on_close', $currentLocale) }</span>
+                    <p class="text-[10px] text-pos-muted font-normal">{ t('st_safety_copy_when_the', $currentLocale) }</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2837,8 +2806,8 @@
 
                 <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <div>
-                    <span>Scheduled backup</span>
-                    <p class="text-[10px] text-pos-muted font-normal">Every day at the configured time</p>
+                    <span>{ t('st_scheduled_backup', $currentLocale) }</span>
+                    <p class="text-[10px] text-pos-muted font-normal">{ t('st_every_day_at_the', $currentLocale) }</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2849,7 +2818,7 @@
                 </label>
                 {#if settings.backup_scheduled_enabled}
                   <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
-                    <span class="text-[11px] font-bold text-pos-muted">Backup every day at</span>
+                    <span class="text-[11px] font-bold text-pos-muted">{ t('st_backup_every_day_at', $currentLocale) }</span>
                     <input
                       type="time"
                       bind:value={settings.backup_scheduled_time}
@@ -2862,20 +2831,18 @@
                 <!-- Location + retention + settings inclusion -->
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
                   <div class="min-w-0">
-                    <span class="text-[11px] font-bold text-pos-muted block">Backup location</span>
+                    <span class="text-[11px] font-bold text-pos-muted block">{ t('st_backup_location', $currentLocale) }</span>
                     <p class="text-[10px] text-pos-text font-mono truncate">{settings.backup_dir || '%APPDATA%\\TitaouPosT\\backups (default)'}</p>
                   </div>
                   <button
                     type="button"
                     on:click={handlePickBackupFolder}
                     class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-black rounded-lg cursor-pointer shrink-0"
-                  >
-                    Browse…
-                  </button>
+                  >{ t('st_browse', $currentLocale) }</button>
                 </div>
 
                 <div class="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border flex items-center justify-between gap-3">
-                  <span class="text-[11px] font-bold text-pos-muted">Keep last [X] backups (retention)</span>
+                  <span class="text-[11px] font-bold text-pos-muted">{ t('st_keep_last_x_backups', $currentLocale) }</span>
                   <input
                     type="number"
                     min="0"
@@ -2888,8 +2855,8 @@
 
                 <label class="flex items-center justify-between text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
                   <div>
-                    <span>Include application settings in backup</span>
-                    <p class="text-[10px] text-pos-muted font-normal">POS config, printers, receipt & label presets, notifications, Telegram (as stored)</p>
+                    <span>{ t('st_include_application_settings_in', $currentLocale) }</span>
+                    <p class="text-[10px] text-pos-muted font-normal">{ t('st_pos_config_printers_receipt', $currentLocale) }</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2903,7 +2870,7 @@
               <!-- Last/Backup Now row -->
               <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border space-y-1 text-xs">
                 <div class="flex justify-between font-bold">
-                  <span class="text-pos-muted">Last Backup:</span>
+                  <span class="text-pos-muted">{ t('st_last_backup', $currentLocale) }</span>
                   <span class="text-pos-text">{settings.last_backup_at || 'Never'}</span>
                 </div>
                 {#if backupMsg}
@@ -2924,9 +2891,7 @@
                         type="button"
                         on:click={() => { restoreFilePath = b.path; showRestoreModal = true; }}
                         class="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-pos-text font-bold rounded-lg cursor-pointer shrink-0"
-                      >
-                        Restore
-                      </button>
+                      >{ t('st_restore', $currentLocale) }</button>
                     </div>
                   {/each}
                 </div>
@@ -2948,9 +2913,7 @@
                 type="button"
                 on:click={openRestoreModal}
                 class="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-pos-text text-xs font-bold rounded-xl cursor-pointer transition active:scale-95"
-              >
-                Restore from Backup File (.sqlite)
-              </button>
+              >{ t('st_restore_from_backup_file', $currentLocale) }</button>
             </div>
           </div>
         </div>
@@ -2962,8 +2925,8 @@
     <div class:hidden={currentTab !== 'activation'}>
       <div class="max-w-3xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-pos-text">App Activation & License Management</h2>
-          <p class="text-xs text-pos-muted">Hardware Machine ID binding and perpetual offline license verification</p>
+          <h2 class="text-base font-black text-pos-text">{ t('st_app_activation_license_management', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_hardware_machine_id_binding', $currentLocale) }</p>
         </div>
 
         <!-- License Status Banner -->
@@ -2971,31 +2934,29 @@
           <div class="flex items-center gap-3">
             <ShieldCheck class="w-8 h-8 text-emerald-600 shrink-0" />
             <div>
-              <h4 class="font-black text-sm text-emerald-900 dark:text-emerald-200">TitaouPOS PRO LIFETIME LICENSE</h4>
-              <p class="text-xs text-emerald-700 dark:text-emerald-400">Fully activated and authorized for this hardware terminal.</p>
+              <h4 class="font-black text-sm text-emerald-900 dark:text-emerald-200">{ t('st_titaoupos_pro_lifetime_license', $currentLocale) }</h4>
+              <p class="text-xs text-emerald-700 dark:text-emerald-400">{ t('st_fully_activated_and_authorized', $currentLocale) }</p>
             </div>
           </div>
-          <span class="px-3 py-1 bg-emerald-600 text-white text-xs font-black rounded-xl">ACTIVE</span>
+          <span class="px-3 py-1 bg-emerald-600 text-white text-xs font-black rounded-xl">{ t('st_active', $currentLocale) }</span>
         </div>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">Your Terminal Hardware ID (HWID)</label>
+            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_your_terminal_hardware_id', $currentLocale) }</label>
             <div class="flex items-center gap-2">
               <input type="text" readonly value={hwid} class="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text" />
               <button on:click={copyHwid} class="px-3 py-2 bg-sky-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer">
                 <Copy class="w-3.5 h-3.5" />
-                <span>Copy HWID</span>
+                <span>{ t('st_copy_hwid', $currentLocale) }</span>
               </button>
             </div>
           </div>
 
           <!-- Online Activation -->
           <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
-            <h4 class="text-xs font-black text-pos-text">Activate Online (تنشيط عبر الإنترنت)</h4>
-            <p class="text-[11px] text-pos-muted">
-              Sends this machine's HWID to the developer's activation registry and activates automatically.
-            </p>
+            <h4 class="text-xs font-black text-pos-text">{ t('st_activate_online', $currentLocale) }</h4>
+            <p class="text-[11px] text-pos-muted">{ t('st_sends_this_machine_s', $currentLocale) }</p>
             <div class="flex items-center gap-2">
               <button
                 type="button"
@@ -3014,7 +2975,7 @@
 
           <!-- License File (.lic) Upload & Key Entry -->
           <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
-            <h4 class="text-xs font-black text-pos-text">Activate using License File (.lic) or Serial Key</h4>
+            <h4 class="text-xs font-black text-pos-text">{ t('st_activate_using_license_file', $currentLocale) }</h4>
             <div class="flex items-center gap-2">
               <input
                 type="text"
@@ -3022,16 +2983,14 @@
                 placeholder="Enter Serial Key (e.g. TIT-XXXX-XXXX-XXXX)"
                 class="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono text-pos-text"
               />
-              <button on:click={handleActivate} class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer">
-                Verify Key
-              </button>
+              <button on:click={handleActivate} class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer">{ t('st_verify_key', $currentLocale) }</button>
             </div>
 
             <div class="pt-2 flex items-center justify-between">
-              <span class="text-xs text-pos-muted">Have a license file provided by vendor?</span>
+              <span class="text-xs text-pos-muted">{ t('st_have_a_license_file', $currentLocale) }</span>
               <label class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
                 <FileText class="w-3.5 h-3.5" />
-                <span>Upload License File (.lic)</span>
+                <span>{ t('st_upload_license_file_lic', $currentLocale) }</span>
                 <input type="file" accept=".lic, .key, .txt" on:change={handleLicenseFileUpload} class="hidden" />
               </label>
             </div>
@@ -3045,19 +3004,17 @@
     <div class:hidden={currentTab !== 'updates'}>
       <div class="max-w-3xl space-y-6">
         <div>
-          <h2 class="text-base font-black text-pos-text">Application Updates & Rollback</h2>
-          <p class="text-xs text-pos-muted">Automated updater using GitHub releases with safe rollback capability</p>
+          <h2 class="text-base font-black text-pos-text">{ t('st_application_updates_rollback', $currentLocale) }</h2>
+          <p class="text-xs text-pos-muted">{ t('st_automated_updater_using_github', $currentLocale) }</p>
         </div>
 
         <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-4">
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
-              <p class="text-xs font-bold text-pos-muted">Current Installed Version:</p>
+              <p class="text-xs font-bold text-pos-muted">{ t('st_current_installed_version', $currentLocale) }</p>
               <p class="text-base font-black text-pos-text">TitaouPOS {appVersion} (Windows x64)</p>
             </div>
-            <span class="px-3 py-1 bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-mono text-xs font-black rounded-full">
-              Stable Channel
-            </span>
+            <span class="px-3 py-1 bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-mono text-xs font-black rounded-full">{ t('st_stable_channel', $currentLocale) }</span>
           </div>
 
           <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border text-xs flex items-center gap-2">
@@ -3094,7 +3051,7 @@
                 on:click={() => openUrlInBrowser(latestReleaseUrl)}
                 class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
               >
-                <span>View Release Notes</span>
+                <span>{ t('st_view_release_notes', $currentLocale) }</span>
               </button>
             {/if}
 
@@ -3103,13 +3060,13 @@
               class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
             >
               <History class="w-4 h-4 text-amber-500" />
-              <span>Rollback to Previous Version</span>
+              <span>{ t('st_rollback_to_previous_version', $currentLocale) }</span>
             </button>
           </div>
 
           <label class="flex items-center gap-2.5 text-xs font-bold text-pos-text cursor-pointer pt-2">
             <input type="checkbox" bind:checked={settings.auto_update_enabled} class="rounded text-sky-600" />
-            <span>Enable automatic background update checks</span>
+            <span>{ t('st_enable_automatic_background_update', $currentLocale) }</span>
           </label>
         </div>
       </div>
@@ -3124,16 +3081,16 @@
           <div>
             <h2 class="text-base font-black text-pos-text flex items-center gap-2">
               <Users class="w-5 h-5 text-sky-600" />
-              <span>User Accounts & Access Roles / إدارة المستخدمين والأدوار</span>
+              <span>{ t('st_user_accounts_access_roles', $currentLocale) }</span>
             </h2>
-            <p class="text-xs text-pos-muted">Manage system users, login credentials, assigned roles, and discount authorizations</p>
+            <p class="text-xs text-pos-muted">{ t('st_manage_system_users_login', $currentLocale) }</p>
           </div>
           <button
             on:click={openCreateUserModal}
             class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md flex items-center gap-2 transition"
           >
             <UserPlus class="w-4 h-4" />
-            <span>Add User Account / إضافة مستخدم</span>
+            <span>{ t('st_add_user_account', $currentLocale) }</span>
           </button>
         </div>
 
@@ -3151,7 +3108,7 @@
                     {$currentUser?.role_name || 'Administrator'}
                   </span>
                 </div>
-                <p class="text-xs text-pos-muted">Active Session: <strong class="font-mono text-pos-text">@{$currentUser?.username || 'admin'}</strong> • Max Discount: <strong class="text-sky-600">{$currentUser?.max_discount_percent ?? 100}%</strong></p>
+                <p class="text-xs text-pos-muted">{ t('st_active_session', $currentLocale) }<strong class="font-mono text-pos-text">@{$currentUser?.username || 'admin'}</strong>{ t('st_max_discount', $currentLocale) }<strong class="text-sky-600">{$currentUser?.max_discount_percent ?? 100}%</strong></p>
               </div>
             </div>
 
@@ -3162,7 +3119,7 @@
                 <input
                   type="password"
                   bind:value={oldPassword}
-                  placeholder="Current password"
+                  placeholder={t('st_current_password', $currentLocale)}
                   class="w-full ps-8 pe-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text"
                 />
               </div>
@@ -3171,7 +3128,7 @@
                 <input
                   type="password"
                   bind:value={newPassword}
-                  placeholder="New password / PIN"
+                  placeholder={t('st_new_password_pin', $currentLocale)}
                   class="w-full ps-8 pe-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs text-pos-text"
                 />
               </div>
@@ -3179,11 +3136,9 @@
                 on:click={handleChangePassword}
                 disabled={!newPassword || !oldPassword}
                 class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition shrink-0"
-              >
-                Change My Password
-              </button>
+              >{ t('st_change_my_password', $currentLocale) }</button>
             
-              <p class="text-[9px] text-pos-muted w-full md:w-auto">Forgotten? Enter <span class="font-mono font-black text-sky-600">TITAOU</span> as the current password to force a reset.</p></div>
+              <p class="text-[9px] text-pos-muted w-full md:w-auto">{ t('st_forgotten_enter', $currentLocale) }<span class="font-mono font-black text-sky-600">TITAOU</span>{ t('st_as_the_current_password', $currentLocale) }</p></div>
           </div>
         </div>
 
@@ -3199,7 +3154,7 @@
               class="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1 cursor-pointer"
             >
               <RefreshCw class="w-3.5 h-3.5" />
-              <span>Refresh List</span>
+              <span>{ t('st_refresh_list', $currentLocale) }</span>
             </button>
           </div>
 
@@ -3207,20 +3162,18 @@
             <table class="w-full text-start text-xs">
               <thead class="bg-slate-100/60 dark:bg-slate-800/60 text-pos-muted font-black border-b border-pos-border">
                 <tr>
-                  <th class="p-3 text-start">User</th>
-                  <th class="p-3 text-start">Role / الدور</th>
-                  <th class="p-3 text-center">Max Discount</th>
-                  <th class="p-3 text-center">Status</th>
-                  <th class="p-3 text-start">Last Login</th>
-                  <th class="p-3 text-end">Actions</th>
+                  <th class="p-3 text-start">{ t('st_user', $currentLocale) }</th>
+                  <th class="p-3 text-start">{ t('st_role', $currentLocale) }</th>
+                  <th class="p-3 text-center">{ t('st_max_discount_2', $currentLocale) }</th>
+                  <th class="p-3 text-center">{ t('st_status', $currentLocale) }</th>
+                  <th class="p-3 text-start">{ t('st_last_login', $currentLocale) }</th>
+                  <th class="p-3 text-end">{ t('st_actions', $currentLocale) }</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-pos-border">
                 {#if userAccounts.length === 0}
                   <tr>
-                    <td colspan="6" class="p-8 text-center text-pos-muted font-bold">
-                      No user accounts found. Click "Add User Account" to create one.
-                    </td>
+                    <td colspan="6" class="p-8 text-center text-pos-muted font-bold">{ t('st_no_user_accounts_found', $currentLocale) }</td>
                   </tr>
                 {:else}
                   {#each userAccounts as u}
@@ -3252,12 +3205,10 @@
                       <td class="p-3 text-center">
                         {#if u.is_active}
                           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
-                          </span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{ t('st_active_2', $currentLocale) }</span>
                         {:else}
                           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">
-                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Disabled
-                          </span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{ t('st_disabled', $currentLocale) }</span>
                         {/if}
                       </td>
                       <td class="p-3 text-pos-muted font-mono text-[11px]">
@@ -3275,7 +3226,7 @@
                           <button
                             on:click={() => openEditUserModal(u)}
                             class="p-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-600 rounded-lg cursor-pointer transition"
-                            title="Edit User Details / تعديل"
+                            title={t('st_edit_user_details', $currentLocale)}
                           >
                             <Edit2 class="w-4 h-4" />
                           </button>
@@ -3283,7 +3234,7 @@
                             <button
                               on:click={() => deleteUserAccount(u)}
                               class="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-rose-500 rounded-lg cursor-pointer transition"
-                              title="Delete User / حذف"
+                              title={t('st_delete_user', $currentLocale)}
                             >
                               <Trash2 class="w-4 h-4" />
                             </button>
@@ -3311,9 +3262,9 @@
         <div>
           <h2 class="text-base font-black text-rose-600 flex items-center gap-2">
             <AlertOctagon class="w-5 h-5" />
-            <span>Factory Reset & Data Purge / تهيئة المصنع ومسح البيانات</span>
+            <span>{ t('st_factory_reset_data_purge', $currentLocale) }</span>
           </h2>
-          <p class="text-xs text-pos-muted">Select an operation below. These actions cannot be undone. Please backup database before proceeding.</p>
+          <p class="text-xs text-pos-muted">{ t('st_select_an_operation_below', $currentLocale) }</p>
         </div>
 
         <!-- Clear History Only (non-destructive to products) -->
@@ -3322,11 +3273,9 @@
             <div>
               <h3 class="text-sm font-black text-amber-800 dark:text-amber-200 flex items-center gap-2">
                 <History class="w-4 h-4" />
-                <span>Clear Sales & Purchases History / مسح سجل المعاملات فقط</span>
+                <span>{ t('st_clear_sales_purchases_history', $currentLocale) }</span>
               </h3>
-              <p class="text-[11px] text-pos-muted mt-1">
-                Erases sales, purchases, cash sessions and movements — but keeps products, prices, quantities, customers, suppliers and debts intact.
-              </p>
+              <p class="text-[11px] text-pos-muted mt-1">{ t('st_erases_sales_purchases_cash', $currentLocale) }</p>
             </div>
           </div>
           <input
@@ -3352,9 +3301,7 @@
                 type="button"
                 on:click={cancelClearHistory}
                 class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-black rounded-lg cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
-              >
-                Cancel / إلغاء
-              </button>
+              >{ t('st_cancel', $currentLocale) }</button>
             </div>
           {/if}
           {#if clearHistoryMsg}
@@ -3368,8 +3315,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'products_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="products_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Delete All Products & Stock / حذف جميع المنتجات والمخزون</span>
-                <span class="text-[11px] text-pos-muted">Purges all products, barcodes, stock movements, and price history (keeps families, units, users).</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_delete_all_products_stock', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_purges_all_products_barcodes', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3377,8 +3324,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'categories_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="categories_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Reset Families & Categories / إعادة تعيين الفئات والعائلات</span>
-                <span class="text-[11px] text-pos-muted">Resets all categories back to clean "Default / Général" family.</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_reset_families_categories', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_resets_all_categories_back', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3386,8 +3333,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'units_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="units_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Reset Units of Measurement / إعادة تعيين وحدات القياس</span>
-                <span class="text-[11px] text-pos-muted">Resets custom units back to 5 standard system units (pcs, kg, L, pck, box).</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_reset_units_of_measurement', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_resets_custom_units_back', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3395,8 +3342,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'transactions_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="transactions_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Clear Sales & Financial Transactions / مسح المبيعات والعمليات المالية</span>
-                <span class="text-[11px] text-pos-muted">Clears all sales, held sales, cash drawer movements, receipts, expenses, and resets debt balances to 0 (keeps products & catalog).</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_clear_sales_financial_transactions', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_clears_all_sales_held', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3404,8 +3351,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'customers_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="customers_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Reset Customers & Customer Debts / مسح الزبائن والديون</span>
-                <span class="text-[11px] text-pos-muted">Deletes all custom customer accounts and customer debt payment records.</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_reset_customers_customer_debts', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_deletes_all_custom_customer', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3413,8 +3360,8 @@
             <label class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl cursor-pointer transition {resetType === 'suppliers_only' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-pos-border'}">
               <input type="radio" bind:group={resetType} value="suppliers_only" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-pos-text block">Reset Suppliers & Purchases / مسح الموردين وفواتير الشراء</span>
-                <span class="text-[11px] text-pos-muted">Deletes all supplier records, purchase invoices, and supplier debt payments.</span>
+                <span class="text-xs font-black text-pos-text block">{ t('st_reset_suppliers_purchases', $currentLocale) }</span>
+                <span class="text-[11px] text-pos-muted">{ t('st_deletes_all_supplier_records', $currentLocale) }</span>
               </div>
             </label>
 
@@ -3422,14 +3369,14 @@
             <label class="flex items-start gap-3 p-3 bg-rose-100/60 dark:bg-rose-950/80 border-2 border-rose-400 dark:border-rose-800 rounded-xl cursor-pointer transition {resetType === 'full_reset' ? 'ring-2 ring-rose-600' : ''}">
               <input type="radio" bind:group={resetType} value="full_reset" class="mt-0.5 text-rose-600" />
               <div class="flex-1">
-                <span class="text-xs font-black text-rose-700 dark:text-rose-300 block">Full Factory Reset (Comprehensive) / إعادة ضبط المصنع بالكامل</span>
-                <span class="text-[11px] text-rose-600/80 dark:text-rose-400/80">Complete system wipe: purges all products, resets families to Default, resets units to standard, clears sales, customers, suppliers, and extra users.</span>
+                <span class="text-xs font-black text-rose-700 dark:text-rose-300 block">{ t('st_full_factory_reset_comprehensive', $currentLocale) }</span>
+                <span class="text-[11px] text-rose-600/80 dark:text-rose-400/80">{ t('st_complete_system_wipe_purges', $currentLocale) }</span>
               </div>
             </label>
           </div>
 
           <div class="space-y-2 pt-3 border-t border-rose-200 dark:border-rose-900">
-            <label class="block text-xs font-bold text-pos-muted">Type <span class="text-rose-600 font-mono font-black">RESET</span> to confirm execution:</label>
+            <label class="block text-xs font-bold text-pos-muted">{ t('st_type', $currentLocale) }<span class="text-rose-600 font-mono font-black">RESET</span>{ t('st_to_confirm_execution', $currentLocale) }</label>
             <div class="flex items-center gap-2">
               <input
                 type="text"
@@ -3441,9 +3388,7 @@
                 on:click={handleFactoryReset}
                 disabled={resetConfirm !== 'RESET' || resetCountdown > 0}
                 class="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
-              >
-                Execute Reset / تنفيذ المسح
-              </button>
+              >{ t('st_execute_reset', $currentLocale) }</button>
             </div>
             {#if resetCountdown > 0}
               <div class="flex items-center justify-between p-2.5 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl animate-in fade-in duration-150">
@@ -3454,9 +3399,7 @@
                   type="button"
                   on:click={cancelFactoryReset}
                   class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-black rounded-lg cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
-                >
-                  Cancel / إلغاء
-                </button>
+                >{ t('st_cancel', $currentLocale) }</button>
               </div>
             {/if}
             {#if resetResult}
@@ -3478,10 +3421,10 @@
           <h3 class="font-black text-sm text-pos-text flex items-center gap-2">
             {#if userModalMode === 'create'}
               <UserPlus class="w-4 h-4 text-sky-600" />
-              <span>Add New User Account / إضافة حساب مستخدم</span>
+              <span>{ t('st_add_new_user_account', $currentLocale) }</span>
             {:else}
               <Edit2 class="w-4 h-4 text-sky-600" />
-              <span>Edit User Account / تعديل الحساب</span>
+              <span>{ t('st_edit_user_account', $currentLocale) }</span>
             {/if}
           </h3>
           <button on:click={() => (showUserModal = false)} class="text-pos-muted hover:text-pos-text text-sm font-bold">✕</button>
@@ -3495,7 +3438,7 @@
 
         <div class="space-y-3 text-xs">
           <div>
-            <label class="block font-bold text-pos-muted mb-1">Username / اسم الدخول <span class="text-rose-500">*</span></label>
+            <label class="block font-bold text-pos-muted mb-1">{ t('st_username', $currentLocale) }<span class="text-rose-500">*</span></label>
             <input
               type="text"
               bind:value={userForm.username}
@@ -3505,7 +3448,7 @@
           </div>
 
           <div>
-            <label class="block font-bold text-pos-muted mb-1">Display Name / الاسم الظاهر <span class="text-rose-500">*</span></label>
+            <label class="block font-bold text-pos-muted mb-1">{ t('st_display_name', $currentLocale) }<span class="text-rose-500">*</span></label>
             <input
               type="text"
               bind:value={userForm.display_name}
@@ -3516,7 +3459,7 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block font-bold text-pos-muted mb-1">Role / الدور</label>
+              <label class="block font-bold text-pos-muted mb-1">{ t('st_role', $currentLocale) }</label>
               <select
                 bind:value={userForm.role_id}
                 class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-pos-text font-bold"
@@ -3528,7 +3471,7 @@
             </div>
 
             <div>
-              <label class="block font-bold text-pos-muted mb-1">Max Discount (%)</label>
+              <label class="block font-bold text-pos-muted mb-1">{ t('st_max_discount_3', $currentLocale) }</label>
               <input
                 type="number"
                 min="0"
@@ -3558,7 +3501,7 @@
           <div class="pt-2">
             <label class="flex items-center gap-2 cursor-pointer font-bold text-pos-text">
               <input type="checkbox" bind:checked={userForm.is_active} class="rounded text-sky-600" />
-              <span>Account is Active / الحساب مفعّل</span>
+              <span>{ t('st_account_is_active', $currentLocale) }</span>
             </label>
           </div>
         </div>
@@ -3567,9 +3510,7 @@
           <button
             on:click={() => (showUserModal = false)}
             class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer"
-          >
-            Cancel / إلغاء
-          </button>
+          >{ t('st_cancel', $currentLocale) }</button>
           <button
             on:click={saveUserModal}
             class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition"
@@ -3586,7 +3527,7 @@
     <div class="flex items-center gap-2">
       <span class="font-bold text-pos-text">TitaouPOS Desktop</span>
       <span>•</span>
-      <span>Created & Developed by <strong class="text-sky-600">Titaou Bedreddine (0553444057)</strong></span>
+      <span>{ t('st_created_developed_by', $currentLocale) }<strong class="text-sky-600">Titaou Bedreddine (0553444057)</strong></span>
     </div>
     <span class="font-mono text-[11px]">{appVersion} (PRO)</span>
   </div>
@@ -3597,11 +3538,9 @@
       <div class="bg-pos-card border border-pos-border rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4">
         <h3 class="font-black text-sm text-pos-text flex items-center gap-2">
           <History class="w-5 h-5 text-amber-500" />
-          <span>Confirm Version Rollback</span>
+          <span>{ t('st_confirm_version_rollback', $currentLocale) }</span>
         </h3>
-        <p class="text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl p-2.5">
-          ⚠️ Rolling back can lose data created in newer versions. Type <span class="font-mono font-black">ROLLBACK</span> below to confirm.
-        </p>
+        <p class="text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl p-2.5">{ t('st_rolling_back_can_lose', $currentLocale) }<span class="font-mono font-black">ROLLBACK</span>{ t('st_below_to_confirm', $currentLocale) }</p>
         <input
           type="text"
           bind:value={rollbackConfirmText}
@@ -3610,12 +3549,12 @@
         />
         <p class="text-[10px] text-pos-muted font-bold">Auto-cancels in {rollbackCountdown}s — nothing happens if you do nothing.</p>
         <div class="flex justify-end gap-2 pt-2">
-          <button on:click={cancelRollback} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+          <button on:click={cancelRollback} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer">{ t('st_cancel', $currentLocale) }</button>
           <button
             on:click={handleRollback}
             disabled={rollbackConfirmText.trim() !== 'ROLLBACK'}
             class="px-4 py-2 bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer"
-          >Confirm Rollback</button>
+          >{ t('st_confirm_rollback', $currentLocale) }</button>
         </div>
       </div>
     </div>
@@ -3638,47 +3577,42 @@
             <HardDrive class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="font-black text-sm text-pos-text">Restore from Backup</h3>
-            <p class="text-[11px] text-pos-muted">Restore / استرجاع النسخة الاحتياطية</p>
+            <h3 class="font-black text-sm text-pos-text">{ t('st_restore_from_backup', $currentLocale) }</h3>
+            <p class="text-[11px] text-pos-muted">{ t('st_restore_2', $currentLocale) }</p>
           </div>
         </div>
 
         {#if restoreDone}
           <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 space-y-2">
-            <p>✅ Database restored successfully. The app will reload with the restored data.</p>
-            <p class="text-[10px] text-pos-muted">A safety backup of the PREVIOUS data was saved before the restore (presafety file).</p>
+            <p>{ t('st_database_restored_successfully_the', $currentLocale) }</p>
+            <p class="text-[10px] text-pos-muted">{ t('st_a_safety_backup_of', $currentLocale) }</p>
           </div>
           <div class="flex justify-end pt-1 border-t border-pos-border">
             <button
               type="button"
               on:click={closeRestoreModal}
               class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
-            >
-              Reload App Now (تحديث التطبيق)
-            </button>
+            >{ t('st_reload_app_now', $currentLocale) }</button>
           </div>
         {:else}
           <!-- Selected file + validation result -->
           <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-pos-border space-y-1.5 text-xs">
-            <p class="text-pos-muted font-bold">Selected backup:</p>
+            <p class="text-pos-muted font-bold">{ t('st_selected_backup', $currentLocale) }</p>
             <p class="font-mono text-pos-text break-all">{restoreFilePath}</p>
             {#if restoreValidateMsg}
               <p class="text-[11px] font-bold text-emerald-600">✅ {restoreValidateMsg}</p>
             {:else if restoreError}
               <p class="text-[11px] font-bold text-rose-600">❌ {restoreError}</p>
             {:else}
-              <p class="text-[11px] font-bold text-pos-muted">Validating…</p>
+              <p class="text-[11px] font-bold text-pos-muted">{ t('st_validating', $currentLocale) }</p>
             {/if}
           </div>
 
-          <p class="text-[11px] text-pos-muted font-bold">
-            ⚠️ This replaces the ENTIRE current database (sales, products, debts, sessions). A safety backup of the current
-            data is created first, but the action is significant. Confirm to proceed.
-          </p>
+          <p class="text-[11px] text-pos-muted font-bold">{ t('st_restore_replaces_db_warning', $currentLocale) }</p>
 
           <label class="flex items-center gap-2 text-xs font-bold text-pos-text cursor-pointer p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-pos-border">
             <input type="checkbox" bind:checked={restoreSettingsToo} class="rounded text-sky-600" />
-            <span>Also restore application settings from this backup's snapshot</span>
+            <span>{ t('st_also_restore_application_settings', $currentLocale) }</span>
           </label>
 
           {#if restoreError && !restoreValidateMsg}
@@ -3690,9 +3624,7 @@
               type="button"
               on:click={() => (showRestoreModal = false)}
               class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-            >
-              Cancel / إلغاء
-            </button>
+            >{ t('st_cancel', $currentLocale) }</button>
             <button
               type="button"
               on:click={handleConfirmRestore}
