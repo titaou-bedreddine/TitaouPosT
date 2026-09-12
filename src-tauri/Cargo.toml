@@ -1,6 +1,6 @@
 [package]
 name = "titaou-post"
-version = "0.5.30"
+version = "0.5.31"
 description = "Windows Offline-First Point of Sale Application"
 edition = "2021"
 

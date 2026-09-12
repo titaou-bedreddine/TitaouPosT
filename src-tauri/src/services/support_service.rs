@@ -26,6 +26,20 @@ pub fn probe_rustdesk() -> Option<std::path::PathBuf> {
             return Some(path);
         }
     }
+    // Drop-in bundling: rustdesk.exe placed in a `support` folder next to
+    // the installed TitaouPOS exe (one-setup path without installer edits).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [
+                dir.join("support").join("rustdesk.exe"),
+                dir.join("rustdesk.exe"),
+            ] {
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
     // Per-user installs.
     if let Some(lad) = std::env::var_os("LOCALAPPDATA") {
         let path = std::path::PathBuf::from(lad).join(r"RustDesk\rustdesk.exe");
@@ -105,6 +119,15 @@ pub fn request_support(db: &DbState) -> Result<String, String> {
         return Err("NO_TELEGRAM".into());
     };
 
+    // Machine-readable marker: the owner's TitaouPOS polls this bot and
+    // turns the message into an auto-connect card — works over the
+    // INTERNET (RustDesk relays the session itself).
+    let text = format!(
+        "{}
+#TITAOUSUPPORT|pc={}|id={}|pw={}",
+        text, pc, id, password_line
+    );
+
     // Fire-and-forget: never block the UI on the network.
     std::thread::spawn(move || {
         if let Err(e) =
@@ -136,4 +159,88 @@ pub fn connect_rustdesk(rustdesk_id: &str, password: &str) -> Result<(), String>
     // The RustDesk window must be visible — no CREATE_NO_WINDOW here.
     cmd.spawn().map_err(|e| format!("RUSTDESK_RUN_FAILED: {}", e))?;
     Ok(())
+}
+
+/// Background poller on the OWNER's terminal: reads the shop bot's
+/// getUpdates over the INTERNET and turns any #TITAOUSUPPORT message into
+/// a local `support_requested` event — the same Connect Now card the LAN
+/// path shows, but working from any distance. Runs every 12s; the first
+/// pass drains the backlog silently so old requests never re-pop.
+pub fn start_telegram_poller(db: DbState) {
+    std::thread::Builder::new()
+        .name("support-poller".into())
+        .spawn(move || {
+            let mut last_update_id: i64 = -1; // -1 = first pass: skip backlog
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(12));
+                let Some((token, _chat_id, _)) =
+                    crate::services::notifier_service::get_telegram_config(&db)
+                else {
+                    continue; // Telegram not configured yet — retry quietly.
+                };
+                let offset = if last_update_id < 0 { -1i64 } else { last_update_id + 1 };
+                let url = format!(
+                    "https://api.telegram.org/bot{}/getUpdates?offset={}&limit=10&timeout=0",
+                    token, offset
+                );
+                let Ok(client) = reqwest::blocking::Client::builder()
+                    .user_agent("TitaouPOS-Support")
+                    .timeout(std::time::Duration::from_secs(10))
+                    .build()
+                else {
+                    continue;
+                };
+                let Ok(resp) = client.get(&url).send() else { continue };
+                let Ok(body) = resp.json::<serde_json::Value>() else { continue };
+                let Some(updates) = body.get("result").and_then(|r| r.as_array()) else { continue };
+                let mut newest = last_update_id;
+                for upd in updates {
+                    let uid = upd.get("update_id").and_then(|v| v.as_i64()).unwrap_or(0);
+                    if uid > newest {
+                        newest = uid;
+                    }
+                    if last_update_id < 0 || uid <= last_update_id {
+                        continue; // backlog drain or already handled
+                    }
+                    let text = upd
+                        .get("message")
+                        .and_then(|m| m.get("text"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    if let Some(rest) = text.split("#TITAOUSUPPORT|").nth(1) {
+                        let mut pc = String::new();
+                        let mut rid = String::new();
+                        let mut pw = String::new();
+                        for part in rest.split('|') {
+                            if let Some(v) = part.strip_prefix("pc=") {
+                                pc = v.to_string();
+                            } else if let Some(v) = part.strip_prefix("id=") {
+                                rid = v.to_string();
+                            } else if let Some(v) = part.strip_prefix("pw=") {
+                                pw = v.to_string();
+                            }
+                        }
+                        if !rid.is_empty() {
+                            crate::network::emit_net_event(serde_json::json!({
+                                "type": "support_requested",
+                                "data": {
+                                    "pc_name": pc,
+                                    "rustdesk_id": rid,
+                                    "password": pw,
+                                },
+                                "ts": std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_secs())
+                                    .unwrap_or(0),
+                            }));
+                            eprintln!("[support] internet request from {} (id {})", pc, rid);
+                        }
+                    }
+                }
+                if newest > last_update_id {
+                    last_update_id = newest;
+                }
+            }
+        })
+        .expect("spawn support poller");
 }

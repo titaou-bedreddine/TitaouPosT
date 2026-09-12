@@ -53,6 +53,12 @@ pub fn run() {    let db_state = DbState::new().expect("Failed to initialize dat
     // The LAN shop API shares the same authoritative SQLite file (its own
     // WAL connection) — set BEFORE the server starts serving /api/v1.
     network::server_api::set_api_db(DbState::new().expect("lan api db"));
+
+    // Remote support over the INTERNET: poll the shop bot's Telegram for
+    // #TITAOUSUPPORT messages from distant client PCs (own DB connection).
+    crate::services::support_service::start_telegram_poller(
+        DbState::new().expect("support poller db"),
+    );
     server::start_local_api_server();
 
     tauri::Builder::default()

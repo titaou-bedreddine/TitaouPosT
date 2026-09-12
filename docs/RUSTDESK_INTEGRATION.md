@@ -31,6 +31,20 @@ except the owner's own Telegram chat.
   (shop-wide, propagates to every client).
 - Clear errors: RustDesk missing / Telegram not configured.
 
+## Internet delivery (SHIPPED v0.5.31) — support from ANY distance
+RustDesk sessions already relay over the internet; the request delivery now
+does too:
+- The client's Telegram message carries a machine-readable marker line
+  `#TITAOUSUPPORT|pc=<name>|id=<id>|pw=<pw>` appended to the human text.
+- The OWNER's TitaouPOS runs a background poller (every 12s) on the same
+  bot: `getUpdates` -> parse marker -> emit the local `support_requested`
+  event -> the **Connect Now** card pops with PC/ID/password wherever the
+  owner is. One click launches RustDesk; the session itself routes through
+  the RustDesk relay — no LAN, no port forwarding, no fixed IP.
+- Backlog-safe: the first poll drains history silently (offset=-1), then
+  only new messages fire the card. No duplication with the LAN path
+  (same card, whichever delivery arrives first).
+
 ## Phase 1 — One-Setup bundling (single installer)
 1. Download the official portable `rustdesk.exe` (hosted release) once and
    place it at `src-tauri/resources/rustdesk/rustdesk.exe`.
