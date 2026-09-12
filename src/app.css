@@ -57,108 +57,108 @@ body {
    Applied/managed in src/lib/utils/theme.ts; picker in Settings → Style.
    =========================================================================== */
   [data-app-theme="default"] {
-  --th-0: #f0f9ff;
-  --th-50: #e0f2fe;
-  --th-100: #bae6fd;
-  --th-150: #7dd3fc;
-  --th-200: #38bdf8;
-  --th-250: #0ea5e9;
-  --th-300: #0284c7;
-  --th-350: #0369a1;
-  --th-400: #075985;
-  --th-450: #0c4a6e;
-  --th-500: #082f49;
+  --th-50: #f0f9ff;
+  --th-100: #e0f2fe;
+  --th-200: #bae6fd;
+  --th-300: #7dd3fc;
+  --th-400: #38bdf8;
+  --th-500: #0ea5e9;
+  --th-600: #0284c7;
+  --th-700: #0369a1;
+  --th-800: #075985;
+  --th-900: #0c4a6e;
+  --th-950: #082f49;
   }
   [data-app-theme="indigo"] {
-  --th-0: #eef2ff;
-  --th-50: #e0e7ff;
-  --th-100: #c7d2fe;
-  --th-150: #a5b4fc;
-  --th-200: #818cf8;
-  --th-250: #6366f1;
-  --th-300: #4f46e5;
-  --th-350: #4338ca;
-  --th-400: #3730a3;
-  --th-450: #312e81;
-  --th-500: #1e1b4b;
+  --th-50: #eef2ff;
+  --th-100: #e0e7ff;
+  --th-200: #c7d2fe;
+  --th-300: #a5b4fc;
+  --th-400: #818cf8;
+  --th-500: #6366f1;
+  --th-600: #4f46e5;
+  --th-700: #4338ca;
+  --th-800: #3730a3;
+  --th-900: #312e81;
+  --th-950: #1e1b4b;
   }
   [data-app-theme="emerald"] {
-  --th-0: #ecfdf5;
-  --th-50: #d1fae5;
-  --th-100: #a7f3d0;
-  --th-150: #6ee7b7;
-  --th-200: #34d399;
-  --th-250: #10b981;
-  --th-300: #059669;
-  --th-350: #047857;
-  --th-400: #065f46;
-  --th-450: #064e3b;
-  --th-500: #022c22;
+  --th-50: #ecfdf5;
+  --th-100: #d1fae5;
+  --th-200: #a7f3d0;
+  --th-300: #6ee7b7;
+  --th-400: #34d399;
+  --th-500: #10b981;
+  --th-600: #059669;
+  --th-700: #047857;
+  --th-800: #065f46;
+  --th-900: #064e3b;
+  --th-950: #022c22;
   }
   [data-app-theme="mustard"] {
-  --th-0: #fefce8;
-  --th-50: #fef9c3;
-  --th-100: #fef08a;
-  --th-150: #fde047;
-  --th-200: #facc15;
-  --th-250: #ca8a04;
-  --th-300: #a16207;
-  --th-350: #854d0e;
-  --th-400: #713f12;
-  --th-450: #5c4a08;
-  --th-500: #422006;
+  --th-50: #fefce8;
+  --th-100: #fef9c3;
+  --th-200: #fef08a;
+  --th-300: #fde047;
+  --th-400: #facc15;
+  --th-500: #ca8a04;
+  --th-600: #a16207;
+  --th-700: #854d0e;
+  --th-800: #713f12;
+  --th-900: #5c4a08;
+  --th-950: #422006;
   }
   [data-app-theme="rose"] {
-  --th-0: #fff1f2;
-  --th-50: #ffe4e6;
-  --th-100: #fecdd3;
-  --th-150: #fda4af;
-  --th-200: #fb7185;
-  --th-250: #f43f5e;
-  --th-300: #e11d48;
-  --th-350: #be123c;
-  --th-400: #9f1239;
-  --th-450: #881337;
-  --th-500: #4c0519;
+  --th-50: #fff1f2;
+  --th-100: #ffe4e6;
+  --th-200: #fecdd3;
+  --th-300: #fda4af;
+  --th-400: #fb7185;
+  --th-500: #f43f5e;
+  --th-600: #e11d48;
+  --th-700: #be123c;
+  --th-800: #9f1239;
+  --th-900: #881337;
+  --th-950: #4c0519;
   }
   [data-app-theme="teal"] {
-  --th-0: #f0fdfa;
-  --th-50: #ccfbf1;
-  --th-100: #99f6e4;
-  --th-150: #5eead4;
-  --th-200: #2dd4bf;
-  --th-250: #14b8a6;
-  --th-300: #0d9488;
-  --th-350: #0f766e;
-  --th-400: #115e59;
-  --th-450: #134e4a;
-  --th-500: #042f2e;
+  --th-50: #f0fdfa;
+  --th-100: #ccfbf1;
+  --th-200: #99f6e4;
+  --th-300: #5eead4;
+  --th-400: #2dd4bf;
+  --th-500: #14b8a6;
+  --th-600: #0d9488;
+  --th-700: #0f766e;
+  --th-800: #115e59;
+  --th-900: #134e4a;
+  --th-950: #042f2e;
   }
   [data-app-theme="orange"] {
-  --th-0: #fff7ed;
-  --th-50: #ffedd5;
-  --th-100: #fed7aa;
-  --th-150: #fdba74;
-  --th-200: #fb923c;
-  --th-250: #f97316;
-  --th-300: #ea580c;
-  --th-350: #c2410c;
-  --th-400: #9a3412;
-  --th-450: #7c2d12;
-  --th-500: #431407;
+  --th-50: #fff7ed;
+  --th-100: #ffedd5;
+  --th-200: #fed7aa;
+  --th-300: #fdba74;
+  --th-400: #fb923c;
+  --th-500: #f97316;
+  --th-600: #ea580c;
+  --th-700: #c2410c;
+  --th-800: #9a3412;
+  --th-900: #7c2d12;
+  --th-950: #431407;
   }
   [data-app-theme="violet"] {
-  --th-0: #f5f3ff;
-  --th-50: #ede9fe;
-  --th-100: #ddd6fe;
-  --th-150: #c4b5fd;
-  --th-200: #a78bfa;
-  --th-250: #8b5cf6;
-  --th-300: #7c3aed;
-  --th-350: #6d28d9;
-  --th-400: #5b21b6;
-  --th-450: #4c1d95;
-  --th-500: #2e1065;
+  --th-50: #f5f3ff;
+  --th-100: #ede9fe;
+  --th-200: #ddd6fe;
+  --th-300: #c4b5fd;
+  --th-400: #a78bfa;
+  --th-500: #8b5cf6;
+  --th-600: #7c3aed;
+  --th-700: #6d28d9;
+  --th-800: #5b21b6;
+  --th-900: #4c1d95;
+  --th-950: #2e1065;
   }
 
   [data-app-theme="mustard"] {
@@ -659,3 +659,43 @@ body {
   box-shadow: 0 2px 6px rgb(255 59 48 / 0.06), 0 10px 28px rgb(255 59 48 / 0.12) !important;
 }
 [data-app-preset="coral"] button { border-radius: 999px !important; }
+
+/* ---- BUTTON CONTRAST GUARDS (v0.5.30) ----
+   Light-background buttons must always carry dark text/icons; dark
+   buttons keep white. Scoped to light mode (html:not(.dark)) so the
+   dark slate variants are untouched. Backgrounds/dimensions unchanged. */
+html:not(.dark) button.bg-slate-200,
+html:not(.dark) button.bg-slate-100,
+html:not(.dark) button.bg-slate-50 {
+  color: #1E293B !important;
+}
+html:not(.dark) button.bg-slate-200 svg,
+html:not(.dark) button.bg-slate-100 svg,
+html:not(.dark) button.bg-slate-50 svg {
+  color: #1E293B !important;
+}
+/* Accent icons keep their intended colors inside light buttons. */
+html:not(.dark) button.bg-slate-200 svg.text-amber-500,
+html:not(.dark) button.bg-slate-100 svg.text-amber-500,
+html:not(.dark) button.bg-slate-200 svg.text-emerald-500,
+html:not(.dark) button.bg-slate-100 svg.text-emerald-500,
+html:not(.dark) button.bg-slate-200 svg.text-sky-600,
+html:not(.dark) button.bg-slate-100 svg.text-sky-600,
+html:not(.dark) button.bg-slate-200 svg.text-rose-500,
+html:not(.dark) button.bg-slate-100 svg.text-rose-500 {
+  color: inherit !important;
+}
+html:not(.dark) button.bg-slate-200 svg.text-amber-500 { color: #f59e0b !important; }
+html:not(.dark) button.bg-slate-100 svg.text-amber-500 { color: #f59e0b !important; }
+html:not(.dark) button.bg-slate-200 svg.text-emerald-500 { color: #10b981 !important; }
+html:not(.dark) button.bg-slate-100 svg.text-emerald-500 { color: #10b981 !important; }
+html:not(.dark) button.bg-slate-200 svg.text-sky-600 { color: #0284c7 !important; }
+html:not(.dark) button.bg-slate-100 svg.text-sky-600 { color: #0284c7 !important; }
+html:not(.dark) button.bg-slate-200 svg.text-rose-500 { color: #ef4444 !important; }
+html:not(.dark) button.bg-slate-100 svg.text-rose-500 { color: #ef4444 !important; }
+/* Shortcut chips on light buttons: dark text on their translucent black chip. */
+html:not(.dark) button.bg-slate-200 .bg-black\/25,
+html:not(.dark) button.bg-slate-100 .bg-black\/25 {
+  color: #F8FAFC !important;
+  background-color: rgb(0 0 0 / 0.45) !important;
+}

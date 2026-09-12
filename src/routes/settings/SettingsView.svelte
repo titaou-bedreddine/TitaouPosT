@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { t, currentLocale } from '../../lib/i18n';
-  import { THEMES, SKINS, PRESETS, applyTheme, applySkin, applyPreset } from '../../lib/utils/theme';
+  import { THEMES, SKINS, PRESETS, FONT_SIZES, applyTheme, applySkin, applyPreset, applyFontSize } from '../../lib/utils/theme';
   import { runSilentUpdate } from '../../lib/utils/autoUpdater';
   import { invoke } from '@tauri-apps/api/core';
   import AboutView from '../about/AboutView.svelte';
@@ -94,6 +94,7 @@
     allow_negative_stock: 'false',
     pos_hide_arabic_name: 'false',
     rustdesk_path: '',
+    app_font_size: 'default',
     rustdesk_support_password: '',
     pos_autofocus_search: 'true',
     pos_autofocus_timer_seconds: '10',
@@ -495,6 +496,7 @@
       applyTheme(settings.app_theme);
       applySkin(settings.app_skin);
       applyPreset(settings.app_preset);
+      applyFontSize(settings.app_font_size);
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
     } catch (e) {
@@ -512,6 +514,12 @@
     settings.app_preset = id;
     applyPreset(id);
     invoke('set_setting', { key: 'app_preset', value: id }).catch((e) => console.warn('preset save:', e));
+  }
+
+  function pickFontSize(id: string) {
+    settings.app_font_size = id;
+    applyFontSize(id);
+    invoke('set_setting', { key: 'app_font_size', value: id }).catch((e) => console.warn('font size save:', e));
   }
 
   function restoreOriginalLook() {
@@ -1618,6 +1626,22 @@
                   {/if}
                 </div>
                 <span class="text-[11px] font-black text-pos-text">{ t(sk.nameKey, $currentLocale) }</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Font size -->
+        <div class="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+          <h3 class="font-black text-sm text-pos-text">{ t('st_font_size', $currentLocale) }</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {#each FONT_SIZES as fs}
+              <button
+                type="button"
+                on:click={() => pickFontSize(fs.id)}
+                class="p-3 rounded-xl border-2 text-start transition cursor-pointer {settings.app_font_size === fs.id ? 'border-sky-500 ring-2 ring-sky-500/40 bg-white dark:bg-slate-900' : 'border-pos-border hover:border-sky-400 bg-white dark:bg-slate-900'}"
+              >
+                <span class="block font-black text-pos-text {fs.id === 'small' ? 'text-[10px]' : fs.id === 'default' ? 'text-xs' : fs.id === 'big' ? 'text-sm' : 'text-base'}">{ t(fs.nameKey, $currentLocale) }</span>
               </button>
             {/each}
           </div>

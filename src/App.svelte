@@ -43,6 +43,35 @@
   // Sidebar drawer-kick feedback (success/failure shown under the button).
   let drawerMsg = '';
   let netToast = '';
+  let supportBusy = false;
+
+  // One-click remote support (RustDesk): push this PC's RustDesk ID and the
+  // shared access password to the owner (Telegram + LAN auto-connect card).
+  async function requestSupport() {
+    if (supportBusy) return;
+    supportBusy = true;
+    try {
+      const info = JSON.parse(await invoke<string>('request_support'));
+      // LAN auto-connect: forward to the shop server so the owner's screen
+      // pops a Connect Now card (Telegram still fires in parallel).
+      if ($networkStatus?.mode === 'connected') {
+        invoke('submit_support_request', {
+          pcName: info.pc,
+          rustdeskId: info.id,
+          password: info.password,
+        }).catch(() => {});
+      }
+      netToast = t('support_sent', $currentLocale);
+    } catch (e: any) {
+      const msg = typeof e === 'string' ? e : e?.message || String(e);
+      if (msg.includes('RUSTDESK_MISSING')) netToast = t('support_missing_rustdesk', $currentLocale);
+      else if (msg.includes('NO_TELEGRAM')) netToast = t('support_missing_telegram', $currentLocale);
+      else netToast = '❌ ' + msg;
+    } finally {
+      supportBusy = false;
+      setTimeout(() => (netToast = ''), 14000);
+    }
+  }
 
   // Route-level access control. Administrators see everything; a Cashier is
   // limited to POS, sales history, expenses and customers (so they can
@@ -210,6 +239,26 @@
   // Real-time LAN events from the shop server: session events invalidate the
   // locally cached register view so a connected terminal stays in sync.
   let lastNetEventTs = 0;
+
+  // RUSTDESK AUTO-CONNECT: a client PC pressed Help — the server broadcast
+  // its ID + access password. One click launches the local RustDesk.
+  let supportReq: { pc: string; id: string; password: string } | null = null;
+  let supportConnecting = false;
+  async function connectNow() {
+    if (!supportReq || supportConnecting) return;
+    supportConnecting = true;
+    try {
+      await invoke('connect_rustdesk', { rustdeskId: supportReq.id, password: supportReq.password });
+      supportReq = null;
+    } catch (e: any) {
+      const msg = typeof e === 'string' ? e : e?.message || String(e);
+      if (msg.includes('RUSTDESK_MISSING')) netToast = t('support_missing_rustdesk', $currentLocale);
+      else netToast = '❌ ' + msg;
+      setTimeout(() => (netToast = ''), 10000);
+    } finally {
+      supportConnecting = false;
+    }
+  }
   // Client-mode session safety: when the backend reports the user token is
   // gone (stale after a server restart), log the UI out cleanly instead of
   // hitting "Log in before running shop operations" on every operation.
@@ -231,6 +280,10 @@
     if (t0.startsWith('session_') || t0 === 'settings_updated') {
       loadActiveSession();
     }
+    if (t0 === 'support_requested') {
+      const d = $networkEvents[0].data || {};
+      supportReq = { pc: String(d.pc_name || 'PC'), id: String(d.rustdesk_id || ''), password: String(d.password || '') };
+    }
     // OFFLINE CLIENT (user decision 2026-09-08): the terminal worked offline
     // against its local DB; on reconnect tell the cashier what happened.
     if (t0 === 'offline_session_upgraded') {
@@ -247,7 +300,7 @@
     // Style & Theme: apply the saved palette + skin before first paint of content.
     try {
       const st = await invoke<Record<string, string>>('get_all_settings');
-      applyThemeSettings(st['app_theme'], st['app_skin'], st['app_preset']);
+      applyThemeSettings(st['app_theme'], st['app_skin'], st['app_preset'], st['app_font_size']);
     } catch {
       // defaults already applied
     }
@@ -391,6 +444,28 @@
     logout();
   }
 </script>
+
+{#if supportReq}
+  <div class="fixed bottom-4 end-4 z-[95] w-[340px] bg-pos-card border-2 border-amber-400 rounded-2xl shadow-2xl p-4 space-y-2 animate-in slide-in-from-bottom duration-200">
+    <div class="flex items-center gap-2">
+      <LifeBuoy class="w-5 h-5 text-amber-500" />
+      <span class="text-xs font-black text-pos-text">🆘 {supportReq.pc}</span>
+      <button type="button" on:click={() => (supportReq = null)} class="ms-auto text-pos-muted hover:text-pos-text cursor-pointer text-xs font-black">✕</button>
+    </div>
+    <p class="text-[11px] font-bold text-pos-muted">RustDesk ID: <span class="font-mono font-black text-sky-600 select-text">{supportReq.id}</span></p>
+    {#if supportReq.password}
+      <p class="text-[11px] font-bold text-pos-muted">Password: <span class="font-mono font-black text-pos-text select-text">{supportReq.password}</span></p>
+    {/if}
+    <button
+      type="button"
+      on:click={connectNow}
+      disabled={supportConnecting}
+      class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs rounded-xl cursor-pointer transition"
+    >
+      {supportConnecting ? 'Launching RustDesk…' : '🡒 Connect Now / اتصل الآن'}
+    </button>
+  </div>
+{/if}
 
 {#if netToast}
   <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[95] max-w-xl w-[92%] px-4 py-3 rounded-2xl border shadow-2xl text-xs font-bold
@@ -636,7 +711,16 @@
 
           <!-- Compact Mini Language Toggle -->
           <div class="flex items-center justify-between gap-1 pt-1.5 border-t border-pos-border/40 text-[10px]">
-            <span></span>
+            <button
+              type="button"
+              on:click={requestSupport}
+              disabled={supportBusy}
+              class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black transition cursor-pointer shrink-0"
+              title={t('help_support_title', $currentLocale)}
+            >
+              <LifeBuoy class="w-3.5 h-3.5" />
+              <span>{t('help_support_title', $currentLocale)}</span>
+            </button>
             <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg">
               <button
                 type="button"

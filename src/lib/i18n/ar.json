@@ -982,5 +982,10 @@
   "st_remote_support_title": "الدعم عن بعد (RustDesk)",
   "st_remote_support_desc": "تستطيع أجهزة العملاء إرسال طلب دعم بنقرة واحدة: يصلك معرّف RustDesk وكلمة المرور على تيليجرام.",
   "st_rustdesk_path": "مسار RustDesk (اختياري — كشف تلقائي)",
-  "st_rustdesk_password": "كلمة مرور الوصول للدعم"
+  "st_rustdesk_password": "كلمة مرور الوصول للدعم",
+  "st_font_size": "حجم الخط",
+  "fs_small": "صغير",
+  "fs_default": "افتراضي",
+  "fs_big": "كبير",
+  "fs_bigger": "أكبر"
 }

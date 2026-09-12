@@ -126,6 +126,7 @@ pub fn run() {    let db_state = DbState::new().expect("Failed to initialize dat
             commands::list_supplier_debt_payments,
             commands::create_purchase,
             commands::request_support,
+            commands::connect_rustdesk,
             commands::update_purchase,
             commands::get_purchase_items,
             commands::delete_purchase,

@@ -982,5 +982,10 @@
   "st_remote_support_title": "Remote Support (RustDesk)",
   "st_remote_support_desc": "Client PCs can send a one-click support request: their RustDesk ID and access password are delivered to your Telegram.",
   "st_rustdesk_path": "RustDesk Path (optional — auto-detected)",
-  "st_rustdesk_password": "Support Access Password"
+  "st_rustdesk_password": "Support Access Password",
+  "st_font_size": "Font Size",
+  "fs_small": "Small",
+  "fs_default": "Default",
+  "fs_big": "Big",
+  "fs_bigger": "Bigger"
 }

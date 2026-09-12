@@ -16,10 +16,10 @@ export interface ThemeMeta {
 }
 
 export const THEMES: ThemeMeta[] = [
+  { id: 'mustard', nameKey: 'th_mustard', swatch: ['#FFCC00', '#713F12'] },
   { id: 'default', nameKey: 'th_default', swatch: ['#0284c7', '#bae6fd'] },
   { id: 'indigo', nameKey: 'th_indigo', swatch: ['#4f46e5', '#c7d2fe'] },
   { id: 'emerald', nameKey: 'th_emerald', swatch: ['#059669', '#a7f3d0'] },
-  { id: 'mustard', nameKey: 'th_mustard', swatch: ['#FFCC00', '#713F12'] },
   { id: 'rose', nameKey: 'th_rose', swatch: ['#e11d48', '#fecdd3'] },
   { id: 'teal', nameKey: 'th_teal', swatch: ['#0d9488', '#99f6e4'] },
   { id: 'orange', nameKey: 'th_orange', swatch: ['#ea580c', '#fed7aa'] },
@@ -75,8 +75,21 @@ export function applySkin(id: string | null | undefined): void {
   document.documentElement.setAttribute('data-app-skin', s!);
 }
 
-export function applyThemeSettings(theme?: string | null, skin?: string | null, preset?: string | null): void {
+export const FONT_SIZES: { id: string; nameKey: string; scale: string }[] = [
+  { id: 'small', nameKey: 'fs_small', scale: '87.5%' },
+  { id: 'default', nameKey: 'fs_default', scale: '100%' },
+  { id: 'big', nameKey: 'fs_big', scale: '112.5%' },
+  { id: 'bigger', nameKey: 'fs_bigger', scale: '125%' },
+];
+
+export function applyFontSize(id?: string | null): void {
+  const found = FONT_SIZES.find((x) => x.id === id) ?? FONT_SIZES[1];
+  document.documentElement.style.fontSize = found.scale;
+}
+
+export function applyThemeSettings(theme?: string | null, skin?: string | null, preset?: string | null, fontSize?: string | null): void {
   applyTheme(theme);
   applySkin(skin);
   applyPreset(preset);
+  applyFontSize(fontSize);
 }

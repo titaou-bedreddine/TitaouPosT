@@ -19,7 +19,7 @@ const RUSTDESK_PROBES: &[&str] = &[
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-fn probe_rustdesk() -> Option<std::path::PathBuf> {
+pub fn probe_rustdesk() -> Option<std::path::PathBuf> {
     for p in RUSTDESK_PROBES {
         let path = std::path::PathBuf::from(p);
         if path.exists() {
@@ -115,4 +115,25 @@ pub fn request_support(db: &DbState) -> Result<String, String> {
     });
 
     Ok(id)
+}
+
+/// Owner side: launch the local RustDesk pointed at the requesting PC.
+/// The RustDesk connect dialog opens; the password arrives with the
+/// request toast for one-paste approval.
+pub fn connect_rustdesk(rustdesk_id: &str, password: &str) -> Result<(), String> {
+    if rustdesk_id.trim().is_empty() {
+        return Err("RUSTDESK_NO_ID".into());
+    }
+    let exe = probe_rustdesk()
+        .ok_or("RUSTDESK_MISSING")?
+        .to_string_lossy()
+        .to_string();
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("--connect").arg(rustdesk_id.trim());
+    if !password.trim().is_empty() {
+        cmd.arg("--password").arg(password.trim());
+    }
+    // The RustDesk window must be visible — no CREATE_NO_WINDOW here.
+    cmd.spawn().map_err(|e| format!("RUSTDESK_RUN_FAILED: {}", e))?;
+    Ok(())
 }

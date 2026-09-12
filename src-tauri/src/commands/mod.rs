@@ -461,6 +461,11 @@ pub fn request_support(db: State<'_, DbState>) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn connect_rustdesk(rustdesk_id: String, password: String) -> Result<(), String> {
+    support_service::connect_rustdesk(&rustdesk_id, &password)
+}
+
+#[tauri::command]
 pub fn create_purchase(db: State<'_, DbState>, input: CreatePurchaseInput) -> Result<String, String> {
     purchase_service::create_purchase(&db, input)
 }

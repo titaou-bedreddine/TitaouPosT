@@ -129,6 +129,7 @@ pub fn lookup(command: &str) -> Option<CommandSpec> {
         // --- purchases ---
         "create_purchase" => spec(Auth::User, Some("purchase_created")),
         "update_purchase" => spec(Auth::User, Some("purchase_updated")),
+        "submit_support_request" => spec(Auth::User, None),
         "get_purchase_items" => spec(Auth::User, None),
         "delete_purchase" => spec(Auth::User, Some("purchase_deleted")),
         "list_purchases" => spec(Auth::User, None),
@@ -191,7 +192,7 @@ pub const KNOWN_COMMANDS: &[&str] = &[
     "delete_customer", "toggle_customer_pin", "record_customer_debt_payment",
     "clear_customer_debt", "list_debt_clear_log", "list_suppliers", "save_supplier",
     "delete_supplier", "toggle_supplier_pin", "record_supplier_debt_payment",
-    "list_supplier_debt_payments", "clear_supplier_debt", "create_purchase", "update_purchase", "get_purchase_items",
+    "list_supplier_debt_payments", "clear_supplier_debt", "create_purchase", "update_purchase", "get_purchase_items", "submit_support_request",
     "delete_purchase", "list_purchases", "add_expense", "update_expense", "list_expenses",
     "delete_expense", "list_employees", "save_employee", "find_employee_by_rfid",
     "next_employee_code", "delete_employee", "list_payrolls", "record_employee_advance",
@@ -775,6 +776,25 @@ pub fn dispatch(ctx: &InvokeContext, command: &str, args: &Value) -> Result<Valu
         "update_purchase" => {
             let input: CreatePurchaseInput = model(args, "input")?;
             crate::services::purchase_service::update_purchase(db, req_i64(args, "purchase_id")?, input, opt_i64(args, "user_id")?)?;
+            Value::Null
+        }
+        "submit_support_request" => {
+            let pc_name = req_str(args, "pc_name")?;
+            let rustdesk_id = req_str(args, "rustdesk_id")?;
+            let password = opt_str(args, "password")?.unwrap_or_default();
+            {
+                let conn = db.conn.lock().unwrap();
+                conn.execute(
+                    "INSERT INTO support_requests (pc_name, rustdesk_id, password) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![pc_name, rustdesk_id, password],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            // Full payload in the event so the owner can auto-connect.
+            emit_event(
+                "support_requested",
+                json!({ "pc_name": pc_name, "rustdesk_id": rustdesk_id, "password": password, "by": ctx.caller_user.as_ref().map(|u| u.username.clone()).unwrap_or_default() }),
+            );
             Value::Null
         }
         "get_purchase_items" => as_json(crate::services::purchase_service::get_purchase_items(db, req_i64(args, "purchase_id")?)?)?,

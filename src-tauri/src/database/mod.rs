@@ -191,6 +191,19 @@ impl DbState {
             [&this_pc],
         );
 
+        // Remote support requests (RustDesk auto-connect): one row per
+        // Help-button press forwarded by a client terminal.
+        let _ = conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS support_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pc_name TEXT NOT NULL,
+                rustdesk_id TEXT NOT NULL,
+                password TEXT,
+                handled INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+
         let _ = conn.execute(
             "CREATE TABLE IF NOT EXISTS scale_sync_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
