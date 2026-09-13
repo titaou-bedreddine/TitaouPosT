@@ -17,7 +17,8 @@ pub fn search_products(
                 p.current_stock, p.min_stock, p.max_stock, p.image_path, p.expiry_date,
                 COALESCE(p.is_scalable, 0), p.scale_code, p.scale_plu, COALESCE(p.scale_barcode_type, 97),
                 COALESCE(p.scale_department_id, 1), COALESCE(p.scale_sync_status, 'pending'),
-                p.is_bundle, p.is_active, COALESCE(p.pinned, 0), COALESCE(p.pin_order, 0)
+                p.is_bundle, p.is_active, COALESCE(p.pinned, 0), COALESCE(p.pin_order, 0),
+                p.created_at
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
          LEFT JOIN units u ON p.unit_id = u.id
@@ -85,6 +86,7 @@ pub fn search_products(
                 scale_sync_status: row.get(23)?,
                 is_bundle: row.get(24)?,
                 is_active: row.get(25)?,
+                created_at: row.get(28).ok(),
                 barcodes: Vec::new(),
                 total_sold: None,
                 pinned: row.get::<_, i64>(26)? == 1,

@@ -573,6 +573,7 @@ pub fn resolve_scale_scan(
                 max_stock: row.get(15)?,
                 image_path: row.get(16)?,
                 expiry_date: row.get(17)?,
+                created_at: None,
                 is_scalable: row.get(18)?,
                 scale_code: row.get(19)?,
                 scale_plu: row.get(20)?,

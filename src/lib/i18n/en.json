@@ -1006,5 +1006,6 @@
   "st_generate_master_keypair": "Generate Master Keypair",
   "st_studio_shop": "Shop Name",
   "st_studio_days": "Trial days",
-  "sort_newest": "Newest (Recently Added)"
+  "sort_newest": "Newest (Recently Added)",
+  "badge_new": "NEW"
 }

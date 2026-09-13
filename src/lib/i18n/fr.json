@@ -1006,5 +1006,6 @@
   "st_generate_master_keypair": "Générer la paire de clés maîtresse",
   "st_studio_shop": "Nom de la boutique",
   "st_studio_days": "Jours d'essai",
-  "sort_newest": "Plus récents (derniers ajouts)"
+  "sort_newest": "Plus récents (derniers ajouts)",
+  "badge_new": "NOUVEAU"
 }

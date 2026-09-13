@@ -45,6 +45,15 @@
   let printLabelType: 'barcode' | 'etiquette' = 'barcode';
   let printLabelQty = 1;
 
+  // NEW badge: product added within the last 7 days (created_at from the
+  // backend, SQLite local time).
+  const isNewProduct = (() => {
+    if (!product.created_at) return false;
+    const created = new Date(String(product.created_at).replace(' ', 'T'));
+    if (isNaN(created.getTime())) return false;
+    return Date.now() - created.getTime() < 7 * 24 * 60 * 60 * 1000;
+  })();
+
   // Sticker prints the stock quantity (or 1 when out of stock); shelf tag
   // always prints one.
   function openPrintSticker(e: MouseEvent) {
@@ -205,6 +214,9 @@
 
   <!-- Product Image or Placeholder -->
   <div class="w-full h-22 bg-slate-100 dark:bg-slate-800/80 rounded-xl flex items-center justify-center mb-2 overflow-hidden relative">
+    {#if isNewProduct}
+      <span class="absolute top-1 start-1 z-10 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black uppercase shadow-md">{ t('badge_new', $currentLocale) }</span>
+    {/if}
     {#if product.image_path}
       <img src={product.image_path} alt={displayName} class="w-full h-full object-cover group-hover:scale-105 transition duration-200" />
     {:else}

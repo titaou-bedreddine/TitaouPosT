@@ -54,6 +54,7 @@ export interface Product {
   is_bundle: boolean;
   is_active: boolean;
   barcodes: string[];
+  created_at?: string;
   total_sold?: number;
   /** Pinned products float to the top of the POS grid and stock page. */
   pinned?: boolean;

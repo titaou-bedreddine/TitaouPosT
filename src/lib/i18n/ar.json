@@ -1006,5 +1006,6 @@
   "st_generate_master_keypair": "إنشاء مفتاح التوقيع",
   "st_studio_shop": "اسم المتجر",
   "st_studio_days": "أيام التجربة",
-  "sort_newest": "الأحدث (آخر الإضافات)"
+  "sort_newest": "الأحدث (آخر الإضافات)",
+  "badge_new": "جديد"
 }

@@ -90,6 +90,8 @@ pub struct Product {
     pub pinned: bool,
     #[serde(default)]
     pub pin_order: i64,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
