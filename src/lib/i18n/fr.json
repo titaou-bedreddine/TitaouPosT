@@ -988,7 +988,7 @@
   "fs_default": "Par défaut",
   "fs_big": "Grand",
   "fs_bigger": "Plus grand",
-  "st_support_tg_token": "Token du bot Telegram support (ce PC)",
-  "st_support_tg_chat": "Chat ID Telegram support (ce PC)",
-  "st_support_tg_hint": "Pour les PC HORS du réseau de la boutique : saisissez ici le même token et chat ID afin que le bouton d'aide vous joigne par internet."
+  "st_support_tg_token": "Token du bot support (bot du PROPRIÉTAIRE — identique sur chaque PC)",
+  "st_support_tg_chat": "Chat ID du propriétaire (destination des demandes)",
+  "st_support_tg_hint": "Pour les PC HORS du réseau : collez le token et le chat ID du bot du PROPRIÉTAIRE (la même paire que sur le serveur) — le bouton d'aide transmet la demande au propriétaire par internet. Un seul bot sert tous les PC."
 }
