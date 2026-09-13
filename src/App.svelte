@@ -280,7 +280,7 @@
     if (t0.startsWith('session_') || t0 === 'settings_updated') {
       loadActiveSession();
     }
-    if (t0 === 'support_requested') {
+    if (t0 === 'support_requested' && $networkStatus?.role !== 'client') {
       const d = $networkEvents[0].data || {};
       supportReq = { pc: String(d.pc_name || 'PC'), id: String(d.rustdesk_id || ''), password: String(d.password || '') };
     }

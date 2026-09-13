@@ -102,6 +102,8 @@ pub const LOCAL_ONLY_SETTINGS: &[&str] = &[
     "drawer_com_port",
     "drawer_baud_rate",
     "rustdesk_path",
+    "support_telegram_token",
+    "support_telegram_chat_id",
     "mobile_server_port",
     "ui_language",
     "first_setup_completed",
@@ -406,6 +408,12 @@ fn on_packet(pkt: DiscoveryPacket, ip: String) {
     if changed {
         emit_status();
     }
+}
+
+/// True when this terminal is an explicit CLIENT (sends support requests,
+/// never pops the owner's Connect Now card).
+pub fn is_client_role() -> bool {
+    net_opt().map(|_| current_config().role == "client").unwrap_or(false)
 }
 
 fn current_config() -> NetConfig {

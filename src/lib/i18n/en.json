@@ -987,5 +987,8 @@
   "fs_small": "Small",
   "fs_default": "Default",
   "fs_big": "Big",
-  "fs_bigger": "Bigger"
+  "fs_bigger": "Bigger",
+  "st_support_tg_token": "Support Telegram Bot Token (this PC)",
+  "st_support_tg_chat": "Support Telegram Chat ID (this PC)",
+  "st_support_tg_hint": "For PCs OUTSIDE the shop network: enter the same bot token and chat ID here so the Help button can reach you over the internet."
 }

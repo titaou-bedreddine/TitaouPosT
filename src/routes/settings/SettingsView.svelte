@@ -96,6 +96,8 @@
     rustdesk_path: '',
     app_font_size: 'default',
     rustdesk_support_password: '',
+    support_telegram_token: '',
+    support_telegram_chat_id: '',
     pos_autofocus_search: 'true',
     pos_autofocus_timer_seconds: '10',
     pos_auto_capture_barcode: 'true',
@@ -2879,7 +2881,16 @@
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_rustdesk_password', $currentLocale) }</label>
                   <input type="text" bind:value={settings.rustdesk_support_password} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
                 </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_support_tg_token', $currentLocale) }</label>
+                  <input type="text" bind:value={settings.support_telegram_token} on:change={autoSaveSettings} placeholder="123456789:ABC..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_support_tg_chat', $currentLocale) }</label>
+                  <input type="text" bind:value={settings.support_telegram_chat_id} on:change={autoSaveSettings} placeholder="-100..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                </div>
               </div>
+              <p class="text-[9px] text-pos-muted font-bold">{ t('st_support_tg_hint', $currentLocale) }</p>
             </div>
 
             <!-- REAL QR: the actual LAN URL — scanning opens the landing

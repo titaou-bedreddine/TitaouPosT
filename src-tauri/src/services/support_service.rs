@@ -114,10 +114,27 @@ pub fn request_support(db: &DbState) -> Result<String, String> {
     );
 
     // The support request is an EXPLICIT user action: deliver it even when
-    // the periodic alert switches are off — but Telegram must be configured.
-    let Some((token, chat_id, _)) = crate::services::notifier_service::get_telegram_config(db) else {
-        return Err("NO_TELEGRAM".into());
-    };
+    // the periodic alert switches are off. Telegram resolution order:
+    //   1. the shop-wide bot config (synced to LAN-connected clients),
+    //   2. the per-PC support credentials — for DISTANT PCs that never
+    //      joined the shop network (the owner types them once at that PC).
+    let (token, chat_id) =
+        if let Some((token, chat_id, _)) = crate::services::notifier_service::get_telegram_config(db) {
+            (token, chat_id)
+        } else {
+            let token = settings
+                .get("support_telegram_token")
+                .map(|t| t.trim().to_string())
+                .unwrap_or_default();
+            let chat_id = settings
+                .get("support_telegram_chat_id")
+                .map(|t| t.trim().to_string())
+                .unwrap_or_default();
+            if token.is_empty() || chat_id.is_empty() {
+                return Err("NO_TELEGRAM".into());
+            }
+            (token, chat_id)
+        };
 
     // Machine-readable marker: the owner's TitaouPOS polls this bot and
     // turns the message into an auto-connect card — works over the
@@ -173,6 +190,13 @@ pub fn start_telegram_poller(db: DbState) {
             let mut last_update_id: i64 = -1; // -1 = first pass: skip backlog
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(12));
+                // Client-role terminals SEND requests; they never pop the
+                // owner's Connect Now card. Self-originated messages are
+                // ignored too (a distant PC must not connect to itself).
+                if crate::network::is_client_role() {
+                    continue;
+                }
+                let this_pc = crate::network::terminal_name_for_this_pc();
                 let Some((token, _chat_id, _)) =
                     crate::services::notifier_service::get_telegram_config(&db)
                 else {
@@ -220,7 +244,7 @@ pub fn start_telegram_poller(db: DbState) {
                                 pw = v.to_string();
                             }
                         }
-                        if !rid.is_empty() {
+                        if !rid.is_empty() && pc != this_pc {
                             crate::network::emit_net_event(serde_json::json!({
                                 "type": "support_requested",
                                 "data": {
