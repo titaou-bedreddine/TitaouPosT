@@ -51,7 +51,7 @@
     if (!product.created_at) return false;
     const created = new Date(String(product.created_at).replace(' ', 'T'));
     if (isNaN(created.getTime())) return false;
-    return Date.now() - created.getTime() < 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - created.getTime() < 3 * 24 * 60 * 60 * 1000;
   })();
 
   // Sticker prints the stock quantity (or 1 when out of stock); shelf tag
@@ -214,9 +214,6 @@
 
   <!-- Product Image or Placeholder -->
   <div class="w-full h-22 bg-slate-100 dark:bg-slate-800/80 rounded-xl flex items-center justify-center mb-2 overflow-hidden relative">
-    {#if isNewProduct}
-      <span class="absolute top-1 start-1 z-10 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black uppercase shadow-md">{ t('badge_new', $currentLocale) }</span>
-    {/if}
     {#if product.image_path}
       <img src={product.image_path} alt={displayName} class="w-full h-full object-cover group-hover:scale-105 transition duration-200" />
     {:else}
@@ -240,6 +237,9 @@
     </h3>
     {#if product.barcodes && product.barcodes.length > 0}
       <span class="text-[10px] text-pos-muted font-mono block mt-0.5">{product.barcodes[0]}</span>
+    {/if}
+    {#if isNewProduct}
+      <span class="inline-block mt-1 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black uppercase tracking-wide">{ t('badge_new', $currentLocale) }</span>
     {/if}
   </div>
 
