@@ -160,6 +160,111 @@ pub fn request_support(db: &DbState) -> Result<String, String> {
 /// Owner side: launch the local RustDesk pointed at the requesting PC.
 /// The RustDesk connect dialog opens; the password arrives with the
 /// request toast for one-paste approval.
+/// Where the auto-installed RustDesk lives (support folder next to the
+/// installed TitaouPOS exe).
+fn auto_install_dir() -> Option<std::path::PathBuf> {
+    std::env::current_exe().ok()?.parent().map(|d| d.join("support"))
+}
+
+/// NO-MANUAL-INSTALL setup: resolve the latest official RustDesk release on
+/// GitHub, download its Windows x64 portable zip, and extract rustdesk.exe
+/// into the support folder next to TitaouPOS. After this, the Help button
+/// works — the user never installs anything by hand.
+pub async fn setup_rustdesk() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let client = reqwest::blocking::Client::builder()
+            .user_agent("TitaouPOS-Support")
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        // 1. Latest release metadata.
+        let meta: serde_json::Value = client
+            .get("https://api.github.com/repos/rustdesk/rustdesk/releases/latest")
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .map_err(|e| e.to_string())?
+            .json()
+            .map_err(|e| e.to_string())?;
+        let assets = meta
+            .get("assets")
+            .and_then(|a| a.as_array())
+            .ok_or("No assets in RustDesk release")?;
+        let asset = assets
+            .iter()
+            .find(|a| {
+                let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                name.contains("windows_x64") && name.ends_with(".zip") && !name.contains("sciter")
+            })
+            .ok_or("No windows_x64 zip in RustDesk release")?;
+        let url = asset
+            .get("browser_download_url")
+            .and_then(|u| u.as_str())
+            .ok_or("Asset has no download URL")?
+            .to_string();
+        let asset_name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("rustdesk.zip");
+
+        // 2. Download to a temp file (large — generous timeout).
+        let dl = client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(600))
+            .send()
+            .map_err(|e| e.to_string())?;
+        let zip_path = std::env::temp_dir().join(asset_name);
+        let bytes = dl.bytes().map_err(|e| e.to_string())?;
+        std::fs::write(&zip_path, &bytes).map_err(|e| e.to_string())?;
+
+        // 3. Extract to the support folder next to TitaouPOS.
+        let dest = auto_install_dir().ok_or("Cannot resolve install directory")?;
+        std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+        let status = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    zip_path.display(),
+                    dest.display()
+                ),
+            ])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !status.status.success() {
+            return Err(format!(
+                "Extract failed: {}",
+                String::from_utf8_lossy(&status.stderr)
+            ));
+        }
+
+        // 4. Verify rustdesk.exe exists somewhere in the extraction.
+        let found = find_rustdesk_exe(&dest);
+        let _ = std::fs::remove_file(&zip_path);
+        match found {
+            Some(p) => Ok(p.to_string_lossy().to_string()),
+            None => Err("rustdesk.exe not found after extraction".into()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn find_rustdesk_exe(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let direct = dir.join("rustdesk.exe");
+    if direct.exists() {
+        return Some(direct);
+    }
+    for entry in std::fs::read_dir(dir).ok()? {
+        let entry = entry.ok()?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(found) = find_rustdesk_exe(&path) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
 pub fn connect_rustdesk(rustdesk_id: &str, password: &str) -> Result<(), String> {
     if rustdesk_id.trim().is_empty() {
         return Err("RUSTDESK_NO_ID".into());

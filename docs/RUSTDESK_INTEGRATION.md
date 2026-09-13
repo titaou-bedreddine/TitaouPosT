@@ -45,6 +45,23 @@ does too:
   only new messages fire the card. No duplication with the LAN path
   (same card, whichever delivery arrives first).
 
+## NO-INSTALL auto-setup (SHIPPED v0.5.33)
+The Remote Support card has an **"Install RustDesk automatically"** button:
+it resolves the latest official RustDesk release on GitHub, downloads the
+Windows x64 portable zip, extracts `rustdesk.exe` into the `support` folder
+next to TitaouPOS, and stores the path — the user never installs anything
+by hand, and updates are one click away (re-run the button).
+
+## Why not EMBED the RustDesk source?
+RustDesk is AGPL-3.0 and its UI layer is Flutter (Dart) with a Rust
+backend. Compiling/linking its code INTO TitaouPOS would make the combined
+work a derivative subject to AGPL — TitaouPOS would have to be open-sourced
+under AGPL. Technically it is also a major effort (Flutter toolchain,
+large codebase, version churn). Keeping the official UNMODIFIED binary as
+a separate program launched via CLI is plain "aggregation" — the
+license-clean path — and with auto-setup the user experience is the same:
+no separate installer to run.
+
 ## Phase 1 — One-Setup bundling (single installer)
 1. Download the official portable `rustdesk.exe` (hosted release) once and
    place it at `src-tauri/resources/rustdesk/rustdesk.exe`.

@@ -20,7 +20,7 @@
     ShieldCheck, RefreshCw, AlertOctagon, Check, Copy, Key,
     QrCode, Image as ImageIcon, Upload, Tag, ArrowRight,
     Wifi, HardDrive, FileText, CheckCircle2, History, Laptop,
-    Scale, Bell, Send, CreditCard, Keyboard, Eye,
+    Scale, Bell, Send, CreditCard, Keyboard, Eye, EyeOff,
     Users, UserPlus, Edit2, Trash2, Shield, Lock, Info, Pin, Plus, Palette, LifeBuoy
   } from 'lucide-svelte';
 
@@ -257,6 +257,9 @@
   // Factory Reset
   let resetType = 'transactions_only';
   let resetConfirm = '';
+  // Secret fields (bot tokens / chat IDs / support password) are masked by
+  // default; the eye toggle reveals them for verification.
+  let showSecrets = false;
   // Countdown giving the user time to cancel before the destructive reset.
   let resetCountdown = 0;
   let resetTimer: any = null;
@@ -516,6 +519,24 @@
     settings.app_preset = id;
     applyPreset(id);
     invoke('set_setting', { key: 'app_preset', value: id }).catch((e) => console.warn('preset save:', e));
+  }
+
+  let rustdeskInstalling = false;
+  let rustdeskStatus = '';
+  async function installRustDeskNow() {
+    if (rustdeskInstalling) return;
+    rustdeskInstalling = true;
+    rustdeskStatus = '';
+    try {
+      const path = await invoke<string>('setup_rustdesk');
+      rustdeskStatus = '✅ ' + path;
+      settings.rustdesk_path = path;
+      invoke('set_setting', { key: 'rustdesk_path', value: path }).catch(() => {});
+    } catch (e: any) {
+      rustdeskStatus = '❌ ' + (typeof e === 'string' ? e : e?.message || String(e));
+    } finally {
+      rustdeskInstalling = false;
+    }
   }
 
   function pickFontSize(id: string) {
@@ -2151,11 +2172,11 @@
             <h3 class="font-black text-sm text-pos-text">{ t('st_telegram_bot_credentials', $currentLocale) }</h3>
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_telegram_bot_token', $currentLocale) }</label>
-              <input type="text" bind:value={settings.telegram_bot_token} placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+              <input type="{showSecrets ? 'text' : 'password'}" bind:value={settings.telegram_bot_token} placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
             </div>
             <div>
               <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_telegram_chat_id_channel', $currentLocale) }</label>
-              <input type="text" bind:value={settings.telegram_chat_id} placeholder="-100123456789" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
+              <input type="{showSecrets ? 'text' : 'password'}" bind:value={settings.telegram_chat_id} placeholder="-100123456789" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text outline-none" />
             </div>
             <button type="button" on:click={sendTelegramTest} disabled={isSendingTelegram} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer">
               <Send class="w-3.5 h-3.5" />
@@ -2870,6 +2891,9 @@
               <div class="flex items-center gap-2">
                 <LifeBuoy class="w-4 h-4 text-emerald-600" />
                 <h4 class="font-black text-xs text-pos-text">{ t('st_remote_support_title', $currentLocale) }</h4>
+                <button type="button" on:click={() => (showSecrets = !showSecrets)} class="ms-auto p-1 text-pos-muted hover:text-sky-600 cursor-pointer" title="{showSecrets ? 'Hide' : 'Show'} secrets">
+                  {#if showSecrets}<EyeOff class="w-3.5 h-3.5" />{:else}<Eye class="w-3.5 h-3.5" />{/if}
+                </button>
               </div>
               <p class="text-[10px] text-pos-muted font-bold">{ t('st_remote_support_desc', $currentLocale) }</p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2879,18 +2903,37 @@
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_rustdesk_password', $currentLocale) }</label>
-                  <input type="text" bind:value={settings.rustdesk_support_password} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                  <input type="{showSecrets ? 'text' : 'password'}" bind:value={settings.rustdesk_support_password} on:change={autoSaveSettings} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_support_tg_token', $currentLocale) }</label>
-                  <input type="text" bind:value={settings.support_telegram_token} on:change={autoSaveSettings} placeholder="123456789:ABC..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                  <input type="{showSecrets ? 'text' : 'password'}" bind:value={settings.support_telegram_token} on:change={autoSaveSettings} placeholder="123456789:ABC..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_support_tg_chat', $currentLocale) }</label>
-                  <input type="text" bind:value={settings.support_telegram_chat_id} on:change={autoSaveSettings} placeholder="-100..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                  <input type="{showSecrets ? 'text' : 'password'}" bind:value={settings.support_telegram_chat_id} on:change={autoSaveSettings} placeholder="-100..." class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
                 </div>
               </div>
               <p class="text-[9px] text-pos-muted font-bold">{ t('st_support_tg_hint', $currentLocale) }</p>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  on:click={installRustDeskNow}
+                  disabled={rustdeskInstalling}
+                  class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-[10px] font-black rounded-lg cursor-pointer transition flex items-center gap-1.5"
+                >
+                  {#if rustdeskInstalling}
+                    <RefreshCw class="w-3.5 h-3.5 animate-spin" />
+                    <span>{ t('st_rustdesk_downloading', $currentLocale) }</span>
+                  {:else}
+                    <Download class="w-3.5 h-3.5" />
+                    <span>{ t('st_rustdesk_autodownload', $currentLocale) }</span>
+                  {/if}
+                </button>
+                {#if rustdeskStatus}
+                  <span class="text-[10px] font-bold {rustdeskStatus.startsWith('✅') ? 'text-emerald-600' : 'text-rose-600'}">{rustdeskStatus}</span>
+                {/if}
+              </div>
             </div>
 
             <!-- REAL QR: the actual LAN URL — scanning opens the landing

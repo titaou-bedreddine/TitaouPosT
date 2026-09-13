@@ -466,6 +466,11 @@ pub fn connect_rustdesk(rustdesk_id: String, password: String) -> Result<(), Str
 }
 
 #[tauri::command]
+pub async fn setup_rustdesk() -> Result<String, String> {
+    support_service::setup_rustdesk().await
+}
+
+#[tauri::command]
 pub fn create_purchase(db: State<'_, DbState>, input: CreatePurchaseInput) -> Result<String, String> {
     purchase_service::create_purchase(&db, input)
 }

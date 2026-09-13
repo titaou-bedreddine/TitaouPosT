@@ -990,5 +990,7 @@
   "fs_bigger": "Bigger",
   "st_support_tg_token": "Support Bot Token (the SHOP OWNER's bot — same on every PC)",
   "st_support_tg_chat": "Owner's Chat ID (where requests arrive)",
-  "st_support_tg_hint": "For PCs OUTSIDE the shop network: paste the SHOP OWNER's bot token and chat ID (the same pair used on the server) — the Help button then delivers the request to the owner over the internet. One shared bot serves every PC."
+  "st_support_tg_hint": "For PCs OUTSIDE the shop network: paste the SHOP OWNER's bot token and chat ID (the same pair used on the server) — the Help button then delivers the request to the owner over the internet. One shared bot serves every PC.",
+  "st_rustdesk_autodownload": "Install RustDesk automatically",
+  "st_rustdesk_downloading": "Downloading RustDesk…"
 }
