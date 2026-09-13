@@ -295,12 +295,6 @@ pub fn start_telegram_poller(db: DbState) {
             let mut last_update_id: i64 = -1; // -1 = first pass: skip backlog
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(12));
-                // Client-role terminals SEND requests; they never pop the
-                // owner's Connect Now card. Self-originated messages are
-                // ignored too (a distant PC must not connect to itself).
-                if crate::network::is_client_role() {
-                    continue;
-                }
                 let this_pc = crate::network::terminal_name_for_this_pc();
                 let Some((token, _chat_id, _)) =
                     crate::services::notifier_service::get_telegram_config(&db)
@@ -349,7 +343,7 @@ pub fn start_telegram_poller(db: DbState) {
                                 pw = v.to_string();
                             }
                         }
-                        if !rid.is_empty() && pc != this_pc {
+                        if !rid.is_empty() && pc != this_pc && !crate::network::is_client_role() {
                             crate::network::emit_net_event(serde_json::json!({
                                 "type": "support_requested",
                                 "data": {
@@ -363,6 +357,63 @@ pub fn start_telegram_poller(db: DbState) {
                                     .unwrap_or(0),
                             }));
                             eprintln!("[support] internet request from {} (id {})", pc, rid);
+                        }
+                    }
+                }
+                // LICENSE markers: requests go to the owner; signed replies
+                // activate the client whose HWID matches.
+                for upd in updates {
+                    let uid = upd.get("update_id").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let text = upd
+                        .get("message")
+                        .and_then(|m| m.get("text"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    if text.contains("#TITAOUREQUEST|") && !crate::network::is_client_role() {
+                        if let Some(rest) = text.split("#TITAOUREQUEST|").nth(1) {
+                            let mut hw = String::new();
+                            let mut pc = String::new();
+                            let mut shop = String::new();
+                            for part in rest.split('|') {
+                                if let Some(v) = part.strip_prefix("hw=") { hw = v.to_string(); }
+                                else if let Some(v) = part.strip_prefix("pc=") { pc = v.to_string(); }
+                                else if let Some(v) = part.strip_prefix("shop=") { shop = v.to_string(); }
+                            }
+                            if !hw.is_empty() {
+                                crate::network::emit_net_event(serde_json::json!({
+                                    "type": "license_requested",
+                                    "data": { "hwid": hw, "pc_name": pc, "shop": shop },
+                                    "ts": std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .map(|d| d.as_secs())
+                                        .unwrap_or(0),
+                                }));
+                                eprintln!("[license] activation request from {} ({})", pc, hw);
+                            }
+                        }
+                    }
+                    if text.contains("#TITALICENSE|hw=") {
+                        if let Some(rest) = text.split("#TITALICENSE|hw=").nth(1) {
+                            let mut parts = rest.splitn(2, "|lic=");
+                            let hw = parts.next().unwrap_or("").trim().to_uppercase();
+                            let lic = parts.next().unwrap_or("").trim().to_string();
+                            let this_hw = crate::services::license_service::get_hwid().to_uppercase();
+                            if hw == this_hw && !lic.is_empty() {
+                                match crate::services::license_service::verify_and_activate(&db, &lic) {
+                                    Ok((mode, expiry, shop)) => {
+                                        crate::network::emit_net_event(serde_json::json!({
+                                            "type": "license_activated",
+                                            "data": { "mode": mode, "expiry": expiry, "shop": shop },
+                                            "ts": std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .map(|d| d.as_secs())
+                                                .unwrap_or(0),
+                                        }));
+                                        eprintln!("[license] ACTIVATED via Telegram ({})", mode);
+                                    }
+                                    Err(e) => eprintln!("[license] activation rejected: {}", e),
+                                }
+                            }
                         }
                     }
                 }

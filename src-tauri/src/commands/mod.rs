@@ -10,6 +10,7 @@ use crate::services::{
     cash_service, customer_service, dashboard_service, employee_service, expense_service,
     payroll_service, product_service, purchase_service, sales_service, settings_service,
     supplier_service, scale_service, drawer_service, user_service, support_service,
+    license_service,
 };
 use std::collections::HashMap;
 use tauri::State;
@@ -463,6 +464,109 @@ pub fn request_support(db: State<'_, DbState>) -> Result<String, String> {
 #[tauri::command]
 pub fn connect_rustdesk(rustdesk_id: String, password: String) -> Result<(), String> {
     support_service::connect_rustdesk(&rustdesk_id, &password)
+}
+
+#[tauri::command]
+pub fn license_master_generate() -> Result<String, String> {
+    let (pub_b64, sk_path, _pk_path) = license_service::generate_master_keypair()?;
+    // Store the key path so license creation uses it automatically.
+    let db_dir = crate::database::get_database_path()
+        .parent()
+        .ok_or("no db dir")?
+        .to_path_buf();
+    let db = DbState::new().map_err(|e| e.to_string())?;
+    crate::services::settings_service::set_setting(
+        &db,
+        "license_master_path",
+        &db_dir.join("license_master.key").to_string_lossy(),
+    )?;
+    Ok(pub_b64)
+}
+
+#[tauri::command]
+pub fn license_create(
+    db: State<'_, DbState>,
+    shop_name: String,
+    hwid: String,
+    mode: String,
+    days: i64,
+) -> Result<serde_json::Value, String> {
+    let (key, lic) = license_service::create_license(&db, &shop_name, &hwid, &mode, days)?;
+    Ok(serde_json::json!({ "key": key, "lic": lic }))
+}
+
+#[tauri::command]
+pub fn license_activate(db: State<'_, DbState>, license_text: String) -> Result<serde_json::Value, String> {
+    let (mode, expiry, shop) = license_service::verify_and_activate(&db, &license_text)?;
+    Ok(serde_json::json!({ "mode": mode, "expiry": expiry, "shop": shop }))
+}
+
+#[tauri::command]
+pub fn license_status_cmd(db: State<'_, DbState>) -> Result<serde_json::Value, String> {
+    license_service::license_status(&db)
+}
+
+/// Client side: send an activation request to the developer over Telegram
+/// (internet — works before the shop LAN exists).
+#[tauri::command]
+pub fn send_activation_request(db: State<'_, DbState>) -> Result<(), String> {
+    let settings = settings_service::get_all_settings(&db).unwrap_or_default();
+    let hwid = settings_service::get_hwid();
+    let pc = crate::network::terminal_name_for_this_pc();
+    let shop = settings
+        .get("shop_name_fr")
+        .cloned()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| pc.clone());
+    let text = format!(
+        "🔑 *Activation Request*
+#TITAOUREQUEST|hw={}|pc={}|shop={}",
+        hwid, pc, shop
+    );
+    // Resolution order identical to request_support.
+    let (token, chat_id) =
+        if let Some((t, c, _)) = crate::services::notifier_service::get_telegram_config(&db) {
+            (t, c)
+        } else {
+            let t = settings.get("support_telegram_token").cloned().unwrap_or_default();
+            let c = settings.get("support_telegram_chat_id").cloned().unwrap_or_default();
+            if t.is_empty() || c.is_empty() {
+                return Err("NO_TELEGRAM".into());
+            }
+            (t, c)
+        };
+    std::thread::spawn(move || {
+        let _ = crate::services::notifier_service::send_telegram_blocking(&token, &chat_id, &text);
+    });
+    Ok(())
+}
+
+/// Owner side: send a signed license reply over Telegram.
+#[tauri::command]
+pub fn send_license_reply(db: State<'_, DbState>, hwid: String, license_text: String) -> Result<(), String> {
+    let settings = settings_service::get_all_settings(&db).unwrap_or_default();
+    let (token, chat_id) = if let Some((t, c, _)) = crate::services::notifier_service::get_telegram_config(&db) {
+        (t, c)
+    } else {
+        let t = settings.get("support_telegram_token").cloned().unwrap_or_default();
+        let c = settings.get("support_telegram_chat_id").cloned().unwrap_or_default();
+        if t.is_empty() || c.is_empty() {
+            return Err("NO_TELEGRAM".into());
+        }
+        (t, c)
+    };
+    // The license text itself is machine-readable (#TITALICENSE lines are
+    // parsed by the client's poller); wrap for the human eye too.
+    let text = format!(
+        "🔑 *Your license:*
+#TITALICENSE|hw={}|lic={}",
+        hwid.trim().to_uppercase(),
+        license_text.trim()
+    );
+    std::thread::spawn(move || {
+        let _ = crate::services::notifier_service::send_telegram_blocking(&token, &chat_id, &text);
+    });
+    Ok(())
 }
 
 #[tauri::command]

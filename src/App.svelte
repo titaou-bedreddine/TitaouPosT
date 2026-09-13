@@ -33,7 +33,7 @@
   import {
     LayoutDashboard, ShoppingCart, Receipt, DollarSign,
     Package, TrendingDown, Users, Settings, LogOut,
-    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Lock, AlertTriangle, LifeBuoy
+    Truck, FileSpreadsheet, UserCheck, Wifi, Moon, Sun, CreditCard, Bell, Lock, AlertTriangle, LifeBuoy, KeyRound
   } from 'lucide-svelte';
 
   let currentRoute = 'pos';
@@ -244,6 +244,31 @@
   // its ID + access password. One click launches the local RustDesk.
   let supportReq: { pc: string; id: string; password: string } | null = null;
   let supportConnecting = false;
+
+  // LICENSE REQUESTS (developer approval): a client asked for activation.
+  let licenseReq: { hwid: string; pc: string; shop: string } | null = null;
+  let licenseBusy = '';
+  async function approveLicense(mode: 'full' | 'trial') {
+    if (!licenseReq || licenseBusy) return;
+    licenseBusy = mode;
+    try {
+      const res = await invoke<{ key: string; lic: string }>('license_create', {
+        shopName: licenseReq.shop || licenseReq.pc,
+        hwid: licenseReq.hwid,
+        mode,
+        days: 14,
+      });
+      await invoke('send_license_reply', { hwid: licenseReq.hwid, licenseText: res.key });
+      netToast = `✅ License sent to ${licenseReq.pc} (${mode})`;
+      licenseReq = null;
+      setTimeout(() => (netToast = ''), 8000);
+    } catch (e: any) {
+      netToast = '❌ ' + (typeof e === 'string' ? e : e?.message || String(e));
+      setTimeout(() => (netToast = ''), 10000);
+    } finally {
+      licenseBusy = '';
+    }
+  }
   async function connectNow() {
     if (!supportReq || supportConnecting) return;
     supportConnecting = true;
@@ -283,6 +308,15 @@
     if (t0 === 'support_requested' && $networkStatus?.role !== 'client') {
       const d = $networkEvents[0].data || {};
       supportReq = { pc: String(d.pc_name || 'PC'), id: String(d.rustdesk_id || ''), password: String(d.password || '') };
+    }
+    if (t0 === 'license_requested' && $networkStatus?.role !== 'client') {
+      const d = $networkEvents[0].data || {};
+      licenseReq = { hwid: String(d.hwidid || d.hwid || ''), pc: String(d.pc_name || ''), shop: String(d.shop || '') };
+    }
+    if (t0 === 'license_activated') {
+      const d = $networkEvents[0].data || {};
+      netToast = `✅ License activated (${d.mode}) — ${d.shop || ''} ${d.expiry ? 'until ' + d.expiry : ''}`;
+      setTimeout(() => (netToast = ''), 12000);
     }
     // OFFLINE CLIENT (user decision 2026-09-08): the terminal worked offline
     // against its local DB; on reconnect tell the cashier what happened.
@@ -464,6 +498,24 @@
     >
       {supportConnecting ? 'Launching RustDesk…' : '🡒 Connect Now / اتصل الآن'}
     </button>
+  </div>
+{/if}
+
+{#if licenseReq}
+  <div class="fixed bottom-4 end-4 z-[95] w-[360px] bg-pos-card border-2 border-sky-400 rounded-2xl shadow-2xl p-4 space-y-2 animate-in slide-in-from-bottom duration-200">
+    <div class="flex items-center gap-2">
+      <KeyRound class="w-5 h-5 text-sky-500" />
+      <span class="text-xs font-black text-pos-text">🔑 Activation Request</span>
+      <button type="button" on:click={() => (licenseReq = null)} class="ms-auto text-pos-muted hover:text-pos-text cursor-pointer text-xs font-black">✕</button>
+    </div>
+    <p class="text-[11px] font-bold text-pos-muted">Shop: <span class="text-pos-text font-black">{licenseReq.shop || licenseReq.pc}</span></p>
+    <p class="text-[11px] font-bold text-pos-muted">PC: {licenseReq.pc} · HWID: <span class="font-mono select-text">{licenseReq.hwid}</span></p>
+    <div class="grid grid-cols-3 gap-2 pt-1">
+      <button type="button" on:click={() => approveLicense('full')} disabled={!!licenseBusy} class="py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black rounded-xl cursor-pointer">Full</button>
+      <button type="button" on:click={() => approveLicense('trial')} disabled={!!licenseBusy} class="py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-[10px] font-black rounded-xl cursor-pointer">Trial 14d</button>
+      <button type="button" on:click={() => (licenseReq = null)} class="py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black rounded-xl cursor-pointer">Reject</button>
+    </div>
+    {#if licenseBusy}<p class="text-[10px] font-bold text-pos-muted text-center">Signing & sending…</p>{/if}
   </div>
 {/if}
 

@@ -992,5 +992,18 @@
   "st_support_tg_chat": "Owner's Chat ID (where requests arrive)",
   "st_support_tg_hint": "For PCs OUTSIDE the shop network: paste the SHOP OWNER's bot token and chat ID (the same pair used on the server) — the Help button then delivers the request to the owner over the internet. One shared bot serves every PC.",
   "st_rustdesk_autodownload": "Install RustDesk automatically",
-  "st_rustdesk_downloading": "Downloading RustDesk…"
+  "st_rustdesk_downloading": "Downloading RustDesk…",
+  "st_signed_license_title": "Signed License",
+  "st_license_status": "Status",
+  "st_license_shop": "Licensed to",
+  "st_license_expiry": "Expires",
+  "st_paste_license_placeholder": "Paste your license key here (or use the .lic file / online request below)…",
+  "st_activate_btn": "Activate",
+  "st_request_activation": "Request Activation Online",
+  "st_request_activation_hint": "'Request Activation' sends your PC name, HWID and shop name to the developer over Telegram; you receive a signed license key back automatically.",
+  "st_license_studio": "License Studio",
+  "st_license_studio_desc": "Generate the master keypair once, then sign licenses bound to each client's HWID (full or trial). The public key baked into this build verifies them.",
+  "st_generate_master_keypair": "Generate Master Keypair",
+  "st_studio_shop": "Shop Name",
+  "st_studio_days": "Trial days"
 }

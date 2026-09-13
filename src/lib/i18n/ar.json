@@ -992,5 +992,18 @@
   "st_support_tg_chat": "معرّف محادثة المالك (تصلها الطلبات)",
   "st_support_tg_hint": "للأجهزة خارج شبكة المتجر: الصق رمز بوت المالك ومعرّف المحادثة (نفس الموجود على الخادم) — فيرسل زر الدعم الطلب إلى المالك عبر الإنترنت. بوت واحد يخدم كل الأجهزة.",
   "st_rustdesk_autodownload": "تثبيت RustDesk تلقائياً",
-  "st_rustdesk_downloading": "جارٍ تنزيل RustDesk…"
+  "st_rustdesk_downloading": "جارٍ تنزيل RustDesk…",
+  "st_signed_license_title": "الرخصة الموقّعة",
+  "st_license_status": "الحالة",
+  "st_license_shop": "مرخّص لـ",
+  "st_license_expiry": "تنتهي في",
+  "st_paste_license_placeholder": "الصق مفتاح الرخصة هنا (أو استخدم ملف .lic / الطلب الإلكتروني أدناه)…",
+  "st_activate_btn": "تنشيط",
+  "st_request_activation": "اطلب التنشيط إلكترونياً",
+  "st_request_activation_hint": "زر الطلب يرسل اسم الجهاز والمعرّف واسم المتجر إلى المطوّر عبر تيليجرام؛ ويصلك مفتاح موقّع تلقائياً.",
+  "st_license_studio": "استوديو الرخص",
+  "st_license_studio_desc": "أنشئ مفتاح التوقيع مرة واحدة، ثم وقّع رخصاً مرتبطة بمعرّف كل جهاز.",
+  "st_generate_master_keypair": "إنشاء مفتاح التوقيع",
+  "st_studio_shop": "اسم المتجر",
+  "st_studio_days": "أيام التجربة"
 }

@@ -502,6 +502,7 @@
       applySkin(settings.app_skin);
       applyPreset(settings.app_preset);
       applyFontSize(settings.app_font_size);
+      refreshLicenseState();
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
     } catch (e) {
@@ -1024,18 +1025,109 @@
     }
   }
 
+  // SIGNED LICENSES (v0.5.34): paste, upload or request — all verified
+  // against the embedded developer public key and bound to this HWID.
+  let signedKeyInput = '';
+  let licenseState: { status: string; expiry: string; shop: string; hwid: string } | null = null;
+  let licenseMsg = '';
+  let licenseOk = false;
+  let studioOpen = false;
+  let studioShop = '';
+  let studioHwid = '';
+  let studioMode = 'full';
+  let studioDays = 14;
+  let studioKey = '';
+  let studioLic = '';
+  let studioMsg = '';
+
+  async function refreshLicenseState() {
+    try {
+      licenseState = await invoke<any>('license_status_cmd');
+    } catch { licenseState = null; }
+  }
+
+  async function activateSigned(text: string) {
+    licenseMsg = '';
+    try {
+      const r = await invoke<any>('license_activate', { licenseText: text });
+      licenseOk = true;
+      licenseMsg = `✅ ${r.mode === 'trial' ? 'Trial' : 'Full'} license activated for ${r.shop}${r.expiry ? ' — until ' + r.expiry : ''}`;
+      settings.app_license_status = r.mode;
+      await refreshLicenseState();
+    } catch (e: any) {
+      licenseOk = false;
+      licenseMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || String(e));
+    }
+  }
+
+  async function activatePastedKey() {
+    if (!signedKeyInput.trim()) return;
+    await activateSigned(signedKeyInput.trim());
+  }
+
   function handleLicenseFileUpload(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
       const file = target.files[0];
       const reader = new FileReader();
-      reader.onload = () => {
-        activationSuccess = true;
-        settings.app_license_status = 'activated';
-        triggerSaveNotification('License file (.lic) verified & activated successfully!');
+      reader.onload = async () => {
+        await activateSigned(String(reader.result || ''));
       };
       reader.readAsText(file);
     }
+  }
+
+  async function requestActivationOnline() {
+    licenseMsg = '';
+    try {
+      await invoke('send_activation_request');
+      licenseOk = true;
+      licenseMsg = '✅ Request sent — the developer received your PC name, HWID and shop name.';
+    } catch (e: any) {
+      const msg = typeof e === 'string' ? e : e?.message || String(e);
+      licenseOk = false;
+      licenseMsg = msg.includes('NO_TELEGRAM')
+        ? '❌ Telegram not configured on this PC — paste a license key or upload the .lic file instead.'
+        : '❌ ' + msg;
+    }
+  }
+
+  // Developer License Studio.
+  async function studioGenerateMaster() {
+    studioMsg = '';
+    try {
+      const pubB64 = await invoke<string>('license_master_generate');
+      studioMsg = `✅ Master keypair generated. PUBLIC key (embed in next build): ${pubB64}`;
+    } catch (e: any) {
+      studioMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || String(e));
+    }
+  }
+
+  async function studioCreate() {
+    studioMsg = '';
+    if (!studioShop.trim() || !studioHwid.trim()) {
+      studioMsg = '❌ Shop name and HWID are required';
+      return;
+    }
+    try {
+      const r = await invoke<any>('license_create', {
+        shopName: studioShop, hwid: studioHwid, mode: studioMode, days: studioDays,
+      });
+      studioKey = r.key;
+      studioLic = r.lic;
+      studioMsg = '✅ License created — copy the key or download the .lic file.';
+    } catch (e: any) {
+      studioMsg = '❌ ' + (typeof e === 'string' ? e : e?.message || String(e));
+    }
+  }
+
+  function downloadLic() {
+    const blob = new Blob([studioLic], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'TitaouPOS.lic';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   async function handleActivate() {
@@ -3247,28 +3339,80 @@
             {/if}
           </div>
 
-          <!-- License File (.lic) Upload & Key Entry -->
+          <!-- SIGNED LICENSE: status + paste/upload/request -->
           <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
-            <h4 class="text-xs font-black text-pos-text">{ t('st_activate_using_license_file', $currentLocale) }</h4>
-            <div class="flex items-center gap-2">
-              <input
-                type="text"
-                bind:value={activationCode}
-                placeholder="Enter Serial Key (e.g. TIT-XXXX-XXXX-XXXX)"
-                class="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono text-pos-text"
-              />
-              <button on:click={handleActivate} class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer">{ t('st_verify_key', $currentLocale) }</button>
-            </div>
-
-            <div class="pt-2 flex items-center justify-between">
-              <span class="text-xs text-pos-muted">{ t('st_have_a_license_file', $currentLocale) }</span>
-              <label class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
+            <h4 class="text-xs font-black text-pos-text">{ t('st_signed_license_title', $currentLocale) }</h4>
+            {#if licenseState}
+              <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border text-xs space-y-1">
+                <p><span class="text-pos-muted font-bold">{ t('st_license_status', $currentLocale) }:</span>
+                  <span class="font-black {licenseState.status === 'activated' ? 'text-emerald-600' : licenseState.status === 'trial' ? 'text-amber-600' : 'text-rose-600'} uppercase">{licenseState.status}</span></p>
+                {#if licenseState.shop}<p><span class="text-pos-muted font-bold">{ t('st_license_shop', $currentLocale) }:</span> <span class="font-black text-pos-text">{licenseState.shop}</span></p>{/if}
+                {#if licenseState.expiry}<p><span class="text-pos-muted font-bold">{ t('st_license_expiry', $currentLocale) }:</span> <span class="font-mono font-black text-pos-text">{licenseState.expiry}</span></p>{/if}
+                <p><span class="text-pos-muted font-bold">HWID:</span> <span class="font-mono select-text text-pos-text">{licenseState.hwid}</span></p>
+              </div>
+            {/if}
+            <textarea
+              bind:value={signedKeyInput}
+              rows="3"
+              placeholder="{ t('st_paste_license_placeholder', $currentLocale) }"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono text-pos-text outline-none"
+            ></textarea>
+            {#if licenseMsg}
+              <p class="text-[11px] font-bold {licenseOk ? 'text-emerald-600' : 'text-rose-600'}">{licenseMsg}</p>
+            {/if}
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" on:click={activatePastedKey} class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer">{ t('st_activate_btn', $currentLocale) }</button>
+              <label class="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
                 <FileText class="w-3.5 h-3.5" />
                 <span>{ t('st_upload_license_file_lic', $currentLocale) }</span>
                 <input type="file" accept=".lic, .key, .txt" on:change={handleLicenseFileUpload} class="hidden" />
               </label>
+              <button type="button" on:click={requestActivationOnline} class="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer">{ t('st_request_activation', $currentLocale) }</button>
             </div>
+            <p class="text-[9px] text-pos-muted font-bold">{ t('st_request_activation_hint', $currentLocale) }</p>
           </div>
+
+          <!-- DEVELOPER: License Studio -->
+          <details class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
+            <summary class="text-xs font-black text-pos-text cursor-pointer select-none">{ t('st_license_studio', $currentLocale) } (developer)</summary>
+            <div class="space-y-3 pt-3">
+              <p class="text-[10px] text-pos-muted font-bold">{ t('st_license_studio_desc', $currentLocale) }</p>
+              <button type="button" on:click={studioGenerateMaster} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-[10px] font-black rounded-lg cursor-pointer">{ t('st_generate_master_keypair', $currentLocale) }</button>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_studio_shop', $currentLocale) }</label>
+                  <input type="text" bind:value={studioShop} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-bold text-pos-text outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Client HWID</label>
+                  <input type="text" bind:value={studioHwid} placeholder="HW-XXXXXXXXXXXXXXXX" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-pos-muted mb-1">Mode</label>
+                  <select bind:value={studioMode} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-bold text-pos-text outline-none">
+                    <option value="full">Full (lifetime)</option>
+                    <option value="trial">Trial</option>
+                  </select>
+                </div>
+                {#if studioMode === 'trial'}
+                  <div>
+                    <label class="block text-[10px] font-bold text-pos-muted mb-1">{ t('st_studio_days', $currentLocale) }</label>
+                    <input type="number" min="1" bind:value={studioDays} class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[11px] font-mono font-bold text-pos-text outline-none" />
+                  </div>
+                {/if}
+              </div>
+              <button type="button" on:click={studioCreate} class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer">Sign License</button>
+              {#if studioMsg}<p class="text-[11px] font-bold {studioMsg.startsWith('✅') ? 'text-emerald-600' : 'text-rose-600'}">{studioMsg}</p>{/if}
+              {#if studioKey}
+                <textarea readonly rows="3" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[10px] font-mono select-text text-pos-text">{studioKey}</textarea>
+                <div class="flex gap-2">
+                  <button type="button" on:click={() => navigator.clipboard.writeText(studioKey)} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-[10px] font-black rounded-lg cursor-pointer">Copy Key</button>
+                  <button type="button" on:click={downloadLic} class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-pos-text text-[10px] font-black rounded-lg cursor-pointer">Download .lic</button>
+                  <button type="button" on:click={() => invoke('send_license_reply', { hwid: studioHwid, licenseText: studioKey })} class="px-3 py-1.5 bg-sky-600 text-white text-[10px] font-black rounded-lg cursor-pointer">Send via Telegram</button>
+                </div>
+              {/if}
+            </div>
+          </details>
         </div>
       </div>
 

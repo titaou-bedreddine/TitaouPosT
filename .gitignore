@@ -32,3 +32,8 @@ dist-ssr/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# License master keys — NEVER commit
+license_master.key
+license_master.pub
+*.lic

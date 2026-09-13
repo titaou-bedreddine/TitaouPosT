@@ -992,5 +992,18 @@
   "st_support_tg_chat": "Chat ID du propriétaire (destination des demandes)",
   "st_support_tg_hint": "Pour les PC HORS du réseau : collez le token et le chat ID du bot du PROPRIÉTAIRE (la même paire que sur le serveur) — le bouton d'aide transmet la demande au propriétaire par internet. Un seul bot sert tous les PC.",
   "st_rustdesk_autodownload": "Installer RustDesk automatiquement",
-  "st_rustdesk_downloading": "Téléchargement de RustDesk…"
+  "st_rustdesk_downloading": "Téléchargement de RustDesk…",
+  "st_signed_license_title": "Licence signée",
+  "st_license_status": "Statut",
+  "st_license_shop": "Licencié à",
+  "st_license_expiry": "Expire",
+  "st_paste_license_placeholder": "Collez votre clé de licence ici (ou utilisez le fichier .lic / la demande en ligne)…",
+  "st_activate_btn": "Activer",
+  "st_request_activation": "Demander l'activation en ligne",
+  "st_request_activation_hint": "'Demander l'activation' envoie le nom du PC, le HWID et le nom de la boutique au développeur via Telegram ; vous recevez automatiquement une clé signée.",
+  "st_license_studio": "Studio de licences",
+  "st_license_studio_desc": "Générez la paire de clés maîtresse une fois, puis signez des licences liées au HWID de chaque client.",
+  "st_generate_master_keypair": "Générer la paire de clés maîtresse",
+  "st_studio_shop": "Nom de la boutique",
+  "st_studio_days": "Jours d'essai"
 }
