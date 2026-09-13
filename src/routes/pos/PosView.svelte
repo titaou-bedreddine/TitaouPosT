@@ -68,7 +68,7 @@
     void loadProducts();
   }
   let searchType: 'all' | 'name' | 'barcode' | 'price' | 'qr' = 'all';
-  let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' | 'best_sellers' | 'worst_sellers' = 'name_asc';
+  let sortBy: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock' | 'best_sellers' | 'worst_sellers' | 'newest' = 'name_asc';
 
   let selectedPaymentMode: 'cash' | 'tpe' | 'credit' | 'versement' = 'cash';
   let autoPrintEnabled = true;
@@ -448,6 +448,9 @@
         list.sort((a, b) => (b.total_sold || 0) - (a.total_sold || 0));
       } else if (sortBy === 'worst_sellers') {
         list.sort((a, b) => (a.total_sold || 0) - (b.total_sold || 0));
+      } else if (sortBy === 'newest') {
+        // NEWEST filter: most recently added products first (id DESC).
+        list.sort((a, b) => b.id - a.id);
       }
 
       products = [...pinned, ...list.filter(p => !p.pinned)];
@@ -1372,6 +1375,7 @@
             <option value="stock">{t('sort_stock')}</option>
             <option value="best_sellers">{t('sort_best')}</option>
             <option value="worst_sellers">{t('sort_worst')}</option>
+            <option value="newest">{t('sort_newest')}</option>
           </select>
         </div>
       </div>

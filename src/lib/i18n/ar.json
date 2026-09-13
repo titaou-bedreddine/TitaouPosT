@@ -1005,5 +1005,6 @@
   "st_license_studio_desc": "أنشئ مفتاح التوقيع مرة واحدة، ثم وقّع رخصاً مرتبطة بمعرّف كل جهاز.",
   "st_generate_master_keypair": "إنشاء مفتاح التوقيع",
   "st_studio_shop": "اسم المتجر",
-  "st_studio_days": "أيام التجربة"
+  "st_studio_days": "أيام التجربة",
+  "sort_newest": "الأحدث (آخر الإضافات)"
 }
