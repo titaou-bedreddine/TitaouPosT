@@ -1007,5 +1007,19 @@
   "st_studio_shop": "Nom de la boutique",
   "st_studio_days": "Jours d'essai",
   "sort_newest": "Plus récents (derniers ajouts)",
-  "badge_new": "NOUVEAU"
+  "badge_new": "NOUVEAU",
+  "st_full_license": "LICENCE À VIE COMPLÈTE",
+  "st_trial_license": "LICENCE D’ESSAI",
+  "st_valid_until": "Valable jusqu’au",
+  "st_license_expired": "LICENCE D’ESSAI EXPIRÉE",
+  "st_license_revoked": "LICENCE RÉVOQUÉE",
+  "st_no_license": "AUCUNE LICENCE ACTIVE",
+  "st_readonly_mode_desc": "Ce terminal est en LECTURE SEULE — consultation possible, ventes et modifications bloquées jusqu’à l’activation.",
+  "st_request_code_title": "Code de demande d’activation",
+  "st_request_code_desc": "Envoyez ce code au développeur (WhatsApp / Telegram). Il renvoie une clé signée liée à ce PC. Copiez le code ou faites scanner le QR.",
+  "st_activate_online_btn": "Activer ce PC en ligne",
+  "st_drop_lic_title": "Déposez le fichier .lic ici",
+  "st_drop_lic_hint": "Glissez le fichier de licence fourni par le développeur (recommandé), ou cliquez pour parcourir.",
+  "st_serial_paste_label": "Ou collez la clé série",
+  "st_paste_btn": "Coller & Activer"
 }

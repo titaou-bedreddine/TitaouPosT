@@ -79,6 +79,20 @@ fn live_api_join_login_invoke_and_permissions() {
     let db_a = open_db_at(&db_path); // network runtime handle
     let db_b = open_db_at(&db_path); // API handle (separate connection, same file)
 
+    // v0.6.0: mutations are license-gated — mark the test shop FULLY
+    // LICENSED (direct row, same as license_service writes) so this test
+    // keeps exercising LAN mechanics; licensing has its own unit tests.
+    {
+        let conn = db_b.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at)
+             VALUES ('app_license_status', 'full', CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = 'full'",
+            [],
+        )
+        .unwrap();
+    }
+
     // Shop identity + server mode for the test runtime.
     crate::network::init_for_tests(db_a);
     crate::network::set_shop_for_tests("SHOP-TEST1", "Test Market");

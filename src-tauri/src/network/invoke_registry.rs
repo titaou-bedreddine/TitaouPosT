@@ -366,6 +366,14 @@ pub fn dispatch(ctx: &InvokeContext, command: &str, args: &Value) -> Result<Valu
         }
     }
 
+    // License enforcement (v0.6.0): the SERVER gates every business
+    // mutation — connected client terminals can't bypass the local
+    // read-only rule by calling the LAN API. Reads and settings stay open
+    // (clients must be able to configure + activate).
+    if crate::services::license_service::is_gated_command(command) {
+        crate::services::license_service::gate_command(ctx.db, command)?;
+    }
+
     let db = ctx.db;
     let result: Value = match command {
         // --- auth ---

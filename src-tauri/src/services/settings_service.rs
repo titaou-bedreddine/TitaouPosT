@@ -21,7 +21,18 @@ pub fn get_all_settings(db: &DbState) -> Result<HashMap<String, String>, String>
     Ok(map)
 }
 
+/// License-state keys are writable ONLY through license_service (they are
+/// cryptographically verified there). Any generic write path — UI settings
+/// save, LAN API, restored settings sidecar — silently drops them, so no
+/// surface can forge "this PC is licensed".
+pub(crate) fn is_protected_license_key(key: &str) -> bool {
+    key.starts_with("app_license_")
+}
+
 pub fn set_setting(db: &DbState, key: &str, value: &str) -> Result<(), String> {
+    if is_protected_license_key(key) {
+        return Ok(()); // silently ignored — use license_service instead
+    }
     let conn = db.conn.lock().unwrap();
     conn.execute(
         "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
@@ -37,6 +48,9 @@ pub fn set_multiple_settings(db: &DbState, settings: HashMap<String, String>) ->
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     for (k, v) in settings {
+        if is_protected_license_key(&k) {
+            continue; // silently ignored — use license_service instead
+        }
         tx.execute(
             "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
@@ -82,62 +96,10 @@ pub fn get_hwid() -> String {
     }
 }
 
-/// Offline grace: a manual code still activates (format-checked), for
-/// machines without internet.
-pub fn verify_license(db: &DbState, code: &str) -> Result<bool, String> {
-    if code.starts_with("LUM-") || code.starts_with("ACT-") || code.len() >= 12 {
-        set_setting(db, "app_license_status", "activated")?;
-        set_setting(db, "app_license_key", code)?;
-        Ok(true)
-    } else {
-        Err("Invalid activation code format".to_string())
-    }
-}
-
-/// Online activation against a GitHub-hosted license registry: the seller
-/// pushes a JSON file named HWID.json to the licenses folder of a public
-/// repo; the app fetches it on activation.
-pub fn activate_online_github(
-    db: &DbState,
-    hwid: &str,
-    github_user: &str,
-    github_repo: &str,
-) -> Result<bool, String> {
-    let url = format!(
-        "https://raw.githubusercontent.com/{}/{}/main/licenses/{}.json",
-        github_user, github_repo, hwid
-    );
-    let response = reqwest::blocking::Client::builder()
-        .user_agent("TitaouPOS-Activator")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?
-        .get(&url)
-        .send()
-        .map_err(|e| format!("Activation server unreachable: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err("This machine has no license on the server. Contact the developer.".to_string());
-    }
-
-    let body: serde_json::Value = response
-        .json()
-        .map_err(|e| format!("Bad license data: {}", e))?;
-    let licensed = body.get("licensed").and_then(|v| v.as_bool()).unwrap_or(false);
-    if !licensed {
-        return Err("License record is not active".to_string());
-    }
-
-    let key = body
-        .get("license_key")
-        .and_then(|v| v.as_str())
-        .unwrap_or("GITHUB")
-        .to_string();
-
-    set_setting(db, "app_license_status", "activated")?;
-    set_setting(db, "app_license_key", &key)?;
-    Ok(true)
-}
+/// Legacy manual-code activation (v0.5.x) — REMOVED in v0.6.0: the
+/// license_service signed path is the only real activation. The
+/// `verify_license` command now maps any legacy code to a signed-license
+/// attempt and fails cleanly for anything the developer didn't sign.
 
 pub fn factory_reset(db: &DbState, reset_type: &str) -> Result<(), String> {
     let mut conn = db.conn.lock().unwrap();

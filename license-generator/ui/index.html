@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TitaouPOS License Generator</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --card2: #273548; --border: #3b4a5f;
+      --text: #e2e8f0; --muted: #94a3b8; --sky: #0ea5e9; --sky-dark: #0284c7;
+      --green: #10b981; --amber: #f59e0b; --rose: #f43f5e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg);
+      color: var(--text); padding: 24px; font-size: 14px;
+    }
+    h1 { font-size: 20px; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+    h1 .logo { width: 34px; height: 34px; background: var(--sky); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .sub { color: var(--muted); font-size: 12px; margin: 4px 0 20px; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+    .card h2 { font-size: 13px; font-weight: 900; margin-bottom: 10px; letter-spacing: .3px; }
+    label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin: 10px 0 4px; }
+    input, textarea, select {
+      width: 100%; background: var(--card2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; outline: none;
+    }
+    input:focus, textarea:focus { border-color: var(--sky); }
+    textarea { font-family: Consolas, monospace; font-size: 11px; resize: vertical; }
+    .mono { font-family: Consolas, monospace; }
+    button {
+      border: 0; border-radius: 10px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+      cursor: pointer; color: #fff; background: var(--sky); transition: filter .15s;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.green { background: var(--green); }
+    button.amber { background: var(--amber); color: #1c1917; }
+    button.rose { background: var(--rose); }
+    button.ghost { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .msg { font-size: 12px; font-weight: 700; margin-top: 8px; }
+    .msg.ok { color: var(--green); } .msg.err { color: var(--rose); } .msg.info { color: var(--amber); }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 900; }
+    .badge.ok { background: rgba(16,185,129,.15); color: var(--green); }
+    .badge.warn { background: rgba(245,158,11,.15); color: var(--amber); }
+    .revoked-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .revoked-item { display: flex; justify-content: space-between; align-items: center; background: var(--card2);
+      border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-family: Consolas, monospace; font-size: 12px; }
+    .pill { display: inline-flex; gap: 8px; margin-top: 12px; }
+    .pill label { cursor: pointer; padding: 8px 14px; border-radius: 10px; background: var(--card2);
+      border: 2px solid var(--border); font-size: 12px; font-weight: 800; color: var(--text); margin: 0; }
+    .pill input { display: none; }
+    .pill label.on { border-color: var(--sky); background: rgba(14,165,233,.12); color: var(--sky); }
+    .steps { color: var(--muted); font-size: 11px; line-height: 1.7; margin-top: 6px; }
+    .steps b { color: var(--text); }
+    hr { border: 0; border-top: 1px dashed var(--border); margin: 14px 0; }
+    #out-key { min-height: 84px; }
+    .hint { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .dropzone { border: 2px dashed var(--border); border-radius: 14px; padding: 18px; text-align: center;
+      color: var(--muted); font-weight: 700; font-size: 12px; transition: all .15s; cursor: pointer; }
+    .dropzone.on { border-color: var(--green); background: rgba(16,185,129,.08); color: var(--green); }
+  </style>
+</head>
+<body>
+  <h1><span class="logo">🔑</span> TitaouPOS License Generator</h1>
+  <p class="sub">Developer tool — sign licenses bound to each client PC. Keys are Ed25519-minisign signed; clients verify with the public key embedded in the POS build.</p>
+
+  <!-- MASTER KEY STATUS -->
+  <div class="card" id="master-card">
+    <h2>1 · MASTER KEY <span id="master-badge" class="badge">checking…</span></h2>
+    <p class="steps" id="master-info">The secret key signs every license — keep <span class="mono">%APPDATA%\TitaouPosT\license_master.key</span> private (back it up; never commit it).</p>
+    <div class="row">
+      <button id="btn-gen-master" class="ghost">Generate Master Keypair</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- SIGN -->
+    <div class="card">
+      <h2>2 · SIGN A LICENSE</h2>
+      <label>Client request code (paste from the POS setup / Activation page)</label>
+      <textarea id="request-code" rows="3" placeholder="TIT-REQ|v=1|hw=HW-XXXXXXXXXXXXXXXX|shop=Superette Titaou|owner=Bedreddine"></textarea>
+      <div class="row">
+        <button id="btn-parse" class="ghost">↔ Parse Code</button>
+      </div>
+      <label>Shop name</label>
+      <input id="shop" type="text" placeholder="Superette Titaou" />
+      <label>Owner</label>
+      <input id="owner" type="text" placeholder="Bedreddine" />
+      <label>Machine HWID (from the client)</label>
+      <input id="hwid" type="text" placeholder="HW-XXXXXXXXXXXXXXXX" />
+      <label>Mode</label>
+      <div class="pill">
+        <label id="mode-full" class="on"><input type="radio" name="mode" value="full" checked /> FULL — lifetime</label>
+        <label id="mode-trial"><input type="radio" name="mode" value="trial" /> TRIAL</label>
+      </div>
+      <div id="days-wrap" style="display:none">
+        <label>Trial days</label>
+        <input id="days" type="number" min="1" value="14" />
+      </div>
+      <div class="row">
+        <button id="btn-sign" class="green">✍ Sign License</button>
+      </div>
+      <p class="msg" id="sign-msg"></p>
+
+      <div id="result" style="display:none">
+        <hr />
+        <label>Serial key (copy → client pastes in Activation)</label>
+        <textarea id="out-key" rows="4" readonly></textarea>
+        <div class="row">
+          <button class="ghost" id="btn-copy-key">📋 Copy Key</button>
+          <button class="ghost" id="btn-save-lic">💾 Download .lic</button>
+          <button class="green" id="btn-publish" title="Pushes licenses/<HWID>.json to the GitHub registry — the client's 'Activate This PC Online' button picks it up">🚀 Publish Online</button>
+        </div>
+        <p class="hint">.lic file is preferred by the client (drag-and-drop). Publishing enables one-click online activation.</p>
+      </div>
+    </div>
+
+    <!-- REVOKE -->
+    <div class="card">
+      <h2>3 · REVOCATION (GitHub registry)</h2>
+      <p class="steps">A revoked machine goes READ-ONLY in every TitaouPOS within ~30 minutes (or at its next activation attempt) — the serial can never be reused on another PC.</p>
+      <label>HWID to revoke</label>
+      <input id="revoke-hwid" type="text" placeholder="HW-XXXXXXXXXXXXXXXX" />
+      <div class="row">
+        <button id="btn-revoke" class="rose">🚫 Revoke</button>
+        <button id="btn-unrevoke" class="ghost">↩ Un-revoke</button>
+        <button id="btn-list-revoked" class="ghost">⟳ Refresh list</button>
+      </div>
+      <p class="msg" id="revoke-msg"></p>
+      <div class="revoked-list" id="revoked-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let lastResult = null;
+
+    // ---- helpers ----
+    function setMsg(id, text, cls) { const el = $(id); el.textContent = text || ''; el.className = 'msg ' + (cls || ''); }
+    async function invoke(cmd, args) {
+      const { invoke } = window.__TAURI__.core ?? window.__TAURI_INTERNALS__;
+      return window.__TAURI_INTERNALS__.invoke(cmd, args ?? {});
+    }
+
+    // ---- mode toggle ----
+    document.querySelectorAll('input[name=mode]').forEach((r) => {
+      r.addEventListener('change', () => {
+        $('mode-full').classList.toggle('on', r.value === 'full' && r.checked);
+        $('mode-trial').classList.toggle('on', r.value === 'trial' && r.checked);
+        $('days-wrap').style.display = document.querySelector('input[name=mode]:checked').value === 'trial' ? '' : 'none';
+      });
+    });
+
+    // ---- master key ----
+    async function refreshMaster() {
+      try {
+        const st = await invoke('master_status');
+        const b = $('master-badge');
+        if (st.exists) { b.textContent = 'READY'; b.className = 'badge ok'; $('btn-gen-master').disabled = true; }
+        else { b.textContent = 'NOT GENERATED'; b.className = 'badge warn'; $('btn-gen-master').disabled = false; }
+      } catch (e) { $('master-badge').textContent = 'ERROR'; $('master-badge').className = 'badge warn'; }
+    }
+    $('btn-gen-master').onclick = async () => {
+      setMsg('sign-msg', '', '');
+      try {
+        const pub = await invoke('generate_master_keypair');
+        setMsg('sign-msg', '✅ Master keypair generated. PUBLIC key (must match the POS build): ' + pub, 'ok');
+        refreshMaster();
+      } catch (e) { setMsg('sign-msg', '❌ ' + e, 'err'); }
+    };
+
+    // ---- parse request code ----
+    $('btn-parse').onclick = async () => {
+      setMsg('sign-msg', '', '');
+      try {
+        const r = await invoke('parse_request_code', { code: $('request-code').value });
+        $('hwid').value = r.hwid || ''; $('shop').value = r.shop || ''; $('owner').value = r.owner || '';
+        setMsg('sign-msg', '✅ Parsed: ' + (r.shop || 'shop?') + ' / ' + (r.owner || 'owner?') + ' / ' + r.hwid, 'ok');
+      } catch (e) { setMsg('sign-msg', '❌ ' + e, 'err'); }
+    };
+
+    // ---- sign ----
+    $('btn-sign').onclick = async () => {
+      setMsg('sign-msg', '', '');
+      const mode = document.querySelector('input[name=mode]:checked').value;
+      try {
+        const r = await invoke('create_license', {
+          shopName: $('shop').value, hwid: $('hwid').value, owner: $('owner').value,
+          mode: mode, days: parseInt($('days').value || '14', 10),
+        });
+        lastResult = r;
+        $('result').style.display = '';
+        $('out-key').value = r.key;
+        setMsg('sign-msg', `✅ ${r.mode === 'trial' ? 'Trial (until ' + r.expiry + ')' : 'Full lifetime'} license signed for ${r.shop} [${r.hwid}]`, 'ok');
+      } catch (e) {
+        setMsg('sign-msg', e === 'NO_MASTER_KEY'
+          ? '❌ Generate the master keypair first (step 1).'
+          : '❌ ' + e, 'err');
+      }
+    };
+
+    $('btn-copy-key').onclick = () => lastResult && navigator.clipboard.writeText(lastResult.key);
+    $('btn-save-lic').onclick = () => {
+      if (!lastResult) return;
+      const blob = new Blob([lastResult.lic], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `TitaouPOS-${lastResult.hwid}.lic`;
+      a.click(); URL.revokeObjectURL(a.href);
+    };
+    $('btn-publish').onclick = async () => {
+      if (!lastResult) return;
+      setMsg('sign-msg', '⏳ Publishing to the registry…', 'info');
+      try {
+        const msg = await invoke('publish_license', {
+          hwid: lastResult.hwid, licenseKey: lastResult.key, shop: lastResult.shop, mode: lastResult.mode,
+        });
+        setMsg('sign-msg', '✅ ' + msg, 'ok');
+      } catch (e) { setMsg('sign-msg', '❌ ' + e + ' — the key still works via copy/.lic', 'err'); }
+    };
+
+    // ---- revocation ----
+    $('btn-revoke').onclick = async () => {
+      setMsg('revoke-msg', '', '');
+      try {
+        const msg = await invoke('revoke_license', { hwid: $('revoke-hwid').value });
+        setMsg('revoke-msg', '✅ ' + msg, 'ok'); loadRevoked();
+      } catch (e) { setMsg('revoke-msg', '❌ ' + e, 'err'); }
+    };
+    $('btn-unrevoke').onclick = async () => {
+      setMsg('revoke-msg', '', '');
+      try {
+        await invoke('un_revoke_license', { hwid: $('revoke-hwid').value });
+        setMsg('revoke-msg', '✅ Revocation lifted — the machine can activate a new license.', 'ok'); loadRevoked();
+      } catch (e) { setMsg('revoke-msg', '❌ ' + e, 'err'); }
+    };
+    async function loadRevoked() {
+      try {
+        const v = await invoke('list_revoked');
+        const list = (v && v.revoked) || [];
+        const box = $('revoked-list');
+        box.innerHTML = '';
+        if (!list.length) { box.innerHTML = '<p class="hint">No revoked machines.</p>'; return; }
+        list.forEach((hw) => {
+          const item = document.createElement('div');
+          item.className = 'revoked-item';
+          item.innerHTML = `<span>${hw}</span>`;
+          const btn = document.createElement('button');
+          btn.className = 'ghost'; btn.textContent = 'Un-revoke'; btn.style.padding = '4px 10px'; btn.style.fontSize = '10px';
+          btn.onclick = async () => { await invoke('un_revoke_license', { hwid: hw }); loadRevoked(); };
+          item.appendChild(btn);
+          box.appendChild(item);
+        });
+      } catch (e) { $('revoked-list').innerHTML = '<p class="hint">Registry unreachable — check `gh auth login`.</p>'; }
+    }
+    $('btn-list-revoked').onclick = loadRevoked;
+
+    refreshMaster();
+    loadRevoked();
+  </script>
+</body>
+</html>

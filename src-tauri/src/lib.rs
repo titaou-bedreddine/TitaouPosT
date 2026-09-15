@@ -10,16 +10,22 @@ pub mod services;
 use database::DbState;
 use tauri::Manager;
 
-/// Wrap the generated Tauri command handler with LAN client forwarding:
-/// whitelisted business commands are executed on the shop server while this
-/// PC is a connected client; everything else runs locally. The wrapper is a
-/// named function so the `generate_handler!` closure gets its expected type.
+/// Wrap the generated Tauri command handler with (1) license enforcement
+/// — business mutations are refused while this terminal has no active
+/// signed license (no license = READ-ONLY) — and (2) LAN client
+/// forwarding: whitelisted business commands are executed on the shop
+/// server while this PC is a connected client; everything else runs
+/// locally. The wrapper is a named function so the `generate_handler!`
+/// closure gets its expected type.
 fn lan_wrap_invoke_handler(
     generated: impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static,
 ) -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
     move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
         let cmd = invoke.message.command().to_string();
         if network::should_forward_ipc(&cmd) {
+            // Client terminals are gated by the SERVER (its dispatch
+            // enforces the same license check), and this PC only runs its
+            // local license gate on the mutations it serves itself.
             let payload = match invoke.message.payload() {
                 tauri::ipc::InvokeBody::Json(v) => {
                     serde_json::to_string(v).unwrap_or_else(|_| "null".to_string())
@@ -35,6 +41,20 @@ fn lan_wrap_invoke_handler(
             });
             return true;
         }
+        // License gate (v0.6.0): no active license = read-only. Business
+        // mutations are refused with APP_READ_ONLY so the UI can show a
+        // banner instead of a raw error. Reads, settings and the
+        // activation surface stay open (setup + licensing must work
+        // pre-license).
+        if services::license_service::is_gated_command(&cmd) {
+            if let Err(e) = services::license_service::gate_current(&cmd) {
+                let resolver = invoke.resolver;
+                let err: Result<tauri::ipc::InvokeResponseBody, tauri::ipc::InvokeError> =
+                    Err(tauri::ipc::InvokeError::from(e));
+                resolver.respond(err);
+                return true;
+            }
+        }
         // Local execution on this PC: when it is the serving authority AND
         // the command is a known mutation, broadcast its event so THIS UI
         // and every connected terminal invalidate in real time.
@@ -45,6 +65,16 @@ fn lan_wrap_invoke_handler(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {    let db_state = DbState::new().expect("Failed to initialize database");
+
+    // Licensing boot sequence (v0.6.0): rebuild the license status from the
+    // stored signed key (tamper-proof), wire the gate DB the invoke wrapper
+    // checks, then start the revocation poller. Runs BEFORE any command can
+    // serve so the gate sees honest state.
+    crate::services::license_service::revalidate_stored_license(&db_state);
+    crate::services::license_service::set_gate_db(DbState::new().expect("license gate db"));
+    crate::services::license_service::start_revocation_poller(
+        DbState::new().expect("revocation poller db"),
+    );
 
     // Startup backup (only when the setting is ON; once per day).
     crate::services::settings_service::run_startup_backup(&db_state);

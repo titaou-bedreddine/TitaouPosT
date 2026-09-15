@@ -248,6 +248,26 @@
   // LICENSE REQUESTS (developer approval): a client asked for activation.
   let licenseReq: { hwid: string; pc: string; shop: string } | null = null;
   let licenseBusy = '';
+
+  // READ-ONLY enforcement (v0.6.0): no active license = this terminal is
+  // read-only. The banner is persistent while that is true; activating
+  // (Settings → Activation) clears it — no restart needed.
+  let licenseReadonly = false;
+  let licenseBannerText = '';
+  async function refreshLicenseGate() {
+    try {
+      const st = await invoke<{ status: string; expiry?: string }>('license_status_cmd');
+      licenseReadonly = !!st && (st.status === 'none' || st.status === 'expired' || st.status === 'revoked');
+      licenseBannerText =
+        st.status === 'expired'
+          ? 'Trial license expired — this terminal is READ-ONLY. Renew in Settings → Activation. / انتهت النسخة التجريبية — الجهاز في وضع القراءة فقط'
+          : st.status === 'revoked'
+          ? 'License REVOKED by the developer — this terminal is READ-ONLY. / تم إلغاء الترخيص — الجهاز في وضع القراءة فقط'
+          : 'No active license — this terminal is READ-ONLY. Activate it in Settings → Activation. / بدون ترخيص نشط — الجهاز في وضع القراءة فقط';
+    } catch {
+      licenseReadonly = false;
+    }
+  }
   async function approveLicense(mode: 'full' | 'trial') {
     if (!licenseReq || licenseBusy) return;
     licenseBusy = mode;
@@ -317,6 +337,16 @@
       const d = $networkEvents[0].data || {};
       netToast = `✅ License activated (${d.mode}) — ${d.shop || ''} ${d.expiry ? 'until ' + d.expiry : ''}`;
       setTimeout(() => (netToast = ''), 12000);
+      refreshLicenseGate(); // the read-only banner lifts immediately
+    }
+    if (t0 === 'license_revoked') {
+      // The registry poller found this PC in revoked.json — flip the UI to
+      // read-only right away (the backend already refuses mutations).
+      netToast = '⚠️ License REVOKED — this terminal is now READ-ONLY. / تم إلغاء الترخيص — وضع القراءة فقط';
+      setTimeout(() => (netToast = ''), 12000);
+    }
+    if (t0 === 'license_revoked' || t0 === 'license_activated') {
+      refreshLicenseGate();
     }
     // OFFLINE CLIENT (user decision 2026-09-08): the terminal worked offline
     // against its local DB; on reconnect tell the cashier what happened.
@@ -339,6 +369,11 @@
       // defaults already applied
     }
     loadTelegramMaster();
+    // License read-only state: shown as a persistent banner until activated.
+    refreshLicenseGate();
+    // Re-check every 10 minutes (matches the backend revocation cadence and
+    // catches trial→expired transitions without a restart).
+    setInterval(() => refreshLicenseGate(), 10 * 60 * 1000);
     try {
       sidebarVersion = await invoke<string>('get_app_version');
     } catch {
@@ -808,6 +843,26 @@
 
     <!-- MAIN ROUTE CONTENT -->
     <main class="flex-1 flex flex-col overflow-hidden bg-pos-bg">
+      {#if licenseReadonly}
+        <!-- READ-ONLY mode (no active license): persistent amber banner.
+             Sales / stock / register mutations are refused by the backend
+             with APP_READ_ONLY; activation happens in Settings → Activation. -->
+        <div class="bg-gradient-to-r from-amber-500 to-rose-500 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md shrink-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <Lock class="w-4 h-4 shrink-0" />
+            <span class="truncate">{licenseBannerText}</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              on:click={handleNavigateSettings}
+              class="px-3 py-1 bg-white text-amber-700 hover:bg-amber-50 rounded-lg text-xs font-black shadow-xs cursor-pointer transition"
+            >
+              Activate / تنشيط
+            </button>
+          </div>
+        </div>
+      {/if}
       {#if newUpdateAvailable}
         <div class="bg-gradient-to-r from-sky-600 to-indigo-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md shrink-0 animate-in slide-in-from-top duration-200">
           <div class="flex items-center gap-2">

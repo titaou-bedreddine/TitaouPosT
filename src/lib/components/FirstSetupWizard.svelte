@@ -4,7 +4,7 @@
   // Step 2 (LAN): name this PC + network role (Server / Client / Automatic).
   import { invoke } from '@tauri-apps/api/core';
   import { t, currentLocale } from '../i18n';
-  import { Store, Phone, MapPin, Check, Server, MonitorSmartphone, Sparkles, RefreshCw } from 'lucide-svelte';
+  import { Store, Phone, MapPin, Check, Server, MonitorSmartphone, Sparkles, RefreshCw, Copy, QrCode } from 'lucide-svelte';
 
   export let onDone: () => void = () => {};
 
@@ -18,6 +18,38 @@
   let ownerName = '';
   let logoDataUrl: string | null = null;
   let isSaving = false;
+
+  // --- Step 4: activation request code (HWID + shop + owner) ---
+  let hwid = '';
+  let requestCode = '';
+  let requestQr = '';
+  let copiedRequest = false;
+
+  async function loadRequestCode() {
+    if (requestCode) return;
+    try {
+      const h = await invoke<string>('get_hwid');
+      hwid = h;
+      // What the developer pastes into the standalone License Generator:
+      // a single line combining machine + shop + owner.
+      const shop = (shopNameFr.trim() || shopNameAr.trim() || 'Shop').replace(/[|\n\r]/g, ' ');
+      const owner = (ownerName.trim() || 'Owner').replace(/[|\n\r]/g, ' ');
+      requestCode = `TIT-REQ|v=1|hw=${h}|shop=${shop}|owner=${owner}`;
+      // Local QR render (offline-first — same helper the receipts use).
+      const { entityQrDataUrl } = await import('../utils/printer');
+      requestQr = await entityQrDataUrl(requestCode, 260);
+    } catch (e) {
+      console.warn('HWID unavailable:', e);
+    }
+  }
+
+  async function copyRequestCode() {
+    try {
+      await navigator.clipboard.writeText(requestCode);
+      copiedRequest = true;
+      setTimeout(() => (copiedRequest = false), 2000);
+    } catch { /* clipboard blocked — the code stays selectable below */ }
+  }
 
   // --- LAN step state ---
   let pcName = '';
@@ -45,6 +77,10 @@
 
   $: if (step === 2) {
     searchServers();
+  }
+
+  $: if (step === 4) {
+    loadRequestCode();
   }
 
   async function joinDiscovered(srv: any) {
@@ -248,7 +284,7 @@
           </p>
         {/if}
       </div>
-    {:else}
+    {:else if step === 3}
       <div class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -277,14 +313,57 @@
           </div>
         </div>
         <p class="text-[11px] text-pos-muted bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-xl p-3">
-          Licensing note: one license covers one PC (18000 DZD), each additional network PC +5000 DZD.
-          Activation follows in Settings → Activation after this setup.
+          Licensing: one license covers one PC (18000 DZD), each additional network PC +5000 DZD.
+          The next step shows your activation request code.
         </p>
+      </div>
+    {:else if step === 4}
+      <!-- ACTIVATION REQUEST CODE: what the developer pastes into the
+           standalone License Generator. Copy button + QR (scan from the
+           generator's side for zero typing). -->
+      <div class="space-y-4">
+        <div class="text-center space-y-1">
+          <div class="w-12 h-12 rounded-2xl bg-sky-600/10 text-sky-600 flex items-center justify-center mx-auto">
+            <QrCode class="w-6 h-6" />
+          </div>
+          <h3 class="text-sm font-black text-pos-text">Activation Request Code / رمز طلب التنشيط</h3>
+          <p class="text-[10px] text-pos-muted font-bold">
+            Send this to the developer (WhatsApp / Telegram) — he returns a license key that activates this PC in Settings → Activation.
+            <span dir="rtl" class="block mt-1">أرسل هذا الرمز للمطور (واتساب / تيليغرام) ليرسل لك مفتاح التنشيط.</span>
+          </p>
+        </div>
+
+        {#if requestCode}
+          <div class="flex items-start gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-pos-border">
+            <div class="w-[140px] h-[140px] bg-white rounded-xl border border-pos-border p-2 shrink-0 flex items-center justify-center">
+              {#if requestQr}
+                <img src={requestQr} alt="Request QR" class="w-full h-full" />
+              {:else}
+                <QrCode class="w-10 h-10 text-pos-muted/40" />
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0 space-y-2">
+              <label class="block text-[10px] font-bold text-pos-muted">Request code (copy or scan the QR)</label>
+              <textarea readonly rows="4" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[10px] font-mono select-text text-pos-text outline-none resize-none">{requestCode}</textarea>
+              <button type="button" on:click={copyRequestCode}
+                class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-1.5">
+                <Copy class="w-3.5 h-3.5" />
+                {copiedRequest ? '✓ Copied / تم النسخ' : 'Copy Code / نسخ'}
+              </button>
+            </div>
+          </div>
+          <p class="text-[10px] text-pos-muted bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+            Without an active license this terminal stays <b>READ-ONLY</b> (no sales, no stock changes).
+            بدون ترخيص نشط يبقى هذا الجهاز في وضع القراءة فقط.
+          </p>
+        {:else}
+          <p class="text-[11px] text-pos-muted font-bold text-center">Loading machine ID…</p>
+        {/if}
       </div>
     {/if}
 
     <div class="flex items-center justify-between pt-4 border-t border-pos-border">
-      <span class="text-[10px] font-black text-pos-muted">STEP {step} / 3</span>
+      <span class="text-[10px] font-black text-pos-muted">STEP {step} / 4</span>
       <div class="flex items-center gap-2">
         {#if step > 1}
           <button type="button" on:click={() => (step = step - 1)} class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer">Back</button>
@@ -303,6 +382,14 @@
             on:click={() => (pcName.trim() ? (step = 3) : undefined)}
             disabled={!pcName.trim()}
             class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-xs font-black rounded-xl shadow-md cursor-pointer"
+          >
+            Continue
+          </button>
+        {:else if step === 3}
+          <button
+            type="button"
+            on:click={() => (step = 4)}
+            class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-md cursor-pointer"
           >
             Continue
           </button>

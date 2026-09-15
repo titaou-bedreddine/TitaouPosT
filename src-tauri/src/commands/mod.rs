@@ -871,17 +871,27 @@ pub fn get_hwid() -> String {
     settings_service::get_hwid()
 }
 
+/// Legacy manual-code activation: now routes through the SIGNED license
+/// path (any pasted code/key is verified against the developer pubkey). A
+/// plain serial the developer didn't sign simply fails.
 #[tauri::command]
 pub fn verify_license(db: State<'_, DbState>, code: String) -> Result<bool, String> {
-    settings_service::verify_license(&db, &code)
+    match license_service::verify_and_activate(&db, &code) {
+        Ok(_) => Ok(true),
+        Err(e) => Err(format!(
+            "APP_READ_ONLY: invalid license — {}. Ask the developer for a signed key or .lic file.",
+            e
+        )),
+    }
 }
 
-/// Online activation: checks the GitHub-hosted license registry for this
-/// machine's HWID (license files live in licenses/<HWID>.json on the repo).
+/// Online activation (v0.6.0): pull this machine's SIGNED license from the
+/// developer's GitHub registry (published by the standalone License
+/// Generator) and activate through the same verification path as a pasted
+/// key. Falls back with NO_ONLINE_LICENSE when nothing is published yet.
 #[tauri::command]
-pub fn activate_online(db: State<'_, DbState>) -> Result<bool, String> {
-    let hwid = settings_service::get_hwid();
-    settings_service::activate_online_github(&db, &hwid, "titaou-bedreddine", "TitaouPosT-licenses")
+pub fn activate_online(db: State<'_, DbState>) -> Result<serde_json::Value, String> {
+    license_service::activate_from_registry(&db)
 }
 
 #[tauri::command]

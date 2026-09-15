@@ -167,22 +167,6 @@
   let isActivatingOnline = false;
   let activationMsg = '';
 
-  // Online activation against the developer's GitHub license registry:
-  // licenses/<HWID>.json must exist with {"licensed": true}.
-  async function handleActivateOnline() {
-    try {
-      isActivatingOnline = true;
-      activationMsg = 'Contacting activation server...';
-      const ok = await invoke<boolean>('activate_online');
-      activationMsg = ok
-        ? 'Activated successfully / تم التنشيط بنجاح'
-        : 'Not licensed on the server';
-    } catch (e: any) {
-      activationMsg = typeof e === 'string' ? e : e?.message || 'Activation failed';
-    } finally {
-      isActivatingOnline = false;
-    }
-  }
   let activationCode = '';
   let activationSuccess = false;
   let saveSuccessMsg = '';
@@ -503,6 +487,7 @@
       applyPreset(settings.app_preset);
       applyFontSize(settings.app_font_size);
       refreshLicenseState();
+      loadRequestCodeQr();
       const h = await invoke<string>('get_hwid');
       if (h) hwid = h;
     } catch (e) {
@@ -1025,12 +1010,30 @@
     }
   }
 
+  // ACTIVATION REQUEST CODE (v0.6.0): HWID + shop + owner combined —
+  // mirrors the setup wizard's step 4 so the developer can always get the
+  // code from Settings too.
+  let requestCodeQr = '';
+  async function loadRequestCodeQr() {
+    try {
+      const h = await invoke<string>('get_hwid');
+      const shop = (settings.shop_name_fr || settings.shop_name_ar || 'Shop').toString().replace(/[|\n\r]/g, ' ');
+      const owner = (settings.shop_owner_name || 'Owner').toString().replace(/[|\n\r]/g, ' ');
+      const code = `TIT-REQ|v=1|hw=${h}|shop=${shop}|owner=${owner}`;
+      const { entityQrDataUrl } = await import('../../lib/utils/printer');
+      requestCodeQr = await entityQrDataUrl(code, 240);
+    } catch { requestCodeQr = ''; }
+  }
+
   // SIGNED LICENSES (v0.5.34): paste, upload or request — all verified
   // against the embedded developer public key and bound to this HWID.
+  // v0.6.0: drag-and-drop .lic (preferred), serial textbox with Paste
+  // button, online activation = GitHub registry → Telegram fallback.
   let signedKeyInput = '';
-  let licenseState: { status: string; expiry: string; shop: string; hwid: string } | null = null;
+  let licenseState: { status: string; expiry: string; shop: string; hwid: string; readonly?: boolean } | null = null;
   let licenseMsg = '';
   let licenseOk = false;
+  let dragOverLic = false;
   let studioOpen = false;
   let studioShop = '';
   let studioHwid = '';
@@ -1065,16 +1068,41 @@
     await activateSigned(signedKeyInput.trim());
   }
 
+  // Paste from the OS clipboard straight into the serial box.
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        signedKeyInput = text.trim();
+        await activateSigned(signedKeyInput);
+      }
+    } catch (e: any) {
+      licenseOk = false;
+      licenseMsg = '❌ Clipboard unavailable — paste manually with Ctrl+V.';
+    }
+  }
+
   function handleLicenseFileUpload(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
-      const file = target.files[0];
-      const reader = new FileReader();
-      reader.onload = async () => {
-        await activateSigned(String(reader.result || ''));
-      };
-      reader.readAsText(file);
+      readLicFile(target.files[0]);
     }
+  }
+
+  function readLicFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      await activateSigned(String(reader.result || ''));
+    };
+    reader.readAsText(file);
+  }
+
+  // Drag-and-drop .lic files (preferred activation path).
+  function handleLicDrop(e: DragEvent) {
+    e.preventDefault();
+    dragOverLic = false;
+    const file = e.dataTransfer?.files?.[0];
+    if (file) readLicFile(file);
   }
 
   async function requestActivationOnline() {
@@ -1089,6 +1117,39 @@
       licenseMsg = msg.includes('NO_TELEGRAM')
         ? '❌ Telegram not configured on this PC — paste a license key or upload the .lic file instead.'
         : '❌ ' + msg;
+    }
+  }
+
+  // Online activation: pull the SIGNED license from the developer's
+  // GitHub registry; when nothing is published for this PC yet, offer to
+  // send the Telegram activation request instead.
+  async function handleActivateOnline() {
+    try {
+      isActivatingOnline = true;
+      activationMsg = 'Contacting activation server...';
+      const r = await invoke<any>('activate_online');
+      activationMsg = `✅ Activated (${r.mode}) for ${r.shop}${r.expiry ? ' — until ' + r.expiry : ''}`;
+      licenseOk = true;
+      await refreshLicenseState();
+    } catch (e: any) {
+      const msg = typeof e === 'string' ? e : e?.message || 'Activation failed';
+      if (msg.includes('NO_ONLINE_LICENSE')) {
+        // Registry has nothing for this PC yet — fall back to asking the
+        // developer directly over Telegram.
+        try {
+          await invoke('send_activation_request');
+          activationMsg = 'No published license yet — activation request sent to the developer instead.';
+        } catch (e2: any) {
+          const m2 = typeof e2 === 'string' ? e2 : e2?.message || String(e2);
+          activationMsg = m2.includes('NO_TELEGRAM')
+            ? '❌ No published license and no Telegram config — paste the key or drop the .lic file.'
+            : '❌ ' + m2;
+        }
+      } else {
+        activationMsg = '❌ ' + msg;
+      }
+    } finally {
+      isActivatingOnline = false;
     }
   }
 
@@ -1130,20 +1191,12 @@
     URL.revokeObjectURL(a.href);
   }
 
+  // Legacy serial box now routes through the SIGNED path too: any pasted
+  // code/key is verified against the developer pubkey; unsigned serials
+  // fail with a clear message (v0.6.0 — the fake activation is gone).
   async function handleActivate() {
     if (!activationCode) return;
-    try {
-      const ok = await invoke<boolean>('verify_license', { code: activationCode });
-      if (ok) {
-        activationSuccess = true;
-        settings.app_license_status = 'activated';
-        triggerSaveNotification('License activated successfully!');
-      }
-    } catch (e) {
-      console.error(e);
-      activationSuccess = true;
-      triggerSaveNotification('License activated successfully!');
-    }
+    await activateSigned(activationCode.trim());
   }
 
   let latestReleaseInfo: any = null;
@@ -3295,62 +3348,128 @@
           <p class="text-xs text-pos-muted">{ t('st_hardware_machine_id_binding', $currentLocale) }</p>
         </div>
 
-        <!-- License Status Banner -->
-        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between">
+        <!-- License Status Banner (honest: green / amber trial / red none-expired-revoked) -->
+        {#if licenseState}
+          {#if licenseState.status === 'full'}
+            <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <ShieldCheck class="w-8 h-8 text-emerald-600 shrink-0" />
+                <div>
+                  <h4 class="font-black text-sm text-emerald-900 dark:text-emerald-200">{ t('st_full_license', $currentLocale) }</h4>
+                  <p class="text-xs text-emerald-700 dark:text-emerald-400">{ t('st_fully_activated_and_authorized', $currentLocale) }{licenseState.shop ? ' — ' + licenseState.shop : ''}</p>
+                </div>
+              </div>
+              <span class="px-3 py-1 bg-emerald-600 text-white text-xs font-black rounded-xl">{ t('st_active', $currentLocale) }</span>
+            </div>
+          {:else if licenseState.status === 'trial'}
+            <div class="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <ShieldCheck class="w-8 h-8 text-amber-600 shrink-0" />
+                <div>
+                  <h4 class="font-black text-sm text-amber-900 dark:text-amber-200">{ t('st_trial_license', $currentLocale) }</h4>
+                  <p class="text-xs text-amber-700 dark:text-amber-400">{ t('st_valid_until', $currentLocale) } <span class="font-mono font-black">{licenseState.expiry || '—'}</span></p>
+                </div>
+              </div>
+              <span class="px-3 py-1 bg-amber-600 text-white text-xs font-black rounded-xl">TRIAL</span>
+            </div>
+          {:else}
+            <div class="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-2xl flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <AlertOctagon class="w-8 h-8 text-rose-600 shrink-0" />
+                <div>
+                  <h4 class="font-black text-sm text-rose-900 dark:text-rose-200">
+                    {#if licenseState.status === 'expired'}{ t('st_license_expired', $currentLocale) }
+                    {:else if licenseState.status === 'revoked'}{ t('st_license_revoked', $currentLocale) }
+                    {:else}{ t('st_no_license', $currentLocale) }{/if}
+                  </h4>
+                  <p class="text-xs text-rose-700 dark:text-rose-400">{ t('st_readonly_mode_desc', $currentLocale) }</p>
+                </div>
+              </div>
+              <span class="px-3 py-1 bg-rose-600 text-white text-xs font-black rounded-xl">READ-ONLY</span>
+            </div>
+          {/if}
+        {/if}
+
+        <!-- Activation request code: what the developer pastes into the
+             standalone License Generator (copy + QR). -->
+        <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
+          <h4 class="text-xs font-black text-pos-text">{ t('st_request_code_title', $currentLocale) }</h4>
+          <p class="text-[11px] text-pos-muted">{ t('st_request_code_desc', $currentLocale) }</p>
           <div class="flex items-center gap-3">
-            <ShieldCheck class="w-8 h-8 text-emerald-600 shrink-0" />
-            <div>
-              <h4 class="font-black text-sm text-emerald-900 dark:text-emerald-200">{ t('st_titaoupos_pro_lifetime_license', $currentLocale) }</h4>
-              <p class="text-xs text-emerald-700 dark:text-emerald-400">{ t('st_fully_activated_and_authorized', $currentLocale) }</p>
+            <div class="w-[110px] h-[110px] bg-white rounded-xl border border-pos-border p-1.5 shrink-0 flex items-center justify-center">
+              {#if requestCodeQr}
+                <img src={requestCodeQr} alt="QR" class="w-full h-full" />
+              {:else}
+                <QrCode class="w-8 h-8 text-pos-muted/40" />
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0 space-y-2">
+              <label class="block text-[10px] font-bold text-pos-muted">{ t('st_your_terminal_hardware_id', $currentLocale) }</label>
+              <div class="flex items-center gap-2">
+                <input type="text" readonly value={hwid} class="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text" />
+                <button on:click={copyHwid} class="px-3 py-2 bg-sky-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer shrink-0">
+                  <Copy class="w-3.5 h-3.5" />
+                  <span>{ t('st_copy_hwid', $currentLocale) }</span>
+                </button>
+              </div>
             </div>
           </div>
-          <span class="px-3 py-1 bg-emerald-600 text-white text-xs font-black rounded-xl">{ t('st_active', $currentLocale) }</span>
         </div>
 
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-pos-muted mb-1">{ t('st_your_terminal_hardware_id', $currentLocale) }</label>
-            <div class="flex items-center gap-2">
-              <input type="text" readonly value={hwid} class="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-0 rounded-xl text-xs font-mono font-bold text-pos-text" />
-              <button on:click={copyHwid} class="px-3 py-2 bg-sky-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer">
-                <Copy class="w-3.5 h-3.5" />
-                <span>{ t('st_copy_hwid', $currentLocale) }</span>
-              </button>
+        <!-- Online Activation: GitHub registry (signed license) with
+             automatic Telegram-request fallback. -->
+        <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
+          <h4 class="text-xs font-black text-pos-text">{ t('st_activate_online', $currentLocale) }</h4>
+          <p class="text-[11px] text-pos-muted">{ t('st_sends_this_machine_s', $currentLocale) }</p>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              on:click={handleActivateOnline}
+              disabled={isActivatingOnline}
+              class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
+            >
+              {isActivatingOnline ? 'Checking...' : t('st_activate_online_btn', $currentLocale)}
+            </button>
+            <span class="text-[10px] font-mono text-pos-muted">HWID: {hwid}</span>
+          </div>
+          {#if activationMsg}
+            <p class="text-[11px] font-bold {activationMsg.includes('✅') || activationMsg.includes('success') ? 'text-emerald-600' : 'text-rose-600'}">{activationMsg}</p>
+          {/if}
+        </div>
+
+        <!-- SIGNED LICENSE: serial paste + .lic drag-and-drop (preferred) -->
+        <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
+          <h4 class="text-xs font-black text-pos-text">{ t('st_signed_license_title', $currentLocale) }</h4>
+          {#if licenseState}
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border text-xs space-y-1">
+              <p><span class="text-pos-muted font-bold">{ t('st_license_status', $currentLocale) }:</span>
+                <span class="font-black {licenseState.status === 'full' || licenseState.status === 'activated' ? 'text-emerald-600' : licenseState.status === 'trial' ? 'text-amber-600' : 'text-rose-600'} uppercase">{licenseState.status}</span></p>
+              {#if licenseState.shop}<p><span class="text-pos-muted font-bold">{ t('st_license_shop', $currentLocale) }:</span> <span class="font-black text-pos-text">{licenseState.shop}</span></p>{/if}
+              {#if licenseState.expiry}<p><span class="text-pos-muted font-bold">{ t('st_license_expiry', $currentLocale) }:</span> <span class="font-mono font-black text-pos-text">{licenseState.expiry}</span></p>{/if}
+              <p><span class="text-pos-muted font-bold">HWID:</span> <span class="font-mono select-text text-pos-text">{licenseState.hwid}</span></p>
             </div>
+          {/if}
+
+          <!-- .lic drop zone (PREFERRED activation path) -->
+          <div
+            role="button"
+            tabindex="0"
+            class="rounded-2xl border-2 border-dashed px-4 py-5 text-center transition cursor-pointer {dragOverLic ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-pos-border hover:border-sky-400 bg-white dark:bg-slate-900'}"
+            on:click={() => document.getElementById('lic-file-input')?.click()}
+            on:keydown={(e) => { if (e.key === 'Enter') document.getElementById('lic-file-input')?.click(); }}
+            on:dragover|preventDefault={() => (dragOverLic = true)}
+            on:dragleave|preventDefault={() => (dragOverLic = false)}
+            on:drop|preventDefault={handleLicDrop}
+          >
+            <Upload class="w-6 h-6 mx-auto text-sky-600 mb-1.5" />
+            <p class="text-xs font-black text-pos-text">{ t('st_drop_lic_title', $currentLocale) }</p>
+            <p class="text-[10px] text-pos-muted mt-0.5">{ t('st_drop_lic_hint', $currentLocale) }</p>
+            <input id="lic-file-input" type="file" accept=".lic, .key, .txt" on:change={handleLicenseFileUpload} class="hidden" />
           </div>
 
-          <!-- Online Activation -->
-          <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
-            <h4 class="text-xs font-black text-pos-text">{ t('st_activate_online', $currentLocale) }</h4>
-            <p class="text-[11px] text-pos-muted">{ t('st_sends_this_machine_s', $currentLocale) }</p>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                on:click={handleActivateOnline}
-                disabled={isActivatingOnline}
-                class="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-black rounded-xl cursor-pointer shadow-md"
-              >
-                {isActivatingOnline ? 'Checking...' : 'Activate This PC Online'}
-              </button>
-              <span class="text-[10px] font-mono text-pos-muted">HWID: {hwid}</span>
-            </div>
-            {#if activationMsg}
-              <p class="text-[11px] font-bold {activationMsg.includes('success') || activationMsg.includes('بنجاح') ? 'text-emerald-600' : 'text-rose-600'}">{activationMsg}</p>
-            {/if}
-          </div>
-
-          <!-- SIGNED LICENSE: status + paste/upload/request -->
-          <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border space-y-3">
-            <h4 class="text-xs font-black text-pos-text">{ t('st_signed_license_title', $currentLocale) }</h4>
-            {#if licenseState}
-              <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-pos-border text-xs space-y-1">
-                <p><span class="text-pos-muted font-bold">{ t('st_license_status', $currentLocale) }:</span>
-                  <span class="font-black {licenseState.status === 'activated' ? 'text-emerald-600' : licenseState.status === 'trial' ? 'text-amber-600' : 'text-rose-600'} uppercase">{licenseState.status}</span></p>
-                {#if licenseState.shop}<p><span class="text-pos-muted font-bold">{ t('st_license_shop', $currentLocale) }:</span> <span class="font-black text-pos-text">{licenseState.shop}</span></p>{/if}
-                {#if licenseState.expiry}<p><span class="text-pos-muted font-bold">{ t('st_license_expiry', $currentLocale) }:</span> <span class="font-mono font-black text-pos-text">{licenseState.expiry}</span></p>{/if}
-                <p><span class="text-pos-muted font-bold">HWID:</span> <span class="font-mono select-text text-pos-text">{licenseState.hwid}</span></p>
-              </div>
-            {/if}
+          <!-- Serial key paste -->
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold text-pos-muted">{ t('st_serial_paste_label', $currentLocale) }</label>
             <textarea
               bind:value={signedKeyInput}
               rows="3"
@@ -3362,6 +3481,10 @@
             {/if}
             <div class="flex flex-wrap items-center gap-2">
               <button type="button" on:click={activatePastedKey} class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer">{ t('st_activate_btn', $currentLocale) }</button>
+              <button type="button" on:click={pasteFromClipboard} class="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
+                <Copy class="w-3.5 h-3.5" />
+                { t('st_paste_btn', $currentLocale) }
+              </button>
               <label class="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-pos-text text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
                 <FileText class="w-3.5 h-3.5" />
                 <span>{ t('st_upload_license_file_lic', $currentLocale) }</span>
@@ -3371,6 +3494,7 @@
             </div>
             <p class="text-[9px] text-pos-muted font-bold">{ t('st_request_activation_hint', $currentLocale) }</p>
           </div>
+        </div>
 
           <!-- DEVELOPER: License Studio -->
           <details class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-pos-border">
@@ -3413,7 +3537,6 @@
               {/if}
             </div>
           </details>
-        </div>
       </div>
 
     </div>

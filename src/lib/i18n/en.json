@@ -1007,5 +1007,19 @@
   "st_studio_shop": "Shop Name",
   "st_studio_days": "Trial days",
   "sort_newest": "Newest (Recently Added)",
-  "badge_new": "NEW"
+  "badge_new": "NEW",
+  "st_full_license": "FULL LIFETIME LICENSE",
+  "st_trial_license": "TRIAL LICENSE",
+  "st_valid_until": "Valid until",
+  "st_license_expired": "TRIAL LICENSE EXPIRED",
+  "st_license_revoked": "LICENSE REVOKED",
+  "st_no_license": "NO ACTIVE LICENSE",
+  "st_readonly_mode_desc": "This terminal is READ-ONLY — viewing works, sales and changes are blocked until activation.",
+  "st_request_code_title": "Activation Request Code",
+  "st_request_code_desc": "Send this code to the developer (WhatsApp / Telegram). He returns a signed license key bound to this PC. Copy the code or let him scan the QR.",
+  "st_activate_online_btn": "Activate This PC Online",
+  "st_drop_lic_title": "Drop the .lic file here",
+  "st_drop_lic_hint": "Drag-and-drop the license file the developer gave you (preferred), or click to browse.",
+  "st_serial_paste_label": "Or paste the serial key",
+  "st_paste_btn": "Paste & Activate"
 }

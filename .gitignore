@@ -37,3 +37,6 @@ desktop.ini
 license_master.key
 license_master.pub
 *.lic
+
+# License Generator (standalone dev tool) — build artifacts
+license-generator/src-tauri/target/
