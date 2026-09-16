@@ -141,9 +141,13 @@
 
     // ---- helpers ----
     function setMsg(id, text, cls) { const el = $(id); el.textContent = text || ''; el.className = 'msg ' + (cls || ''); }
-    async function invoke(cmd, args) {
-      const { invoke } = window.__TAURI__.core ?? window.__TAURI_INTERNALS__;
-      return window.__TAURI_INTERNALS__.invoke(cmd, args ?? {});
+    // Tauri 2 low-level bridge (always injected); __TAURI__ helper object
+    // only exists when withGlobalTauri is enabled.
+    function invoke(cmd, args) {
+      if (window.__TAURI__ && window.__TAURI__.core) {
+        return window.__TAURI__.core.invoke(cmd, args || {});
+      }
+      return window.__TAURI_INTERNALS__.invoke(cmd, args || {});
     }
 
     // ---- mode toggle ----
