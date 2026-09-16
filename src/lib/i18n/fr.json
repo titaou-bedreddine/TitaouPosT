@@ -1021,5 +1021,7 @@
   "st_drop_lic_title": "Déposez le fichier .lic ici",
   "st_drop_lic_hint": "Glissez le fichier de licence fourni par le développeur (recommandé), ou cliquez pour parcourir.",
   "st_serial_paste_label": "Ou collez la clé série",
-  "st_paste_btn": "Coller & Activer"
+  "st_paste_btn": "Coller & Activer",
+  "st_copy_request_code": "Copier le code",
+  "st_copied": "Copié"
 }

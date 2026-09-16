@@ -123,7 +123,11 @@ fn create_license(
     };
     let payload_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
 
-    let sk = minisign::SecretKey::from_file(&key_path, None)
+    // Some("") — explicit EMPTY password: passing None makes minisign try
+    // an INTERACTIVE console prompt, which fails in a GUI app ("handle is
+    // invalid"). Our master key is unencrypted, so the empty password is
+    // the correct non-interactive path.
+    let sk = minisign::SecretKey::from_file(&key_path, Some(String::new()))
         .map_err(|e| format!("load master key: {}", e))?;
     let pk = minisign::PublicKey::from_base64(LICENSE_PUBKEY)
         .map_err(|e| format!("pubkey mismatch with the POS build: {}", e))?;
@@ -158,28 +162,47 @@ fn create_license(
     }))
 }
 
-/// Parse a request code from the POS (setup wizard step 4 / Activation
-/// tab): TIT-REQ|v=1|hw=HW-..|shop=..|owner=..
+/// Parse what the developer pastes — tolerant to all client formats:
+/// - TIT-REQ|v=1|hw=HW-..|shop=..|owner=..  (setup wizard / Activation page)
+/// - #TITAOUREQUEST|hw=..|pc=..|shop=..    (Telegram request line)
+/// - a bare HW-XXXXXXXXXXXXXXXX machine id
 #[tauri::command]
 fn parse_request_code(code: String) -> Result<serde_json::Value, String> {
     let text = code.trim();
-    let inner = text
-        .strip_prefix("TIT-REQ|")
-        .ok_or("Not a TitaouPOS request code (expected TIT-REQ|v=1|hw=…|shop=…|owner=…)")?;
     let mut hw = String::new();
     let mut shop = String::new();
     let mut owner = String::new();
-    for part in inner.split('|') {
-        if let Some(v) = part.strip_prefix("hw=") {
-            hw = v.trim().to_string();
-        } else if let Some(v) = part.strip_prefix("shop=") {
-            shop = v.trim().to_string();
-        } else if let Some(v) = part.strip_prefix("owner=") {
-            owner = v.trim().to_string();
+    // One pass over k=v pairs covers both pipe formats.
+    let inner = text
+        .strip_prefix("TIT-REQ|")
+        .or_else(|| text.split_once("#TITAOUREQUEST|").map(|(_, rest)| rest))
+        .map(|s| s.to_string());
+    if let Some(inner) = inner {
+        for part in inner.split('|') {
+            if let Some(v) = part.strip_prefix("hw=") {
+                hw = v.trim().to_string();
+            } else if let Some(v) = part.strip_prefix("shop=") {
+                shop = v.trim().to_string();
+            } else if let Some(v) = part.strip_prefix("owner=") {
+                owner = v.trim().to_string();
+            }
+        }
+    }
+    // Fallback: scan for a bare HW-... machine id anywhere in the text.
+    if hw.is_empty() {
+        if let Some(pos) = text.find("HW-") {
+            let end = text[pos..]
+                .find(|c: char| !c.is_ascii_alphanumeric() && c != '-')
+                .map(|i| pos + i)
+                .unwrap_or(text.len());
+            hw = text[pos..end].to_string();
         }
     }
     if hw.is_empty() {
-        return Err("Request code has no machine ID (hw=…)".into());
+        return Err(format!(
+            "No machine ID found — paste the client's request code (TIT-REQ|…), the Telegram request line, or a HW-… id.\nGot: {}",
+            if text.len() > 80 { &text[..80] } else { text }
+        ));
     }
     Ok(json!({ "hwid": hw, "shop": shop, "owner": owner }))
 }

@@ -1021,5 +1021,7 @@
   "st_drop_lic_title": "Drop the .lic file here",
   "st_drop_lic_hint": "Drag-and-drop the license file the developer gave you (preferred), or click to browse.",
   "st_serial_paste_label": "Or paste the serial key",
-  "st_paste_btn": "Paste & Activate"
+  "st_paste_btn": "Paste & Activate",
+  "st_copy_request_code": "Copy Request Code",
+  "st_copied": "Copied"
 }

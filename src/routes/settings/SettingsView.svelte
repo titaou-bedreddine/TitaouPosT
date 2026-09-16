@@ -1012,17 +1012,28 @@
 
   // ACTIVATION REQUEST CODE (v0.6.0): HWID + shop + owner combined —
   // mirrors the setup wizard's step 4 so the developer can always get the
-  // code from Settings too.
+  // code from Settings too. The code text is shown with a Copy button
+  // right next to its QR (no phone-scan needed).
+  let requestCode = '';
   let requestCodeQr = '';
+  let copiedRequestCode = false;
   async function loadRequestCodeQr() {
     try {
       const h = await invoke<string>('get_hwid');
       const shop = (settings.shop_name_fr || settings.shop_name_ar || 'Shop').toString().replace(/[|\n\r]/g, ' ');
       const owner = (settings.shop_owner_name || 'Owner').toString().replace(/[|\n\r]/g, ' ');
-      const code = `TIT-REQ|v=1|hw=${h}|shop=${shop}|owner=${owner}`;
+      requestCode = `TIT-REQ|v=1|hw=${h}|shop=${shop}|owner=${owner}`;
       const { entityQrDataUrl } = await import('../../lib/utils/printer');
-      requestCodeQr = await entityQrDataUrl(code, 240);
-    } catch { requestCodeQr = ''; }
+      requestCodeQr = await entityQrDataUrl(requestCode, 240);
+    } catch { requestCode = ''; requestCodeQr = ''; }
+  }
+
+  async function copyRequestCode() {
+    try {
+      await navigator.clipboard.writeText(requestCode);
+      copiedRequestCode = true;
+      setTimeout(() => (copiedRequestCode = false), 2000);
+    } catch { /* clipboard blocked — the code box stays selectable */ }
   }
 
   // SIGNED LICENSES (v0.5.34): paste, upload or request — all verified
@@ -3395,7 +3406,7 @@
         <div class="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-2xl border border-sky-200 dark:border-sky-800/60 space-y-3">
           <h4 class="text-xs font-black text-pos-text">{ t('st_request_code_title', $currentLocale) }</h4>
           <p class="text-[11px] text-pos-muted">{ t('st_request_code_desc', $currentLocale) }</p>
-          <div class="flex items-center gap-3">
+          <div class="flex items-start gap-3">
             <div class="w-[110px] h-[110px] bg-white rounded-xl border border-pos-border p-1.5 shrink-0 flex items-center justify-center">
               {#if requestCodeQr}
                 <img src={requestCodeQr} alt="QR" class="w-full h-full" />
@@ -3404,13 +3415,14 @@
               {/if}
             </div>
             <div class="flex-1 min-w-0 space-y-2">
-              <label class="block text-[10px] font-bold text-pos-muted">{ t('st_your_terminal_hardware_id', $currentLocale) }</label>
-              <div class="flex items-center gap-2">
-                <input type="text" readonly value={hwid} class="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-xs font-mono font-bold text-pos-text" />
-                <button on:click={copyHwid} class="px-3 py-2 bg-sky-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer shrink-0">
+              <label class="block text-[10px] font-bold text-pos-muted">{ t('st_request_code_title', $currentLocale) }</label>
+              <textarea readonly rows="3" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-pos-border rounded-xl text-[10px] font-mono select-text text-pos-text outline-none resize-none">{requestCode || '…'}</textarea>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" on:click={copyRequestCode} class="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-1.5">
                   <Copy class="w-3.5 h-3.5" />
-                  <span>{ t('st_copy_hwid', $currentLocale) }</span>
+                  {copiedRequestCode ? '✓ ' + t('st_copied', $currentLocale) : t('st_copy_request_code', $currentLocale)}
                 </button>
+                <span class="text-[10px] font-mono text-pos-muted truncate">HWID: {hwid}</span>
               </div>
             </div>
           </div>

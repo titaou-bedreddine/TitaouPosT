@@ -137,7 +137,11 @@ pub fn create_license(
     };
     let payload_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
 
-    let sk = minisign::SecretKey::from_file(&key_path, None)
+    // Some("") — explicit EMPTY password: passing None makes minisign try
+    // an INTERACTIVE console prompt, which fails in a GUI app ("handle is
+    // invalid"). Our master key is unencrypted, so the empty password is
+    // the correct non-interactive path.
+    let sk = minisign::SecretKey::from_file(&key_path, Some(String::new()))
         .map_err(|e| format!("load master key: {}", e))?;
     let pk = minisign::PublicKey::from_base64(LICENSE_PUBKEY)
         .map_err(|e| format!("embedded pubkey invalid: {}", e))?;
