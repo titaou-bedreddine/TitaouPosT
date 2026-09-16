@@ -37,15 +37,16 @@ fn master_key_path() -> std::path::PathBuf {
     base.join("TitaouPosT").join("license_master.key")
 }
 
-fn master_key_exists() -> bool {
-    master_key_path().exists()
-}
-
 /// Generate the master keypair (once): license_master.key (SECRET — never
 /// share, never commit) + license_master.pub next to it.
+/// Uses the ENCRYPTED path with an EMPTY password: same unencrypted storage
+/// but the crate computes the CHECKSUM (generate_unencrypted_keypair
+/// leaves it zeroed, which makes every later load fail with
+/// "Wrong password for that key" — the v0.5.34 bug).
 #[tauri::command]
 fn generate_master_keypair() -> Result<String, String> {
-    let kp = KeyPair::generate_unencrypted_keypair().map_err(|e| e.to_string())?;
+    let kp = KeyPair::generate_encrypted_keypair(Some(String::new()))
+        .map_err(|e| format!("keygen failed: {}", e))?;
     let path = master_key_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -68,6 +69,58 @@ fn generate_master_keypair() -> Result<String, String> {
     )
     .map_err(|e| e.to_string())?;
     Ok(kp.pk.to_base64())
+}
+
+/// Load the master secret key WITHOUT the checksum gate: key files written
+/// by TitaouPOS ≤ v0.6.0-broken carry a zeroed checksum, so minisign's
+/// from_file always rejects them ("Wrong password for that key"). We
+/// parse the box directly and DERIVE the public key from the secret key
+/// (minisign sk = seed[32] || public[32]) — callers must verify the derived
+/// public key against LICENSE_PUBKEY before signing.
+fn load_master_key_unchecked(
+    key_path: &std::path::Path,
+) -> Result<(minisign::SecretKey, minisign::PublicKey, String), String> {
+    let content = std::fs::read_to_string(key_path)
+        .map_err(|e| format!("read master key: {}", e))?;
+    let b64_line = content
+        .lines()
+        .nth(1)
+        .ok_or("Malformed master key file (missing key line)")?
+        .trim();
+    let bytes = B64
+        .decode(b64_line)
+        .map_err(|e| format!("Malformed master key file: {}", e))?;
+    // Secret box layout: sig_alg[2] kdf_alg[2] chk_alg[2] salt[32]
+    // opslimit[8] memlimit[8] keynum[8] sk[64] chk[32] — 158 bytes.
+    if bytes.len() != 158 {
+        return Err(format!(
+            "Malformed master key file ({} bytes, expected 158)",
+            bytes.len()
+        ));
+    }
+    let sk = minisign::SecretKey::from_bytes(&bytes)
+        .map_err(|e| format!("Malformed master key file: {}", e))?;
+    let pk_box = [&bytes[0..2], &bytes[54..62], &bytes[94..126]].concat();
+    let pk = minisign::PublicKey::from_bytes(&pk_box)
+        .map_err(|e| format!("derive public key: {}", e))?;
+    let pub_b64 = pk.to_base64();
+    Ok((sk, pk, pub_b64))
+}
+
+/// The gate every signer must pass: the master key's derived PUBLIC key has
+/// to be the one embedded in the POS builds, or licenses signed with it are
+/// worthless (every client rejects them).
+fn ensure_master_key_matches_pos_builds(pub_b64: &str) -> Result<(), String> {
+    if pub_b64 != LICENSE_PUBKEY {
+        return Err(format!(
+            "MASTER KEY MISMATCH: this key's public key is {}, but the POS builds embed {}. \
+             Licenses signed with it would be rejected by every client. Restore the original \
+             master key (the ~/.tauri/TitaouPOS_LICENSE_MASTER.key backup) or regenerate the \
+             keypair AND rebuild the POS with the new public key.",
+            pub_b64, LICENSE_PUBKEY
+        ));
+    }
+    Ok(())
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -102,6 +155,8 @@ fn create_license(
     if !key_path.exists() {
         return Err("NO_MASTER_KEY".into());
     }
+    let (sk, pk, pub_b64) = load_master_key_unchecked(&key_path)?;
+    ensure_master_key_matches_pos_builds(&pub_b64)?;
     let mode = if mode == "trial" { "trial" } else { "full" };
     let expiry = if mode == "trial" {
         Some(
@@ -123,14 +178,6 @@ fn create_license(
     };
     let payload_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
 
-    // Some("") — explicit EMPTY password: passing None makes minisign try
-    // an INTERACTIVE console prompt, which fails in a GUI app ("handle is
-    // invalid"). Our master key is unencrypted, so the empty password is
-    // the correct non-interactive path.
-    let sk = minisign::SecretKey::from_file(&key_path, Some(String::new()))
-        .map_err(|e| format!("load master key: {}", e))?;
-    let pk = minisign::PublicKey::from_base64(LICENSE_PUBKEY)
-        .map_err(|e| format!("pubkey mismatch with the POS build: {}", e))?;
     let sig_box = minisign::sign(
         Some(&pk),
         &sk,
@@ -394,7 +441,29 @@ fn put_registry_file(token: &str, path: &str, content: &str, msg: &str) -> Resul
 
 #[tauri::command]
 fn master_status() -> serde_json::Value {
-    json!({ "exists": master_key_exists(), "path": master_key_path().to_string_lossy() })
+    let path = master_key_path();
+    let mut exists = path.exists();
+    let mut pub_b64 = String::new();
+    let mut matches_embedded = false;
+    if exists {
+        match load_master_key_unchecked(&path) {
+            Ok((_, _, p)) => {
+                matches_embedded = p == LICENSE_PUBKEY;
+                pub_b64 = p;
+            }
+            Err(_) => {
+                // Unreadable/corrupt — report as not usable.
+                exists = false;
+            }
+        }
+    }
+    json!({
+        "exists": exists,
+        "path": path.to_string_lossy(),
+        "pub": pub_b64,
+        "matches_embedded": matches_embedded,
+        "embedded": LICENSE_PUBKEY,
+    })
 }
 
 fn main() {

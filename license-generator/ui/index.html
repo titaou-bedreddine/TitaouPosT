@@ -164,12 +164,26 @@
       try {
         const st = await invoke('master_status');
         const b = $('master-badge');
-        if (st.exists) { b.textContent = 'READY'; b.className = 'badge ok'; $('btn-gen-master').disabled = true; }
-        else { b.textContent = 'NOT GENERATED'; b.className = 'badge warn'; $('btn-gen-master').disabled = false; }
+        const info = $('master-info');
+        if (!st.exists) {
+          b.textContent = 'NOT GENERATED'; b.className = 'badge warn';
+          $('btn-gen-master').textContent = 'Generate Master Keypair';
+          info.innerHTML = 'The secret key signs every license — keep <span class="mono">%APPDATA%\\TitaouPosT\\license_master.key</span> private (back it up; never commit it).';
+        } else if (st.matches_embedded) {
+          b.textContent = 'READY — MATCHES POS BUILDS'; b.className = 'badge ok';
+          info.innerHTML = 'Master key loaded. Public key (embedded in the POS builds): <span class="mono">' + st.pub + '</span>';
+        } else {
+          b.textContent = 'MISMATCH — WRONG KEY'; b.className = 'badge warn';
+          info.innerHTML = 'This master key does <b>not</b> match the public key embedded in the POS builds.<br />Its public key: <span class="mono">' + (st.pub || '?') + '</span><br />POS builds expect: <span class="mono">' + st.embedded + '</span><br />Sign License will refuse to run. Restore the original master key (e.g. <span class="mono">~/.tauri/TitaouPOS_LICENSE_MASTER.key</span>) or regenerate the keypair and rebuild the POS.';
+        }
       } catch (e) { $('master-badge').textContent = 'ERROR'; $('master-badge').className = 'badge warn'; }
     }
     $('btn-gen-master').onclick = async () => {
       setMsg('sign-msg', '', '');
+      const st = await invoke('master_status').catch(() => null);
+      if (st && st.exists && !confirm(
+        'This REPLACES your master key.\n\nLicenses signed with the old key STOP WORKING in every client POS (they embed the old public key). Only continue if you intend to rebuild the POS with the new public key.\n\nReplace the master key?'
+      )) return;
       try {
         const pub = await invoke('generate_master_keypair');
         setMsg('sign-msg', '✅ Master keypair generated. PUBLIC key (must match the POS build): ' + pub, 'ok');
